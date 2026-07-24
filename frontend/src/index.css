@@ -155,7 +155,7 @@ a, li, ul, ol, svg, img, figure, figcaption {
 }
 
 .dark .sidebar-bg {
-  background-color: color-mix(in srgb, var(--accent-color) 20%, rgba(11, 12, 16, 0.7));
+  background-color: color-mix(in srgb, var(--accent-color) 30%, rgba(11, 12, 16, 0.7));
 }
 
 .dark {
