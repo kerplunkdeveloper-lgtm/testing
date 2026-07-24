@@ -22,6 +22,7 @@ import {
   FiHelpCircle,
   FiCalendar,
   FiCheck,
+  FiEye,
 } from "react-icons/fi";
 import { FaRegBuilding } from "react-icons/fa";
 import {
@@ -242,6 +243,17 @@ const MultiSelect = ({
   );
 };
 
+const formatDept = (d) => {
+  if (!d) return "";
+  const str = d.trim();
+  if (str.length <= 3) return str.toUpperCase();
+  const words = str.split(/[\s_-]+/);
+  if (words.length > 1) {
+    return words.map(w => w[0]).join('').toUpperCase().substring(0, 3);
+  }
+  return str.substring(0, 3).toUpperCase();
+};
+
 const Clients = () => {
   const dispatch = useDispatch();
 
@@ -257,6 +269,8 @@ const Clients = () => {
   const [clientNameFilter, setClientNameFilter] = useState("All");
   const [memberFilter, setMemberFilter] = useState("All");
   const [clientToDelete, setClientToDelete] = useState(null);
+  const [viewClient, setViewClient] = useState(null);
+  const [showViewOffcanvas, setShowViewOffcanvas] = useState(false);
   const [activeTab, setActiveTab] = useState("profile"); // 'profile', 'service', 'finance'
 
   // Pagination State
@@ -415,7 +429,9 @@ const Clients = () => {
             : client.assignedTo &&
               (client.assignedTo._id || client.assignedTo) === memberFilter;
 
-      return matchesSearch && matchesService && matchesClientName && matchesMember;
+      return (
+        matchesSearch && matchesService && matchesClientName && matchesMember
+      );
     });
   }, [clients, searchTerm, serviceFilter, clientNameFilter, memberFilter]);
 
@@ -646,12 +662,12 @@ const Clients = () => {
       {!loading && (
         <motion.div
           layout
-          className="overflow-hidden theme-bg-card border border-slate-200 dark:border-slate-700/60 rounded-2xl shadow-sm"
+          className="overflow-hidden theme-bg-card"
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse whitespace-nowrap min-w-[1100px] text-xs">
+            <table className="w-full text-left  whitespace-nowrap min-w-[1100px] text-xs">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700/60 text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-widest text-[9.5px]">
+                <tr className=" text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-widest text-[9.5px]">
                   <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[260px] border-r border-slate-200 dark:border-slate-700/60">
                     <div className="flex items-center justify-start gap-1.5">
                       <FaRegBuilding size={11} className="opacity-70" />
@@ -670,11 +686,6 @@ const Clients = () => {
                   {user?.role === "team" && (
                     <th className="px-5 py-4 font-extrabold bg-transparent text-center border-r border-slate-200 dark:border-slate-700/60 last:border-r-0">
                       Assigned By
-                    </th>
-                  )}
-                  {user?.role !== "team" && (
-                    <th className="px-5 py-4 font-extrabold bg-transparent text-center border-r border-slate-200 dark:border-slate-700/60 last:border-r-0">
-                      Financials (INR)
                     </th>
                   )}
                   {(user?.role === "admin" ||
@@ -860,7 +871,7 @@ const Clients = () => {
                                   })}
                               </div>
 
-                              <div className="flex flex-col gap-2 min-w-[200px] max-w-[240px]">
+                              <div className="grid grid-cols-2 md:grid-cols-3   gap-2 min-w-[250px] max-w-[350px]">
                                 {client.assignedTo &&
                                 (Array.isArray(client.assignedTo)
                                   ? client.assignedTo.length > 0
@@ -883,22 +894,9 @@ const Clients = () => {
                                       return (
                                         <div
                                           key={member._id || member}
-                                          className="flex items-center gap-1.5 p-1 pr-3 rounded-full border border-slate-100 dark:border-slate-700 bg-white dark:bg-[#0B1120] shadow-sm transition-transform hover:scale-105 w-max max-w-full overflow-hidden"
+                                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-slate-800 shadow-sm transition-transform hover:scale-105 w-max max-w-full overflow-hidden"
                                           title={member.name || member.email}
                                         >
-                                          {avatarUrl ? (
-                                            <img
-                                              src={avatarUrl}
-                                              alt={member.name || "User"}
-                                              className="w-5 h-5 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-800"
-                                            />
-                                          ) : (
-                                            <div
-                                              className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 ${uCol.bg} ${uCol.text} border ${uCol.border}`}
-                                            >
-                                              {initial}
-                                            </div>
-                                          )}
                                           <div className="flex items-center gap-1.5">
                                             <span className="text-[9.5px] font-bold text-slate-800 dark:text-slate-400 truncate max-w-[85px]">
                                               {member.name || member.email}
@@ -906,8 +904,8 @@ const Clients = () => {
                                             {dept && (
                                               <>
                                                 <span className="w-[1px] h-2.5 bg-slate-200 dark:bg-slate-700 block"></span>
-                                                <span className="text-[7.5px] font-bold text-[#c2410c] dark:text-[#ea580c] truncate max-w-[80px]">
-                                                  {dept}
+                                                <span className="text-[7.5px] font-bold text-[#c2410c] dark:text-[#ea580c] truncate max-w-[80px]" title={dept}>
+                                                  {formatDept(dept)}
                                                 </span>
                                               </>
                                             )}
@@ -937,25 +935,12 @@ const Clients = () => {
                                         : "?";
                                       return (
                                         <div
-                                          className="flex items-center gap-1.5 p-1 pr-3 rounded-full border border-slate-100 dark:border-slate-700 bg-white dark:bg-[#0B1120] shadow-sm transition-transform hover:scale-105 w-max max-w-full overflow-hidden"
+                                          className="flex items-center gap-1.5 px-2.5 py-1  bg-white dark:bg-[#0B1120] shadow-sm transition-transform hover:scale-105 w-max max-w-full overflow-hidden"
                                           title={
                                             singleMember.name ||
                                             singleMember.email
                                           }
                                         >
-                                          {avatarUrl ? (
-                                            <img
-                                              src={avatarUrl}
-                                              alt={singleMember.name || "User"}
-                                              className="w-5 h-5 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-800"
-                                            />
-                                          ) : (
-                                            <div
-                                              className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 ${uCol.bg} ${uCol.text} border ${uCol.border}`}
-                                            >
-                                              {initial}
-                                            </div>
-                                          )}
                                           <div className="flex items-center gap-1.5">
                                             <span className="text-[9.5px] font-bold text-slate-800 dark:text-slate-400 truncate max-w-[85px]">
                                               {singleMember.name ||
@@ -964,8 +949,8 @@ const Clients = () => {
                                             {dept && (
                                               <>
                                                 <span className="w-[1px] h-2.5 bg-slate-200 dark:bg-slate-700 block"></span>
-                                                <span className="text-[7.5px] font-bold text-[#c2410c] dark:text-[#ea580c] truncate max-w-[80px]">
-                                                  {dept}
+                                                <span className="text-[7.5px] font-bold text-[#c2410c] dark:text-[#ea580c] truncate max-w-[80px]" title={dept}>
+                                                  {formatDept(dept)}
                                                 </span>
                                               </>
                                             )}
@@ -975,7 +960,7 @@ const Clients = () => {
                                     })()
                                   )
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-white/5 text-slate-400 dark:text-slate-500 italic text-[9.5px]">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5  bg-slate-50/50 dark:bg-white/5 text-slate-400 dark:text-slate-500 italic text-[9.5px]">
                                     <FiUser size={9} />
                                     <span>Unassigned</span>
                                   </span>
@@ -1117,35 +1102,21 @@ const Clients = () => {
                             </td>
                           )}
 
-                          {/* Budget Info */}
-                          {user?.role !== "team" && (
-                            <td className={cellClass}>
-                              <div className="space-y-0.5">
-                                <div className="text-[11.5px] font-extrabold text-slate-800 dark:text-slate-200">
-                                  ₹
-                                  {Number(
-                                    client.totalBudget || 0,
-                                  ).toLocaleString("en-IN")}
-                                </div>
-                                <div className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                                  <span>
-                                    Base: ₹
-                                    {Number(client.budget || 0).toLocaleString(
-                                      "en-IN",
-                                    )}
-                                  </span>
-                                  <span>•</span>
-                                  <span>GST: {client.gst}%</span>
-                                </div>
-                              </div>
-                            </td>
-                          )}
-
                           {/* Actions */}
                           {(user?.role === "admin" ||
                             user?.role === "operationmanager") && (
                             <td className={`${cellClass} text-center`}>
                               <div className="flex items-center justify-center gap-2.5">
+                                <button
+                                  onClick={() => {
+                                    setViewClient(client);
+                                    setShowViewOffcanvas(true);
+                                  }}
+                                  className="w-8 h-8 flex items-center justify-center bg-teal-50 dark:bg-teal-500/10 hover:bg-teal-100 dark:hover:bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-500/30 rounded-[9px] transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer"
+                                  title="View Record"
+                                >
+                                  <FiEye size={14.5} className="stroke-[2.5]" />
+                                </button>
                                 <button
                                   onClick={() => handleEdit(client)}
                                   className="w-8 h-8 flex items-center justify-center bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-[9px] transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer"
@@ -1174,15 +1145,7 @@ const Clients = () => {
                     })
                   ) : (
                     <tr>
-                      <td
-                        colSpan={
-                          user?.role === "admin" ||
-                          user?.role === "operationmanager"
-                            ? 6
-                            : 5
-                        }
-                        className="px-5 py-24 text-center"
-                      >
+                      <td colSpan={5} className="px-5 py-24 text-center">
                         <div className="flex flex-col items-center justify-center text-center">
                           <div className="w-14 h-14 rounded-full theme-bg-main flex items-center justify-center mb-3">
                             <FiUsers
@@ -2251,6 +2214,156 @@ const Clients = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* VIEW CLIENT OFFCANVAS */}
+      <AnimatePresence>
+        {showViewOffcanvas && viewClient && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowViewOffcanvas(false)}
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+            />
+            {/* Offcanvas Panel */}
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col"
+            >
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                <h3 className="text-sm font-bold theme-text-primary flex items-center gap-2">
+                  <FiEye className="theme-text-accent" />
+                  Client Details
+                </h3>
+                <button
+                  onClick={() => setShowViewOffcanvas(false)}
+                  className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-transparent text-slate-400 hover:text-rose-500 transition-colors shadow-sm cursor-pointer"
+                >
+                  <FiX size={16} className="stroke-[2.5]" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Profile Details */}
+                <div>
+                  <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
+                    Profile Details
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
+                        Company Name
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {viewClient.companyName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
+                        Industry
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {viewClient.industry}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
+                        Onboarding Date
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {viewClient.onboardingDate &&
+                          new Date(
+                            viewClient.onboardingDate,
+                          ).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Info */}
+                <div>
+                  <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
+                    Contact Info
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
+                        SPOC
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {viewClient.spoc || "N/A"}
+                      </span>
+                      {viewClient.designation && (
+                        <span className="text-[10px] text-slate-500 ml-1">
+                          ({viewClient.designation})
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
+                        Phone Number
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {viewClient.phoneNumber || "N/A"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financials */}
+                {user?.role !== "team" && (
+                  <div>
+                    <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
+                      Financials
+                    </h4>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
+                          Budget
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          ₹
+                          {Number(viewClient.budget || 0).toLocaleString(
+                            "en-IN",
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
+                          GST
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          {viewClient.gst}%
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
+                          Total (Inc. GST)
+                        </span>
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                          ₹
+                          {Number(viewClient.totalBudget || 0).toLocaleString(
+                            "en-IN",
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>

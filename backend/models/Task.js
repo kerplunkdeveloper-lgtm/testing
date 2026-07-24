@@ -45,7 +45,14 @@ const SubtaskSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
-
+  revisions: {
+    type: Number,
+    default: 0,
+  },
+  client: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Client",
+  },
   totalPausedMs: {
   type: Number,
   default: 0,
@@ -175,6 +182,10 @@ const TaskSchema = new mongoose.Schema(
     revisions: {
       type: Number,
       default: 0,
+    },
+    client: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Client",
     },
     rejectionHistory: [
       {

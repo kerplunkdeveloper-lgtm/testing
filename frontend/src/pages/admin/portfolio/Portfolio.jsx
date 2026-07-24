@@ -892,46 +892,18 @@ const Portfolio = () => {
 
               {/* Action Buttons Right Side */}
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => {
-                    setNewProjectName("");
-                    const targetClientId =
-                      activePortfolio?.client?._id ||
-                      activePortfolio?.client ||
-                      clients[0]?._id ||
-                      "";
-                    setNewProjectClientId(targetClientId);
-                    setShowCreateProjectForm(true);
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-50/60 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-755 dark:text-slate-200 hover:bg-slate-105 dark:hover:bg-slate-850 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm active:scale-95 cursor-pointer"
-                >
-                  <LuPlus
-                    size={14}
-                    className="text-slate-500 dark:text-slate-400"
-                  />
-                  Create New Project
-                </button>
               </div>
             </div>
-            <div className="min-h-[350px] space-y-4">
+            <div className="min-h-[calc(100vh-200px)] space-y-4 flex flex-col">
               {/* Grouped Projects Table (Image 2) */}
               {(() => {
                 const validProjects = (activePortfolio.projectIdsList || [])
                   .map((projId) => projects.find((p) => p._id === projId))
                   .filter(Boolean);
 
-                if (validProjects.length === 0) {
-                  return (
-                    <div className="px-6 py-12 text-center text-slate-400 dark:text-slate-505 italic bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-850  shadow-sm">
-                      No projects added. Choose "+ Add work" or search below to
-                      group projects inside this portfolio.
-                    </div>
-                  );
-                }
-
                 return (
-                  <div className="overflow-x-auto bg-white dark:bg-slate-900/30">
-                    <table className="w-full text-left border-collapse text-xs">
+                  <div className="overflow-x-auto bg-white dark:bg-slate-900/30 flex-1 h-full">
+                    <table className="w-full h-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-50/50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[10px]">
                           <th className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
@@ -956,7 +928,89 @@ const Portfolio = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {validProjects.map((project, index) => {
+                        {validProjects.length === 0 ? (
+                          <>
+                            <tr
+                              className="bg-slate-50/60 dark:bg-slate-800/60 h-10 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-[11px] relative"
+                              onClick={() => setShowAddProjectDropdown(!showAddProjectDropdown)}
+                            >
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 relative">
+                                Add a project or portfolio by name
+
+                                <AnimatePresence>
+                                  {showAddProjectDropdown && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -5 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -5 }}
+                                      className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden cursor-default"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="px-3 py-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+                                        Projects
+                                      </div>
+                                      <div className="max-h-48 overflow-y-auto">
+                                        {projects
+                                          .filter((p) => !(activePortfolio.projectIdsList || []).includes(p._id))
+                                          .map((p) => {
+                                            const pIcon = getProjectIcon(p.name, p._id);
+                                            const IconCmp = pIcon.icon;
+                                            return (
+                                              <button
+                                                key={p._id}
+                                                type="button"
+                                                onClick={() => {
+                                                  dispatch(addProjectsToPortfolio({ id: activePortfolio._id, projectIds: [p._id] }));
+                                                  setShowAddProjectDropdown(false);
+                                                }}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                                              >
+                                                <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${pIcon.bg}`}>
+                                                  <IconCmp size={10} />
+                                                </div>
+                                                <span className="truncate">{p.name}</span>
+                                              </button>
+                                            );
+                                          })}
+                                        {projects.filter((p) => !(activePortfolio.projectIdsList || []).includes(p._id)).length === 0 && (
+                                          <div className="px-3 py-3 text-center text-[10px] text-slate-400 italic">
+                                            No projects available
+                                          </div>
+                                        )}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setShowAddProjectDropdown(false);
+                                          // Navigate to projects page or handle logic
+                                          navigate(`/${role}/projects`);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-t border-slate-100 dark:border-slate-700"
+                                      >
+                                        <FiPlus size={14} />
+                                        Create new project
+                                      </button>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </td>
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-b border-slate-200 dark:border-slate-800"></td>
+                            </tr>
+                            <tr className="bg-white dark:bg-slate-900/30 h-full">
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-slate-200 dark:border-slate-800"></td>
+                            </tr>
+                          </>
+                        ) : (
+                          validProjects.map((project, index) => {
                           const projId = project._id;
 
                           // Calculate progress percentage
@@ -1113,7 +1167,18 @@ const Portfolio = () => {
                               </td>
                             </tr>
                           );
-                        })}
+                        })
+                        )}
+                        {validProjects.length > 0 && (
+                          <tr className="h-full">
+                            <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                            <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                            <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                            <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                            <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                            <td className="px-4 py-2 border-slate-200 dark:border-slate-800"></td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1261,171 +1326,7 @@ const Portfolio = () => {
         )}
       </AnimatePresence>
 
-      {/* CREATE NEW PROJECT OFFCANVAS DRAWER */}
-      <AnimatePresence>
-        {showCreateProjectForm && activePortfolio && (
-          <div className="fixed inset-0 z-50 flex justify-end">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowCreateProjectForm(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
 
-            {/* Side Sheet Drawer */}
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "tween", ease: "easeOut", duration: 0.3 }}
-              className="relative w-full max-w-md bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col z-10 border-l border-slate-100 dark:border-slate-800"
-            >
-              {/* Header */}
-              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-[#3b82f6]/10 border border-blue-100 dark:border-[#3b82f6]/20 flex items-center justify-center text-blue-600 dark:text-[#3b82f6]">
-                    <LuBriefcase size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-black text-slate-800 dark:text-white">
-                      {editingProject ? "Edit Project" : "Add New Project"}
-                    </h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                      {editingProject ? "Update Project Details" : "Project Details"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowCreateProjectForm(false)}
-                  className="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-center text-slate-400 hover:text-slate-650 dark:hover:text-white transition-colors cursor-pointer"
-                >
-                  <FiX size={18} />
-                </button>
-              </div>
-
-              {/* Form Content */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleCreateAndAddProject();
-                }}
-                className="flex-1 flex flex-col overflow-hidden"
-              >
-                <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-                  {/* Name Field */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-650 dark:text-slate-400 uppercase tracking-wide">
-                      Project Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      autoFocus
-                      value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      placeholder="Enter project name..."
-                      className="w-full bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all placeholder:text-slate-450 focus:shadow-sm"
-                    />
-                  </div>
-
-                  {/* Client Select Field */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-650 dark:text-slate-400 uppercase tracking-wide block">
-                      Client Name
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={newProjectClientId}
-                        onChange={(e) => setNewProjectClientId(e.target.value)}
-                        className="w-full bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 pr-10 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all appearance-none cursor-pointer focus:shadow-sm"
-                      >
-                        {clients.map((c) => (
-                          <option
-                            key={c._id}
-                            value={c._id}
-                            className="dark:bg-slate-900"
-                          >
-                            {c.companyName}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <FiChevronRight size={14} className="rotate-90" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status Select Field */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-650 dark:text-slate-400 uppercase tracking-wide block">
-                      Status
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={newProjectStatus}
-                        onChange={(e) => setNewProjectStatus(e.target.value)}
-                        className="w-full bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 pr-10 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all appearance-none cursor-pointer focus:shadow-sm"
-                      >
-                        <option value="Active" className="dark:bg-slate-900">
-                          Active
-                        </option>
-                        <option value="On Hold" className="dark:bg-slate-900">
-                          On Hold
-                        </option>
-                        <option value="Completed" className="dark:bg-slate-900">
-                          Completed
-                        </option>
-                        <option value="Inactive" className="dark:bg-slate-900">
-                          Inactive
-                        </option>
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <FiChevronRight size={14} className="rotate-90" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sticky Footer */}
-                <div className="p-6 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/30 dark:bg-slate-900/50 flex justify-end gap-3 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateProjectForm(false)}
-                    className="px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 text-slate-605 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-white/5 active:scale-95 transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={
-                      creatingProject ||
-                      !newProjectName.trim() ||
-                      !newProjectClientId
-                    }
-                    className={`px-5 py-3 rounded-2xl text-sm font-bold shadow-md transition-all active:scale-95 bg-blue-600 dark:bg-[#3b82f6] hover:bg-blue-500 dark:hover:bg-[#ccff00] text-white dark:text-black shadow-blue-500/10 dark:shadow-[#3b82f6]/20 ${
-                      creatingProject ||
-                      !newProjectName.trim() ||
-                      !newProjectClientId
-                        ? "opacity-50 cursor-not-allowed shadow-none"
-                        : "cursor-pointer"
-                    }`}
-                  >
-                    {creatingProject
-                      ? editingProject
-                        ? "Saving..."
-                        : "Creating..."
-                      : editingProject
-                        ? "Save Changes"
-                        : "Create Project"}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

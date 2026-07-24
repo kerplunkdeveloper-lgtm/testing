@@ -1,5 +1,6 @@
 const Project = require("../models/Project");
 const User = require("../models/User");
+const Task = require("../models/Task");
 
 // @desc    Get all projects
 // @route   GET /api/projects
@@ -93,6 +94,7 @@ exports.deleteProject = async (req, res) => {
       return res.status(403).json({ success: false, message: "You are not authorized to delete this private project" });
     }
 
+    await Task.deleteMany({ project: req.params.id });
     await project.deleteOne();
 
     res.status(200).json({

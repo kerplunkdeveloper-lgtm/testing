@@ -912,6 +912,249 @@ const AssigneeDropdown = ({
   );
 };
 
+const ClientDropdown = ({
+  selectedClient,
+  clients = [],
+  onChange,
+  isAdminOrManager,
+  align = "left",
+  size = "md",
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const dropdownRef = useRef(null);
+
+  const updateCoords = () => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const dropdownWidth = 224; // w-56 is 14rem = 224px
+
+      let left = rect.left;
+      if (rect.left + dropdownWidth > window.innerWidth) {
+        left = Math.max(10, rect.right - dropdownWidth);
+      }
+
+      setCoords({
+        top: rect.bottom,
+        left: left,
+        width: rect.width,
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      window.addEventListener("scroll", updateCoords, true);
+      window.addEventListener("resize", updateCoords);
+    }
+    return () => {
+      window.removeEventListener("scroll", updateCoords, true);
+      window.removeEventListener("resize", updateCoords);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target) &&
+        !e.target.closest(".client-dropdown-portal")
+      ) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [isOpen]);
+
+  const selectedClientObj =
+    typeof selectedClient === "string"
+      ? (clients || []).find((c) => c && c._id === selectedClient)
+      : selectedClient;
+
+  const handleSelect = (client) => {
+    onChange(client ? client._id : null);
+    setIsOpen(false);
+  };
+
+  const getClientInitials = (name) => {
+    if (!name || typeof name !== "string") return "C";
+    return (
+      name
+        .trim()
+        .split(/\s+/)
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase() || "C"
+    ).substring(0, 2);
+  };
+
+  const getClientBadgeStyle = (companyName) => {
+    const styles = [
+      "text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/20 border-blue-100/60 dark:border-blue-900/30",
+      "text-purple-600 dark:text-purple-400 bg-purple-50/70 dark:bg-purple-950/20 border-purple-100/60 dark:border-purple-900/30",
+      "text-emerald-600 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-100/60 dark:border-emerald-500/20",
+      "text-rose-600 dark:text-rose-400 bg-rose-50/70 dark:bg-rose-950/20 border-rose-100/60 dark:border-rose-900/30",
+      "text-amber-600 dark:text-amber-400 bg-amber-50/70 dark:bg-amber-950/20 border-amber-100/60 dark:border-amber-900/30",
+    ];
+    if (!companyName) return styles[0];
+    let hash = 0;
+    for (let i = 0; i < companyName.length; i++) {
+      hash = companyName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % styles.length;
+    return styles[index];
+  };
+
+  const renderTrigger = () => {
+    if (selectedClientObj) {
+      return (
+        <div
+          onClick={() => isAdminOrManager && setIsOpen(!isOpen)}
+          className={`group/assigned relative flex items-center gap-1.5 px-2 py-1 rounded-xl border transition-all ${
+            isAdminOrManager ? "cursor-pointer hover:shadow-sm" : "cursor-not-allowed"
+          } ${getClientBadgeStyle(selectedClientObj.companyName)} min-w-[100px] h-[30px] w-[140px]`}
+        >
+          {selectedClientObj.icon && (
+            <img 
+              src={selectedClientObj.icon} 
+              alt="" 
+              className="w-4 h-4 rounded-sm object-contain bg-white shrink-0" 
+            />
+          )}
+          <span className="text-[10px] font-bold truncate leading-tight flex-1">
+            {selectedClientObj.companyName}
+          </span>
+          {isAdminOrManager && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSelect(null);
+              }}
+              className="relative z-20 p-0.5 text-slate-400 hover:text-rose-500 rounded transition-colors hover:bg-slate-200/60 dark:hover:bg-white/10 shrink-0"
+              title="Clear Client"
+            >
+              <FiX size={10} />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        disabled={!isAdminOrManager}
+        onClick={() => setIsOpen(!isOpen)}
+        className={`group/assign relative flex items-center gap-1 px-2 py-1 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 transition-all ${
+          isAdminOrManager ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800" : "cursor-not-allowed"
+        } h-[30px] w-[140px] text-left`}
+      >
+        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate flex-1">
+          Select Client
+        </span>
+        <FiChevronDown size={12} className="text-slate-400" />
+      </button>
+    );
+  };
+
+  return (
+    <div ref={dropdownRef} className="relative inline-block text-left">
+      {renderTrigger()}
+
+      {isOpen &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              zIndex: 999999,
+            }}
+            className="client-dropdown-portal mt-1 w-56 rounded-xl bg-white dark:bg-[#151518] border border-slate-200 dark:border-white/10 shadow-2xl py-1.5 max-h-60 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+          >
+            <div className="px-2 pb-2 mb-1 border-b border-slate-100 dark:border-white/5">
+              <input
+                type="text"
+                placeholder="Search client..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-[#111111] text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-700 dark:text-white transition-colors"
+                autoFocus
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSelect(null)}
+              className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-800 dark:hover:text-white flex items-center gap-2 border-b border-slate-100 dark:border-white/5"
+            >
+              <div className="w-5 h-5 rounded-full border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400">
+                <FiX size={10} />
+              </div>
+              <span>None</span>
+            </button>
+
+            {(clients || [])
+              .filter(
+                (c) =>
+                  c &&
+                  (!searchTerm ||
+                    c.companyName?.toLowerCase().includes(searchTerm.toLowerCase())),
+              )
+              .map((c) => {
+                const isSelected = selectedClientObj?._id === c._id;
+                return (
+                  <button
+                    key={c._id}
+                    type="button"
+                    onClick={() => handleSelect(c)}
+                    className={`w-full text-left px-3 py-2 text-xs font-semibold flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-colors ${
+                      isSelected
+                        ? "text-blue-600 dark:text-[#3b82f6] bg-blue-50/30 dark:bg-[#3b82f6]/5"
+                        : "text-slate-700 dark:text-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {c.icon ? (
+                        <img
+                          src={c.icon}
+                          alt=""
+                          className="w-5 h-5 rounded object-contain bg-white shrink-0"
+                        />
+                      ) : (
+                        <div
+                          className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold bg-slate-200 dark:bg-slate-800 shrink-0`}
+                        >
+                          {getClientInitials(c.companyName)}
+                        </div>
+                      )}
+                      <span className="truncate">{c.companyName}</span>
+                    </div>
+                    {isSelected && (
+                      <FiCheck
+                        size={12}
+                        className="text-blue-600 dark:text-[#3b82f6] shrink-0"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+};
+
 const ContentCopyInput = ({
   value,
   onChange,
@@ -1094,6 +1337,7 @@ const ProjectTaskBoard = ({
   activeProject,
   currentUser,
   users,
+  clients,
   isAdminOrManager,
   getStatusBadge,
   getAvatarColor,
@@ -1111,8 +1355,9 @@ const ProjectTaskBoard = ({
     );
   };
 
-  // RTK Query hooks
-  const { data: tasks = [], isLoading: tasksLoading } = useGetTasksQuery();
+  // Stable empty array to prevent infinite loops when data is undefined
+  const EMPTY_TASKS = useRef([]).current;
+  const { data: tasks = EMPTY_TASKS, isLoading: tasksLoading } = useGetTasksQuery();
   const [createTaskMutation] = useCreateTaskMutation();
   const [updateTaskMutation] = useUpdateTaskMutation();
   const [deleteTaskMutation] = useDeleteTaskMutation();
@@ -4475,18 +4720,16 @@ const ProjectTaskBoard = ({
                                                       {/* Client Column */}
                                                       {!hiddenColumns.client && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 font-medium">
-                                                          {activeProject?.client ? (
-                                                            <ClientBadge
-                                                              client={
-                                                                activeProject.client
+                                                          <div onClick={(e) => e.stopPropagation()}>
+                                                            <ClientDropdown
+                                                              selectedClient={task.client?._id || task.client || (activeProject?.client?._id || activeProject?.client)}
+                                                              clients={clients}
+                                                              onChange={(clientId) =>
+                                                                handleTaskFieldChange(task._id, { client: clientId })
                                                               }
-                                                              size="md"
+                                                              isAdminOrManager={isAdminOrManager}
                                                             />
-                                                          ) : (
-                                                            <span className="text-slate-400 dark:text-slate-500 text-[10px] font-normal">
-                                                              N/A
-                                                            </span>
-                                                          )}
+                                                          </div>
                                                         </td>
                                                       )}
 
@@ -5518,22 +5761,17 @@ const ProjectTaskBoard = ({
 
                                                               {/* 2. Client Column */}
                                                               {!hiddenColumns.client && (
-                                                                <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 text-slate-450 opacity-60">
-                                                                  {activeProject
-                                                                    ?.client
-                                                                    ?.companyName ? (
-                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50/70 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400 border border-indigo-100/50 dark:border-indigo-900/30">
-                                                                      {
-                                                                        activeProject
-                                                                          .client
-                                                                          .companyName
+                                                                <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
+                                                                  <div onClick={(e) => e.stopPropagation()}>
+                                                                    <ClientDropdown
+                                                                      selectedClient={sub.client?._id || sub.client || task.client?._id || task.client || (activeProject?.client?._id || activeProject?.client)}
+                                                                      clients={clients}
+                                                                      onChange={(clientId) =>
+                                                                        handleSubtaskFieldChange(task, sub._id, { client: clientId })
                                                                       }
-                                                                    </span>
-                                                                  ) : (
-                                                                    <span className="text-slate-400 dark:text-slate-555 text-[9px] font-normal">
-                                                                      N/A
-                                                                    </span>
-                                                                  )}
+                                                                      isAdminOrManager={isAdminOrManager}
+                                                                    />
+                                                                  </div>
                                                                 </td>
                                                               )}
 
@@ -6241,12 +6479,23 @@ const ProjectTaskBoard = ({
                                                                 </td>
                                                               )}
 
-                                                              {/* Subtask Revision Column (Placeholder to align columns) */}
+                                                              {/* Subtask Revision Column */}
                                                               {!hiddenColumns.revision && (
-                                                                <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 text-center text-slate-450 opacity-60">
-                                                                  <span className="text-slate-400 dark:text-slate-555 text-[9px] font-normal">
-                                                                    -
-                                                                  </span>
+                                                                <td
+                                                                  className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700"
+                                                                  onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                  <div className="flex justify-center items-center gap-1.5">
+                                                                    <span className="font-extrabold text-xs text-slate-800 dark:text-yellow-50 text-center">
+                                                                      {sub.revisions || 0}
+                                                                    </span>
+                                                                    {(sub.revisions || 0) > 3 && (
+                                                                      <span
+                                                                        className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)] animate-pulse"
+                                                                        title="More than 3 revisions"
+                                                                      />
+                                                                    )}
+                                                                  </div>
                                                                 </td>
                                                               )}
 

@@ -207,6 +207,7 @@ const Project = () => {
         activeProject={activeProject}
         currentUser={currentUser}
         users={users}
+        clients={clients}
         isAdminOrManager={isAdminOrManager}
         getStatusBadge={getStatusBadge}
         getAvatarColor={getAvatarColor}

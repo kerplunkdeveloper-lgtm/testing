@@ -12,6 +12,10 @@ const ProjectSchema = new mongoose.Schema(
       enum: ["Active", "Completed", "On Hold", "Inactive"],
       default: "Active",
     },
+    client: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Client",
+    },
     access: {
       type: String,
       enum: ["Public", "Private"],
