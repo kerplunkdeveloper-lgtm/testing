@@ -418,10 +418,10 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                                 : true,
                             }));
                           }}
-                          className={`flex-1 flex items-center gap-2 text-left text-xs lg:text-[0.6875rem] font-semibold py-1.5 px-2 transition-all duration-150 rounded-lg ${
+                          className={`flex-1 flex items-center gap-2 text-left text-xs lg:text-[0.6875rem] py-1.5 px-2 transition-all duration-150 rounded-lg border ${
                             isActive
-                              ? "bg-[var(--accent-light-bg-subtle)] dark:bg-[var(--accent-dark-bg-subtle)] theme-text-accent font-bold"
-                              : "text-slate-600 dark:text-slate-400 hover:theme-text-accent hover:bg-slate-100/60 dark:hover:bg-white/5"
+                              ? "bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white font-black shadow-sm border-slate-900/5 dark:border-white/5"
+                              : "text-slate-700 dark:text-slate-300 font-semibold border-transparent hover:text-slate-900 dark:hover:text-white hover:bg-slate-900/5 dark:hover:bg-white/5"
                           }`}
                           title={portfolio.name}
                         >
@@ -438,7 +438,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                             {portfolio.name}
                           </span>
                           {isActive && !portfolioProjects.length && (
-                            <span className="w-1.5 h-1.5 rounded-full theme-bg-accent shrink-0" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-900 dark:bg-white shrink-0" />
                           )}
                         </button>
 
@@ -454,8 +454,8 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                             }}
                             className={`py-1.5 px-1.5 rounded-r-lg transition-all duration-150 flex items-center justify-center cursor-pointer ${
                               isActive
-                                ? "bg-[var(--accent-light-bg-subtle)] dark:bg-[var(--accent-dark-bg-subtle)] theme-text-accent"
-                                : "text-slate-500 dark:text-slate-400 hover:theme-text-accent hover:bg-slate-100/60 dark:hover:bg-white/5"
+                                ? "bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white"
+                                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-900/5 dark:hover:bg-white/5"
                             }`}
                           >
                             <svg
@@ -678,10 +678,10 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                   },
                 );
               } else {
-                // If title is Works or MyPortfolios, list projects directly without middle portfolio folders
+                // If title is Works or My Projects, list projects directly without middle portfolio folders
                 if (
                   title === "Works" ||
-                  title === "MyPortfolios" ||
+                  title === "My Projects" ||
                   title === "Portfolios"
                 ) {
                   const allProjectIds = new Set();
@@ -829,7 +829,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                 <>
                   {isAdminOrOpManager &&
                     renderPortfolioDropdown(
-                      "MyPortfolios",
+                      "My Projects",
                       <FiLayers
                         size={14}
                         className="shrink-0 transition-colors"
@@ -837,7 +837,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                       isPortfoliosListOpen,
                       setIsPortfoliosListOpen,
                       generalPortfolios,
-                      false, // Disable user name folder dropdown under MyPortfolios
+                      false, // Disable user name folder dropdown under My Projects
                     )}
                   {renderPortfolioDropdown(
                     "Works",
@@ -877,10 +877,10 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                       >
                         {({ isActive }) => (
                           <motion.div
-                            className={`flex items-center gap-2.5 px-3 py-2 lg:py-1.5 w-full rounded-xl relative overflow-hidden transition-all duration-200 text-left ${
+                            className={`flex items-center gap-2.5 px-3 py-2 lg:py-1.5 w-full rounded-xl relative overflow-hidden transition-all duration-200 text-left border ${
                               isActive
-                                ? "bg-[var(--accent-light-bg-subtle)] dark:bg-[var(--accent-dark-bg-subtle)]"
-                                : "hover:bg-slate-100/60 dark:hover:bg-white/5"
+                                ? "bg-slate-900/10 dark:bg-white/10 shadow-sm border-slate-900/5 dark:border-white/5"
+                                : "hover:bg-slate-900/5 dark:hover:bg-white/5 border-transparent"
                             }`}
                             whileHover={{ x: 2 }}
                             transition={{
@@ -908,8 +908,8 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                             <motion.div
                               className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center relative overflow-hidden transition-colors duration-200 ${
                                 isActive
-                                  ? "theme-bg-accent/15 dark:theme-bg-accent/20 shadow-sm"
-                                  : "bg-slate-100/70 dark:bg-white/5 group-hover:bg-[var(--accent-light-bg-subtle)] dark:group-hover:bg-[var(--accent-dark-bg-subtle)]"
+                                  ? "bg-slate-900 dark:bg-white shadow-md shadow-slate-900/20 dark:shadow-white/20"
+                                  : "bg-slate-900/5 dark:bg-white/5 group-hover:bg-slate-900/10 dark:group-hover:bg-white/10"
                               }`}
                               whileHover={{
                                 scale: 1.22,
@@ -940,18 +940,18 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                                 size={14}
                                 className={`transition-colors duration-200 relative z-10 ${
                                   isActive
-                                    ? "theme-text-accent"
-                                    : "text-slate-500 dark:text-slate-400 group-hover:theme-text-accent"
+                                    ? "text-white dark:text-slate-900"
+                                    : "text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white"
                                 }`}
                               />
                             </motion.div>
 
                             {/* Label */}
                             <span
-                              className={`text-xs lg:text-[0.6875rem] font-bold truncate flex-1 text-left transition-colors duration-200 ${
+                              className={`text-xs lg:text-[0.6875rem] truncate flex-1 text-left transition-colors duration-200 ${
                                 isActive
-                                  ? "theme-text-accent"
-                                  : "text-slate-600 dark:text-slate-400 group-hover:theme-text-accent"
+                                  ? "text-slate-900 dark:text-white font-black"
+                                  : "text-slate-700 dark:text-slate-300 font-bold group-hover:text-slate-900 dark:group-hover:text-white"
                               }`}
                             >
                               {item.name}
@@ -977,7 +977,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                               item.name !== "Notifications" &&
                               item.name !== "Chat" && (
                                 <motion.span
-                                  className="w-1.5 h-1.5 rounded-full theme-bg-accent shrink-0"
+                                  className="w-1.5 h-1.5 rounded-full bg-slate-900 dark:bg-white shrink-0"
                                   initial={{ scale: 0 }}
                                   animate={{ scale: 1 }}
                                   transition={{
