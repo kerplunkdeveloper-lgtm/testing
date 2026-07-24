@@ -232,6 +232,13 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
   }, []);
 
   useEffect(() => {
+    if (!showUserDropdown) {
+      const timer = setTimeout(() => setUserSearchQuery(""), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showUserDropdown]);
+
+  useEffect(() => {
     if (activePortfolioId) {
       const parentPortfolio = (portfolios || []).find(
         (p) => p._id === activePortfolioId,
@@ -1133,16 +1140,17 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                       <div className="p-2 max-h-[22rem] overflow-y-auto sidebar-scrollbar flex flex-col gap-1">
                         {(() => {
                           const filteredUsers = users.filter((u) => {
-                            const searchStr = userSearchQuery.toLowerCase();
-                            return (
-                              u.name.toLowerCase().includes(searchStr) ||
-                              (u.department || "")
-                                .toLowerCase()
-                                .includes(searchStr) ||
+                            const searchStr = userSearchQuery.toLowerCase().trim();
+                            if (!searchStr) return true;
+                            
+                            const searchTerms = searchStr.split(/\s+/);
+                            const searchableText = [
+                              u.name,
+                              u.department || "",
                               displayRole(u.role)
-                                .toLowerCase()
-                                .includes(searchStr)
-                            );
+                            ].join(" ").toLowerCase();
+
+                            return searchTerms.every(term => searchableText.includes(term));
                           });
 
                           if (filteredUsers.length === 0) {

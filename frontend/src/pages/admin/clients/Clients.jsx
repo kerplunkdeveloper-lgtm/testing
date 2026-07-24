@@ -661,7 +661,7 @@ const Clients = () => {
                   <th className="px-5 py-4 font-extrabold bg-transparent text-left border-r border-slate-200 dark:border-slate-700/60">
                     Contact Info
                   </th>
-                  <th className="px-5 py-4 font-extrabold bg-transparent text-left border-r border-slate-200 dark:border-slate-700/60">
+                  <th className="px-5 py-4  font-extrabold bg-transparent  text-left border-r border-slate-200 dark:border-slate-700/60">
                     Service & Members
                   </th>
                   <th className="px-5 py-4 font-extrabold bg-transparent text-left w-48 border-r border-slate-200 dark:border-slate-700/60">

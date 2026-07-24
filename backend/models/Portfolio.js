@@ -21,10 +21,6 @@ const PortfolioSchema = new mongoose.Schema(
         ref: "Project",
       },
     ],
-    client: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Client",
-    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

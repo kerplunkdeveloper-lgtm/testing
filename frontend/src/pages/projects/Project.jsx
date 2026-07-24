@@ -254,6 +254,28 @@ const Project = () => {
   // VIEW 2: DEFAULT PROJECT DIRECTORY TABLE
   return (
     <div className=" space-y-6 ">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-extrabold text-slate-800 dark:text-white">
+            Projects Dashboard
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+            Manage and track all client projects
+          </p>
+        </div>
+
+        {isAdminOrManager && (
+          <button
+            onClick={handleOpenCreate}
+            className="flex items-center gap-2 bg-blue-600 dark:bg-[#3b82f6] hover:bg-blue-700 dark:hover:bg-[#ccff00] text-white dark:text-black px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 dark:shadow-[#3b82f6]/20 active:scale-95 whitespace-nowrap"
+          >
+            <FiPlus size={16} />
+            New Project
+          </button>
+        )}
+      </div>
+
       {/* FILTER AND SEARCH BAR */}
       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
         <div className="flex-1 relative">

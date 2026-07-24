@@ -365,7 +365,6 @@ const Portfolio = () => {
   const [portfolioName, setPortfolioName] = useState("");
   const [portfolioColor, setPortfolioColor] = useState("#ff80bf");
   const [portfolioId, setPortfolioId] = useState(null);
-  const [selectedClientId, setSelectedClientId] = useState("");
   const [menuOpenId, setMenuOpenId] = useState(null);
 
   // Close menus on click outside
@@ -384,22 +383,17 @@ const Portfolio = () => {
     dispatch(getPortfolios());
   }, [dispatch]);
 
-  // Set default client selection once clients are loaded or active portfolio changes
+  // Set default client selection once clients are loaded
   useEffect(() => {
     if (clients && clients.length > 0) {
-      const targetClientId =
-        activePortfolio?.client?._id ||
-        activePortfolio?.client ||
-        clients[0]._id;
-      setNewProjectClientId(targetClientId);
+      setNewProjectClientId(clients[0]._id);
     }
-  }, [clients, activePortfolio]);
+  }, [clients]);
 
   // Open create modal
   const handleOpenCreateModal = () => {
     setPortfolioName("");
     setPortfolioColor("#ff80bf");
-    setSelectedClientId(clients && clients.length > 0 ? clients[0]._id : "");
     setIsEditMode(false);
     setIsModalOpen(true);
   };
@@ -409,7 +403,6 @@ const Portfolio = () => {
     setPortfolioId(p._id);
     setPortfolioName(p.name);
     setPortfolioColor(p.color || "#ff80bf");
-    setSelectedClientId(p.client?._id || p.client || "");
     setIsEditMode(true);
     setIsModalOpen(true);
   };
@@ -417,17 +410,14 @@ const Portfolio = () => {
   // Save portfolio from modal (create or update)
   const handleSavePortfolio = (e) => {
     e.preventDefault();
-    if (!selectedClientId) return;
-    const clientObj = clients.find((c) => c._id === selectedClientId);
-    const finalName = clientObj ? clientObj.companyName : "Portfolio";
+    if (!portfolioName.trim()) return;
 
     if (isEditMode) {
       dispatch(
         updatePortfolio({
           id: portfolioId,
           data: {
-            name: finalName,
-            client: selectedClientId,
+            name: portfolioName.trim(),
             color: portfolioColor,
           },
         }),
@@ -435,8 +425,7 @@ const Portfolio = () => {
     } else {
       dispatch(
         createPortfolio({
-          name: finalName,
-          client: selectedClientId,
+          name: portfolioName.trim(),
           color: portfolioColor,
         }),
       );
@@ -529,11 +518,7 @@ const Portfolio = () => {
     } finally {
       setCreatingProject(false);
       setNewProjectName("");
-      const targetClientId =
-        activePortfolio?.client?._id ||
-        activePortfolio?.client ||
-        clients[0]?._id ||
-        "";
+      const targetClientId = clients[0]?._id || "";
       setNewProjectClientId(targetClientId);
       setNewProjectStatus("Active");
       setEditingProject(null);
@@ -1270,35 +1255,19 @@ const Portfolio = () => {
               </h2>
 
               <form onSubmit={handleSavePortfolio} className="space-y-6">
-                {/* Client Select Field */}
+                {/* Portfolio Name Field */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-                    Client Name
+                    Portfolio Name
                   </label>
-                  <div className="relative">
-                    <select
-                      required
-                      value={selectedClientId}
-                      onChange={(e) => setSelectedClientId(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 pr-10 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all appearance-none cursor-pointer"
-                    >
-                      <option value="" disabled>
-                        Select Client...
-                      </option>
-                      {clients.map((c) => (
-                        <option
-                          key={c._id}
-                          value={c._id}
-                          className="dark:bg-slate-900"
-                        >
-                          {c.companyName}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                      <FiChevronRight size={14} className="rotate-90" />
-                    </div>
-                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={portfolioName}
+                    onChange={(e) => setPortfolioName(e.target.value)}
+                    placeholder="Enter portfolio name..."
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                  />
                 </div>
 
                 {/* Color Selection Field */}
@@ -1458,33 +1427,15 @@ const Portfolio = () => {
                         onChange={(e) => setNewProjectClientId(e.target.value)}
                         className="w-full bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 pr-10 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all appearance-none cursor-pointer focus:shadow-sm"
                       >
-                        {(() => {
-                          const targetClientId =
-                            activePortfolio?.client?._id ||
-                            activePortfolio?.client;
-                          const mappedClient = clients.find(
-                            (c) => c._id === targetClientId,
-                          );
-                          if (mappedClient) {
-                            return (
-                              <option
-                                value={mappedClient._id}
-                                className="dark:bg-slate-900"
-                              >
-                                {mappedClient.companyName}
-                              </option>
-                            );
-                          }
-                          return clients.map((c) => (
-                            <option
-                              key={c._id}
-                              value={c._id}
-                              className="dark:bg-slate-900"
-                            >
-                              {c.companyName}
-                            </option>
-                          ));
-                        })()}
+                        {clients.map((c) => (
+                          <option
+                            key={c._id}
+                            value={c._id}
+                            className="dark:bg-slate-900"
+                          >
+                            {c.companyName}
+                          </option>
+                        ))}
                       </select>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                         <FiChevronRight size={14} className="rotate-90" />
