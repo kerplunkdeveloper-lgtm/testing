@@ -332,7 +332,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
           w-64 max-w-[80vw] lg:w-60
           sidebar-bg
           backdrop-blur-xl
-          border-r border-slate-200/40 dark:border-white/5
+        
           shadow-[0_8px_32px_0_rgba(0,0,0,0.02)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.25)]
           flex flex-col
           transition-transform duration-300 ease-in-out

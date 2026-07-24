@@ -15,7 +15,7 @@ import { FiBarChart2, FiUser, FiHome, FiBell, FiSettings } from "react-icons/fi"
 export const sidebarConfig = {
   admin: [
     { name: "Dashboard", path: "/admin", icon: FiHome },
-    { name: "Clients Management", path: "/admin/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
+    { name: "Clients", path: "/admin/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
     { name: "Portfolio", path: "/admin/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
     { name: "Projects Overview", path: "/admin/projects", icon: LuFolderKanban, permissionKey: "manage_projects" },
     { name: "Tasks", path: "/admin/tasks", icon: LuClipboardCheck, permissionKey: "manage_tasks" },
@@ -33,7 +33,7 @@ export const sidebarConfig = {
 
   operationmanager: [
     { name: "Dashboard", path: "/operationmanager", icon: FiHome },
-    { name: "Clients Management", path: "/operationmanager/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
+    { name: "Clients", path: "/operationmanager/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
     { name: "Portfolio", path: "/operationmanager/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
     { name: "Projects Overview", path: "/operationmanager/projects", icon: LuFolderKanban, permissionKey: "manage_projects" },
     { name: "Tasks overview", path: "/operationmanager/tasks", icon: LuClipboardCheck, permissionKey: "manage_tasks" },
