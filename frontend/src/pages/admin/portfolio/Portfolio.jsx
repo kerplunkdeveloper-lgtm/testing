@@ -347,6 +347,7 @@ const Portfolio = () => {
   const selectedPortfolioId = new URLSearchParams(location.search).get("id");
   const activePortfolio = portfolios.find((p) => p._id === selectedPortfolioId);
   const [showAddProjectDropdown, setShowAddProjectDropdown] = useState(false);
+  const [isAddingWork, setIsAddingWork] = useState(false);
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
   const [selectedAddProjects, setSelectedAddProjects] = useState([]);
 
@@ -386,7 +387,7 @@ const Portfolio = () => {
     dispatch(getProjects());
     dispatch(getTasks());
     dispatch(getUsers());
-    dispatch(getClients());
+    dispatch(getClients()); 
     dispatch(getPortfolios());
   }, [dispatch]);
 
@@ -892,6 +893,16 @@ const Portfolio = () => {
 
               {/* Action Buttons Right Side */}
               <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => {
+                    setIsAddingWork(true);
+                    setShowAddProjectDropdown(true);
+                  }}
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm"
+                >
+                  <FiPlus size={14} />
+                  Add group
+                </button>
               </div>
             </div>
             <div className="min-h-[calc(100vh-200px)] space-y-4 flex flex-col">
@@ -962,6 +973,7 @@ const Portfolio = () => {
                                                 onClick={() => {
                                                   dispatch(addProjectsToPortfolio({ id: activePortfolio._id, projectIds: [p._id] }));
                                                   setShowAddProjectDropdown(false);
+                                                  setIsAddingWork(false);
                                                 }}
                                                 className="w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
                                               >
@@ -982,6 +994,7 @@ const Portfolio = () => {
                                         type="button"
                                         onClick={() => {
                                           setShowAddProjectDropdown(false);
+                                          setIsAddingWork(false);
                                           // Navigate to projects page or handle logic
                                           navigate(`/${role}/projects`);
                                         }}
@@ -1169,7 +1182,91 @@ const Portfolio = () => {
                           );
                         })
                         )}
-                        {validProjects.length > 0 && (
+                        {validProjects.length > 0 && isAddingWork && (
+                          <>
+                            <tr
+                              className="bg-slate-50/60 dark:bg-slate-800/60 h-10 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-[11px] relative"
+                              onClick={() => setShowAddProjectDropdown(!showAddProjectDropdown)}
+                            >
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 relative">
+                                Add a project or portfolio by name
+
+                                <AnimatePresence>
+                                  {showAddProjectDropdown && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -5 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -5 }}
+                                      className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden cursor-default"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="px-3 py-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+                                        Projects
+                                      </div>
+                                      <div className="max-h-48 overflow-y-auto">
+                                        {projects
+                                          .filter((p) => !(activePortfolio.projectIdsList || []).includes(p._id))
+                                          .map((p) => {
+                                            const pIcon = getProjectIcon(p.name, p._id);
+                                            const IconCmp = pIcon.icon;
+                                            return (
+                                              <button
+                                                key={p._id}
+                                                type="button"
+                                                onClick={() => {
+                                                  dispatch(addProjectsToPortfolio({ id: activePortfolio._id, projectIds: [p._id] }));
+                                                  setShowAddProjectDropdown(false);
+                                                  setIsAddingWork(false);
+                                                }}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                                              >
+                                                <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${pIcon.bg}`}>
+                                                  <IconCmp size={10} />
+                                                </div>
+                                                <span className="truncate">{p.name}</span>
+                                              </button>
+                                            );
+                                          })}
+                                        {projects.filter((p) => !(activePortfolio.projectIdsList || []).includes(p._id)).length === 0 && (
+                                          <div className="px-3 py-3 text-center text-[10px] text-slate-400 italic">
+                                            No projects available
+                                          </div>
+                                        )}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setShowAddProjectDropdown(false);
+                                          setIsAddingWork(false);
+                                          // Navigate to projects page or handle logic
+                                          navigate(`/${role}/projects`);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-t border-slate-100 dark:border-slate-700"
+                                      >
+                                        <FiPlus size={14} />
+                                        Create new project
+                                      </button>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </td>
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-b border-slate-200 dark:border-slate-800"></td>
+                            </tr>
+                            <tr className="bg-white dark:bg-slate-900/30 h-full">
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
+                              <td className="px-4 py-2 border-slate-200 dark:border-slate-800"></td>
+                            </tr>
+                          </>
+                        )}
+                        {validProjects.length > 0 && !isAddingWork && (
                           <tr className="h-full">
                             <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>
                             <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800"></td>

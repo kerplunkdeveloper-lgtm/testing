@@ -46,6 +46,7 @@ const Project = () => {
   // Local State
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [createdByFilter, setCreatedByFilter] = useState("All");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
@@ -87,7 +88,11 @@ const Project = () => {
       project.name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "All" || project.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesCreatedBy =
+      createdByFilter === "All" ||
+      (project.createdBy && project.createdBy._id === createdByFilter) ||
+      project.createdBy === createdByFilter;
+    return matchesSearch && matchesStatus && matchesCreatedBy;
   });
 
   // Handle modal trigger
@@ -219,7 +224,7 @@ const Project = () => {
   return (
     <div className=" space-y-6 ">
       {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
       
 
         {isAdminOrManager && (
@@ -244,6 +249,27 @@ const Project = () => {
             className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-[#111111] border border-slate-100 dark:border-white/5 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#1a1a1a] text-sm text-slate-700 dark:text-white transition-all"
           />
         </div>
+        {/* Created By Filter Dropdown */}
+        <div className="relative shrink-0 w-full md:w-auto">
+          <select
+            value={createdByFilter}
+            onChange={(e) => setCreatedByFilter(e.target.value)}
+            className="w-full appearance-none px-5 py-3 pr-11 rounded-2xl bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/5 text-xs font-bold text-slate-700 dark:text-white hover:border-slate-300 dark:hover:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] cursor-pointer shadow-sm md:min-w-[140px] transition-all"
+          >
+            <option value="All" className="dark:bg-[#111111]">
+              All Users
+            </option>
+            {users?.map((user) => (
+              <option key={user._id} value={user._id} className="dark:bg-[#111111]">
+                {user.name}
+              </option>
+            ))}
+          </select>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <FiChevronDown size={14} />
+          </div>
+        </div>
+
         {/* Status Filter Dropdown */}
         <div className="relative shrink-0 w-full md:w-auto">
           <select
@@ -356,7 +382,6 @@ const Project = () => {
                         </span>
                       </div>
                     </td>
-
 
                     <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
                       <span className="font-semibold text-slate-700 dark:text-slate-350">
