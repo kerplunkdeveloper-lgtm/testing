@@ -336,7 +336,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
       <aside
         className={`
           fixed top-0 left-0 z-[100] h-[100dvh]
-          w-64 max-w-[80vw] lg:w-60
+          w-64 max-w-[80vw] lg:w-52
           sidebar-bg
           backdrop-blur-xl
         

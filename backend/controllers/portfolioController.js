@@ -6,12 +6,14 @@ const User = require("../models/User");
 // @access  Private
 exports.getPortfolios = async (req, res) => {
   try {
-    let query = {};
-    if (req.user.role !== "admin" && req.user.role !== "operationmanager") {
-      // Normal users should only see portfolios they explicitly created
-      query = { createdBy: req.user._id };
-    }
-      const portfolios = await Portfolio.find(query)
+    let query = {
+      $or: [
+        { access: "Public" },
+        { access: { $exists: false } },
+        { createdBy: req.user._id }
+      ]
+    };
+    const portfolios = await Portfolio.find(query)
         .populate("projectIds", "name status client")
         .populate("createdBy", "name department");
     res.status(200).json({ success: true, data: portfolios });
@@ -43,19 +45,24 @@ exports.createPortfolio = async (req, res) => {
 // @access  Private/Admin
 exports.updatePortfolio = async (req, res) => {
   try {
-    const portfolio = await Portfolio.findByIdAndUpdate(
+    let portfolio = await Portfolio.findById(req.params.id);
+    if (!portfolio) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Portfolio not found" });
+    }
+
+    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "You are not authorized to edit this private portfolio" });
+    }
+
+    portfolio = await Portfolio.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
     )
       .populate("projectIds", "name status client")
       .populate("createdBy", "name department");
-
-    if (!portfolio) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Portfolio not found" });
-    }
 
     res.status(200).json({ success: true, data: portfolio });
   } catch (err) {
@@ -74,6 +81,11 @@ exports.deletePortfolio = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Portfolio not found" });
     }
+
+    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "You are not authorized to delete this private portfolio" });
+    }
+
     await portfolio.deleteOne();
     res.status(200).json({ success: true, data: {} });
   } catch (err) {
@@ -93,6 +105,11 @@ exports.addProjectsToPortfolio = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Portfolio not found" });
     }
+
+    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "You are not authorized to modify this private portfolio" });
+    }
+
     const merged = Array.from(
       new Set([
         ...portfolio.projectIds.map((id) => id.toString()),
@@ -120,6 +137,11 @@ exports.removeProjectFromPortfolio = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Portfolio not found" });
     }
+
+    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "You are not authorized to modify this private portfolio" });
+    }
+
     portfolio.projectIds = portfolio.projectIds.filter(
       (pid) => pid.toString() !== req.params.projectId
     );

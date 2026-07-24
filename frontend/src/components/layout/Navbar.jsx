@@ -428,13 +428,9 @@ const Navbar = ({ setSidebarOpen }) => {
         h-14
         px-3 md:px-5
         flex items-center justify-between
-           sidebar-bg
-          backdrop-blur-xl
-          shadow-sm
+        
 
-          border-r border-slate-200/40 dark:border-white/5
-          shadow-[0_8px_32px_0_rgba(0,0,0,0.02)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.25)]
-           transition-all duration-300
+    
       "
     >
       {/* LEFT */}
@@ -463,17 +459,9 @@ const Navbar = ({ setSidebarOpen }) => {
 
 
       {/* RIGHT */}
-      <div className="flex items-center gap-2 shrink-0">
-        {/* USER LOCATION */}
-        <div
-          className="hidden md:flex items-center gap-1.5 px-3 py-1.5   text-xs font-medium theme-text-secondary  hover:theme-text-primary hover:theme-bg-main transition-all duration-200"
-          title={profile?.address || "No location set"}
-        >
-          <FiMapPin className="text-[0.8125rem]  text-red-600 shrink-0" />
-          <span className="truncate max-w-[7.5rem] ">
-            {profile?.address || "No Location"}
-          </span>
-        </div>
+      <div className="flex items-center gap-5 shrink-0">
+       
+       
 
 
         {/* NOTIFICATIONS */}

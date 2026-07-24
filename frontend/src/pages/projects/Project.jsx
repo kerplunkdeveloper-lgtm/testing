@@ -10,6 +10,7 @@ import {
   FiEdit2,
   FiChevronDown,
   FiBriefcase,
+  FiLock,
 } from "react-icons/fi";
 
 import {
@@ -45,20 +46,19 @@ const Project = () => {
   // Local State
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [clientFilter, setClientFilter] = useState("All");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
   // Form State for creating project
   const [name, setName] = useState("");
-  const [clientId, setClientId] = useState("");
   const [status, setStatus] = useState("Active");
+  const [access, setAccess] = useState("Public");
 
   // Form State for editing project
   const [editProjectId, setEditProjectId] = useState("");
   const [editName, setEditName] = useState("");
-  const [editClientId, setEditClientId] = useState("");
   const [editStatus, setEditStatus] = useState("Active");
+  const [editAccess, setEditAccess] = useState("Public");
 
   // Load Data
   useEffect(() => {
@@ -69,12 +69,7 @@ const Project = () => {
     dispatch(getPortfolios());
   }, [dispatch]);
 
-  // Set default client selection once clients are loaded
-  useEffect(() => {
-    if (clients && clients.length > 0 && !clientId) {
-      setClientId(clients[0]._id);
-    }
-  }, [clients, clientId]);
+
 
   const isAdmin =
     currentUser?.role === "admin" ||
@@ -85,65 +80,33 @@ const Project = () => {
     currentUser?.role === "operationmanager" ||
     currentUser?.role === "team";
 
-  // Filter allowed clients for the current user
-  const userClients = clients.filter(c => {
-    if (currentUser?.role === 'admin') return true;
-    return c.assignedTo?.some(userId => 
-      userId?.toString() === currentUser?._id?.toString() || 
-      userId?._id?.toString() === currentUser?._id?.toString()
-    );
-  });
-
   // Filter projects
   const filteredProjects = projects.filter((project) => {
-    const projectClientId = project.client?._id || project.client;
-    
-    // Only show projects for clients assigned to this user
-    const isAssigned = userClients.some(c => c._id.toString() === projectClientId?.toString());
-    if (!isAssigned) return false;
-
-    // Social Media Managers can only see projects they created themselves (bypassed for admin/operationmanager)
-    if (currentUser?.role !== "admin" && currentUser?.role !== "operationmanager") {
-      const creator = project.createdBy;
-      const creatorDept = creator?.department || "";
-      const creatorId = creator?._id || creator;
-      if (creatorDept.toLowerCase() === "social media manager") {
-        if (creatorId?.toString() !== currentUser?._id?.toString()) {
-          return false;
-        }
-      }
-    }
 
     const matchesSearch =
-      project.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      project.client?.companyName
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      project.name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "All" || project.status === statusFilter;
-    const matchesClient =
-      clientFilter === "All" ||
-      (projectClientId && projectClientId.toString() === clientFilter);
-    return matchesSearch && matchesStatus && matchesClient;
+    return matchesSearch && matchesStatus;
   });
 
   // Handle modal trigger
   const handleOpenCreate = () => {
     setName("");
-    setClientId(clients[0]?._id || "");
     setStatus("Active");
+    setAccess("Public");
     setShowCreateModal(true);
   };
 
   // Submit Create Project
   const handleCreateSubmit = (e) => {
     e.preventDefault();
-    if (!name || !clientId) return;
+    if (!name) return;
     dispatch(
       createProject({
         name,
-        client: clientId,
         status,
+        access,
       }),
     );
     setShowCreateModal(false);
@@ -154,22 +117,22 @@ const Project = () => {
     e.stopPropagation();
     setEditProjectId(project._id);
     setEditName(project.name);
-    setEditClientId(project.client?._id || project.client || "");
     setEditStatus(project.status);
+    setEditAccess(project.access || "Public");
     setShowEditModal(true);
   };
 
   // Submit Edit Project
   const handleEditSubmit = (e) => {
     e.preventDefault();
-    if (!editName || !editClientId) return;
+    if (!editName) return;
     dispatch(
       updateProject({
         id: editProjectId,
         data: {
           name: editName,
-          client: editClientId,
           status: editStatus,
+          access: editAccess,
         },
       }),
     );
@@ -256,14 +219,7 @@ const Project = () => {
     <div className=" space-y-6 ">
       {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-800 dark:text-white">
-            Projects Dashboard
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-            Manage and track all client projects
-          </p>
-        </div>
+      
 
         {isAdminOrManager && (
           <button
@@ -315,26 +271,7 @@ const Project = () => {
           </div>
         </div>
 
-        {/* Client Filter Dropdown */}
-        <div className="relative shrink-0 w-full md:w-auto">
-          <select
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            className="w-full appearance-none px-5 py-3 pr-11 rounded-2xl bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/5 text-xs font-bold text-slate-700 dark:text-white hover:border-slate-300 dark:hover:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] cursor-pointer shadow-sm md:min-w-[160px] transition-all"
-          >
-            <option value="All" className="dark:bg-[#111111]">
-              All Clients
-            </option>
-            {userClients.map((c) => (
-              <option key={c._id} value={c._id} className="dark:bg-[#111111]">
-                {c.companyName}
-              </option>
-            ))}
-          </select>
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-            <FiChevronDown size={14} />
-          </div>
-        </div>
+
       </div>
 
       {/* TABLE VIEW OF PROJECTS */}
@@ -362,9 +299,6 @@ const Project = () => {
               <tr className="bg-slate-50/50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[10px]">
                 <th className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
                   Project Name
-                </th>
-                <th className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
-                  Client Name
                 </th>
 
                 <th className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
@@ -411,22 +345,17 @@ const Project = () => {
                     >
                       <div className="flex items-center gap-2">
                         <ProjectIcon name={project.name} size="sm" />
-                        <span className="hover:text-blue-600 dark:hover:text-[#3b82f6] transition-colors">
+                        <span className="hover:text-blue-600 dark:hover:text-[#3b82f6] transition-colors flex items-center gap-1.5">
                           {project.name}
+                          {project.access === "Private" && (
+                            <span title="Private Project" className="text-slate-400 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md">
+                              <FiLock size={10} />
+                            </span>
+                          )}
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
-                      {project.client ? (
-                        (() => {
-                          return (
-                            <ClientBadge client={project.client} size="md" />
-                          );
-                        })()
-                      ) : (
-                        <span className="text-slate-400 italic">No Client</span>
-                      )}
-                    </td>
+
 
                     <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
                       <span className="font-semibold text-slate-700 dark:text-slate-350">
@@ -573,26 +502,25 @@ const Project = () => {
                     />
                   </div>
 
-                  {/* Client Select field */}
+
+
+                  {/* Access Select field */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Client Name
+                      Access
                     </label>
                     <div className="relative">
                       <select
-                        value={clientId}
-                        onChange={(e) => setClientId(e.target.value)}
+                        value={access}
+                        onChange={(e) => setAccess(e.target.value)}
                         className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
                       >
-                        {userClients.map((c) => (
-                          <option
-                            key={c._id}
-                            value={c._id}
-                            className="dark:bg-[#111111]"
-                          >
-                            {c.companyName}
-                          </option>
-                        ))}
+                        <option value="Public" className="dark:bg-[#111111]">
+                          Public
+                        </option>
+                        <option value="Private" className="dark:bg-[#111111]">
+                          Private
+                        </option>
                       </select>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                         <FiChevronDown size={16} />
@@ -715,26 +643,25 @@ const Project = () => {
                     />
                   </div>
 
-                  {/* Client Select field */}
+
+
+                  {/* Access Select field */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Client Name
+                      Access
                     </label>
                     <div className="relative">
                       <select
-                        value={editClientId}
-                        onChange={(e) => setEditClientId(e.target.value)}
+                        value={editAccess}
+                        onChange={(e) => setEditAccess(e.target.value)}
                         className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
                       >
-                        {userClients.map((c) => (
-                          <option
-                            key={c._id}
-                            value={c._id}
-                            className="dark:bg-[#111111]"
-                          >
-                            {c.companyName}
-                          </option>
-                        ))}
+                        <option value="Public" className="dark:bg-[#111111]">
+                          Public
+                        </option>
+                        <option value="Private" className="dark:bg-[#111111]">
+                          Private
+                        </option>
                       </select>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                         <FiChevronDown size={16} />

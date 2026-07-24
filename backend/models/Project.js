@@ -7,15 +7,15 @@ const ProjectSchema = new mongoose.Schema(
       required: [true, "Please add a project name"],
       trim: true,
     },
-    client: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Client",
-      required: true,
-    },
     status: {
       type: String,
       enum: ["Active", "Completed", "On Hold", "Inactive"],
       default: "Active",
+    },
+    access: {
+      type: String,
+      enum: ["Public", "Private"],
+      default: "Public",
     },
     sections: {
       type: [String],
@@ -30,8 +30,5 @@ const ProjectSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
-// Index to optimize project queries by client
-ProjectSchema.index({ client: 1 });
 
 module.exports = mongoose.model("Project", ProjectSchema);

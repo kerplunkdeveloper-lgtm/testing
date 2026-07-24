@@ -1710,7 +1710,7 @@ td:first-child {
 /* Custom spinning border logo container */
 .logo-container {
   position: relative;
-  width: 10rem;
+  width: 8rem;
   height: 3rem;
   display: flex;
   align-items: center;

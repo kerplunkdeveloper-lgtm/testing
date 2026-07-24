@@ -51,7 +51,7 @@ const DashboardLayout = ({ role }) => {
       {/* RIGHT SIDE / MAIN CONTENT */}
       <div
         className={`flex-1 h-screen flex flex-col relative z-10 transition-all duration-300 ease-in-out ${
-          sidebarOpen ? "lg:ml-60 xl:ml-60" : "lg:ml-0"
+          sidebarOpen ? "lg:ml-60 xl:ml-52" : "lg:ml-0"
         }`}
       >
         {/* IMPERSONATION BANNER */}

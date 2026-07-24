@@ -15,6 +15,11 @@ const PortfolioSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    access: {
+      type: String,
+      enum: ["Public", "Private"],
+      default: "Public",
+    },
     projectIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
