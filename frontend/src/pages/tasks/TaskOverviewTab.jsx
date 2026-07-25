@@ -12,6 +12,7 @@ import {
   FiCheck,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSelector } from "react-redux";
 import { useUpdateTaskMutation } from "../../features/api/apiSlice";
 import ClientBadge from "../../components/common/ClientBadge";
 
@@ -123,6 +124,14 @@ const TaskOverviewTab = ({
   dateDropdownRef,
 }) => {
   const [updateTaskTrigger] = useUpdateTaskMutation();
+  const { clients } = useSelector((state) => state.clients);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
+
+  const [overviewClientFilter, setOverviewClientFilter] = useState("All");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const clientDropdownRef = useRef(null);
 
   // Internal selected task state for workspace preview drawer
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -238,10 +247,28 @@ const TaskOverviewTab = ({
       ) {
         setShowOverviewFilter(false);
       }
+      if (
+        clientDropdownRef.current &&
+        !clientDropdownRef.current.contains(event.target)
+      ) {
+        setShowClientDropdown(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    projectSearch,
+    overviewPriorityFilter,
+    overviewStatusFilter,
+    overviewStartDateFilter,
+    overviewEndDateFilter,
+    dateFilter,
+    overviewClientFilter,
+  ]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "No Date";
@@ -334,19 +361,26 @@ const TaskOverviewTab = ({
   const filteredOverviewTasks = React.useMemo(() => {
     return tasks
       .filter((task) => {
+        const isAdminOrManager = user?.role === "admin" || user?.role === "operationmanager";
         const creatorId = task.createdBy?._id || task.createdBy;
-        const assignedById = task.assignedBy?._id || task.assignedBy;
-        if (creatorId !== currentUserId && assignedById !== currentUserId) {
-          return false;
+        
+        if (!isAdminOrManager) {
+          if (creatorId !== currentUserId) {
+            return false;
+          }
         }
 
-        // Filter out tasks that do not have a client name
+        // Filter out tasks that do not have a client name (REMOVED - allow all tasks to display)
         const projId = task.project?._id || task.project;
         const projectObj = projects.find((p) => p._id === projId);
         const clientObj = projectObj?.client || task.project?.client;
         const clientName = clientObj?.companyName || "";
-        if (!clientName.trim()) {
-          return false;
+
+        if (overviewClientFilter !== "All") {
+          const cId = clientObj?._id || (typeof clientRaw === "string" ? clientRaw : null);
+          if (cId !== overviewClientFilter) {
+            return false;
+          }
         }
 
         // 1. Local Priority Filter
@@ -471,13 +505,14 @@ const TaskOverviewTab = ({
     overviewStartDateFilter,
     overviewEndDateFilter,
     dateFilter,
+    overviewClientFilter,
   ]);
 
   return (
     <>
-    <div className="bg-white dark:bg-[#11131e] overflow-hidden space-y-4">
+    <div className="bg-white dark:bg-[#11131e] overflow-hidden flex flex-col h-[calc(100vh-160px)]">
       {/* Header Search & Title */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-white/5 relative z-30">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 pt-1 border-b border-slate-100 dark:border-white/5 relative z-30 shrink-0">
         <div className="relative w-full sm:w-64">
           <input
             type="text"
@@ -488,8 +523,77 @@ const TaskOverviewTab = ({
           />
         </div>
 
-        {/* Right Controls: Date, Filter, Hide Column */}
+        {/* Right Controls: Client, Date, Filter, Hide Column */}
         <div className="flex items-center justify-end gap-2.5 w-full sm:w-auto">
+          {/* Client Filter Pill */}
+          <div className="relative" ref={clientDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowClientDropdown((prev) => !prev)}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl border text-xs font-extrabold transition-all shadow-2xs cursor-pointer ${
+                overviewClientFilter !== "All"
+                  ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/30 dark:border-blue-500/40 dark:text-blue-300"
+                  : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-800 dark:text-slate-200 hover:border-blue-500/50"
+              }`}
+            >
+              <span className="truncate max-w-[90px]">
+                {overviewClientFilter === "All"
+                  ? "All Clients"
+                  : clients?.find((c) => c._id === overviewClientFilter)?.companyName || "Client"}
+              </span>
+              <FiChevronDown
+                size={13}
+                className={`text-slate-400 transition-transform duration-200 ${
+                  showClientDropdown ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {showClientDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-2 w-48 max-h-60 overflow-y-auto custom-scrollbar bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1.5 z-[70] flex flex-col gap-0.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOverviewClientFilter("All");
+                      setShowClientDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                      overviewClientFilter === "All"
+                        ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
+                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    All Clients
+                  </button>
+                  {clients?.map((client) => (
+                    <button
+                      key={client._id}
+                      type="button"
+                      onClick={() => {
+                        setOverviewClientFilter(client._id);
+                        setShowClientDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all truncate ${
+                        overviewClientFilter === client._id
+                          ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                      }`}
+                    >
+                      {client.companyName}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Date Quick Filter Pill */}
           <div className="relative" ref={dateDropdownRef}>
             <button
@@ -776,10 +880,10 @@ const TaskOverviewTab = ({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto custom-scrollbar">
+      <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1 relative bg-white dark:bg-[#11131e]">
         <table className="w-full text-left border-collapse min-w-[1000px] table-auto">
-          <thead>
-            <tr className="bg-slate-50/80 dark:bg-[#161826] border-b border-slate-200/80 dark:border-white/10 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161826] shadow-sm">
+            <tr className="border-b border-slate-200/80 dark:border-white/10 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               {!hiddenColumns.taskName && <th className="py-2.5 px-3.5">TASK NAME</th>}
               {!hiddenColumns.clientName && <th className="py-2.5 px-3.5">CLIENT NAME</th>}
               {!hiddenColumns.assignee && <th className="py-2.5 px-3.5">ASSIGNEE</th>}
@@ -802,14 +906,18 @@ const TaskOverviewTab = ({
                 </td>
               </tr>
             ) : (
-              filteredOverviewTasks.map((task) => {
+              filteredOverviewTasks
+                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                .map((task) => {
                 const isCompleted = task.status === "Completed";
                 const pStyle = getPriorityStyle(task.priority || "Medium");
                 const sStyle = getStatusStyle(task.status, task.isBlocked);
 
                 const projId = task.project?._id || task.project;
                 const projectObj = projects.find((p) => p._id === projId);
-                const clientObj = projectObj?.client || task.project?.client;
+                const clientRaw = projectObj?.client || task.project?.client;
+                const clientId = clientRaw?._id || clientRaw;
+                const clientObj = clients?.find((c) => c._id === clientId) || (typeof clientRaw === 'object' ? clientRaw : null);
                 const clientName = clientObj?.companyName || "N/A";
 
                 return (
@@ -851,7 +959,7 @@ const TaskOverviewTab = ({
 
                     {!hiddenColumns.clientName && (
                       <td className="py-2 px-3.5 text-left">
-                        {clientObj ? (
+                        {clientObj && clientObj.companyName ? (
                           <ClientBadge client={clientObj} size="sm" />
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-pink-50 text-pink-600 border border-pink-100 dark:bg-pink-950/30 dark:text-pink-400 dark:border-pink-900/30">
@@ -1040,6 +1148,41 @@ const TaskOverviewTab = ({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls */}
+      {filteredOverviewTasks.length > itemsPerPage && (
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-[#161826] shrink-0 mt-auto">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+            {Math.min(currentPage * itemsPerPage, filteredOverviewTasks.length)}{" "}
+            of {filteredOverviewTasks.length} tasks
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-white/5 transition-colors shadow-2xs cursor-pointer"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage((prev) =>
+                  currentPage * itemsPerPage < filteredOverviewTasks.length
+                    ? prev + 1
+                    : prev
+                )
+              }
+              disabled={currentPage * itemsPerPage >= filteredOverviewTasks.length}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-white/5 transition-colors shadow-2xs cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
 
       {/* WORKSPACE PREVIEW DRAWER */}
@@ -1113,19 +1256,18 @@ const TaskOverviewTab = ({
                       </span>
                       <div className="font-bold text-slate-700 dark:text-white mt-1">
                         {(() => {
-                          const projId =
-                            selectedTask.project?._id || selectedTask.project;
-                          const projectObj = projects.find(
-                            (p) => p._id === projId,
-                          );
-                          const client =
-                            projectObj?.client || selectedTask.project?.client;
-                          if (client) {
-                            return <ClientBadge client={client} size="sm" />;
+                          const projId = selectedTask.project?._id || selectedTask.project;
+                          const projectObj = projects.find((p) => p._id === projId);
+                          const clientRaw = projectObj?.client || selectedTask.project?.client;
+                          const clientId = clientRaw?._id || clientRaw;
+                          const clientObj = clients?.find((c) => c._id === clientId) || (typeof clientRaw === 'object' ? clientRaw : null);
+                          
+                          if (clientObj && clientObj.companyName) {
+                            return <ClientBadge client={clientObj} size="sm" />;
                           }
                           return (
                             <span className="text-slate-400 italic font-normal">
-                              —
+                              {clientObj?.companyName || "—"}
                             </span>
                           );
                         })()}

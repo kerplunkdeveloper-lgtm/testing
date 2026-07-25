@@ -23,9 +23,9 @@ const UserHeader = ({
       {/* TOP ROW */}
 
       {/* FILTER ROW */}
-      <div className="flex flex-row items-center gap-2">
+      <div className="flex flex-row items-center">
         {/* SEARCH */}
-        <div className="flex items-center  gap-2 bg-white dark:bg-[#0f172a] shadow-[0_2px_15px_rgb(0,0,0,0.04)] dark:shadow-[0_2px_15px_rgba(0,0,0,0.2)] rounded-xl px-4 py-3 flex-1 transition-all hover:shadow-[0_4px_20px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex items-center flex-1 transition-all ">
           <input
             type="text"
             placeholder="Search by name or email..."
@@ -36,7 +36,7 @@ const UserHeader = ({
         </div>
 
         {/* DEPT FILTER */}
-        <div className="flex items-center gap-2 bg-white dark:bg-[#0f172a] shadow-[0_2px_15px_rgb(0,0,0,0.04)] dark:shadow-[0_2px_15px_rgba(0,0,0,0.2)] rounded-xl px-4 py-3 w-[150px] sm:w-60 shrink-0 transition-all hover:shadow-[0_4px_20px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex items-center gap-2 px-3 w-[150px] sm:w-60 shrink-0 transition-all ">
           <FiFilter
             size={12}
             className="text-gray-400 dark:text-slate-500 shrink-0"

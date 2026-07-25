@@ -694,7 +694,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
       {/* Today's Interruptions */}
       <div className="mb-8 relative z-10">
-        <div className="bg-slate-50 dark:bg-slate-100 p-5 rounded-3xl border border-slate-200 dark:border-slate-300 backdrop-blur-md shadow-lg">
+        <div className="bg-slate-50 dark:bg-slate-100 p-5 rounded-3xl backdrop-blur-md shadow-lg">
           <div className="flex flex-col md:flex-row md:items-center gap-6">
             <div className="flex-shrink-0 min-w-[150px] border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 pb-4 md:pb-0 md:pr-6">
               <h3 className="text-xs font-black tracking-widest text-slate-500 dark:text-slate-400 mb-2 uppercase flex items-center gap-2">

@@ -2765,9 +2765,11 @@ const ProjectTaskBoard = ({
                 <h1 className="text-lg sm:text-[15px] font-bold text-slate-800 dark:text-white truncate">
                   {activeProject.name}
                 </h1>
-                {activeProject?.client && (
-                  <ClientBadge client={activeProject.client} size="sm" />
-                )}
+                {(() => {
+                  const clientId = activeProject?.client?._id || activeProject?.client;
+                  const clientObj = clients?.find((c) => c._id === clientId);
+                  return clientObj ? <ClientBadge client={clientObj} size="sm" className="ml-2" /> : null;
+                })()}
               </div>
             </div>
           </div>
@@ -3071,10 +3073,7 @@ const ProjectTaskBoard = ({
                           Search
                         </label>
                         <div className="relative">
-                          <FiSearch
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-550"
-                            size={12}
-                          />
+                         
                           <input
                             type="text"
                             placeholder="Type to search tasks..."
@@ -3620,7 +3619,7 @@ const ProjectTaskBoard = ({
                         <table
                           ref={provided.innerRef}
                           {...provided.droppableProps}
-                          className="w-full text-left border-collapse text-[11px] project-task-table"
+                          className="w-full text-left border-collapse text-[11px] "
                         >
                           <thead>
                             <tr className="bg-slate-50 dark:bg-[#16161b] text-slate-700 dark:text-slate-300 tracking-wider text-[12px]">
@@ -4265,7 +4264,7 @@ const ProjectTaskBoard = ({
                                                 onClick={(e) =>
                                                   e.stopPropagation()
                                                 }
-                                                className="font-bold text-xs uppercase tracking-wider text-slate-705 dark:text-slate-355 hover:bg-slate-100 dark:hover:bg-slate-800 rounded px-1.5 py-0.5 outline-none bg-transparent focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-blue-500 max-w-[200px] sm:max-w-[400px] border-none cursor-text truncate transition-all"
+                                                className="font-bold text-[10px] uppercase tracking-wider text-slate-705 dark:text-slate-355 hover:bg-slate-100 dark:hover:bg-slate-800 rounded px-1.5 py-0.5 outline-none bg-transparent focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-blue-500 max-w-[200px] sm:max-w-[400px] border-none cursor-text truncate transition-all"
                                               />
 
                                               <span className="bg-blue-100/60 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 border border-blue-200/40 dark:border-blue-800/30 font-bold px-2 py-0.5 rounded-full text-[10px] select-none">
