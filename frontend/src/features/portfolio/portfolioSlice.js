@@ -6,7 +6,9 @@ import {
   updatePortfolioAPI,
   deletePortfolioAPI,
   addProjectsToPortfolioAPI,
+  addPortfoliosToPortfolioAPI,
   removeProjectFromPortfolioAPI,
+  removePortfolioFromPortfolioAPI,
 } from "./portfolioApi";
 
 // GET all portfolios
@@ -70,12 +72,36 @@ export const addProjectsToPortfolio = createAsyncThunk(
   }
 );
 
+// ADD portfolios to portfolio
+export const addPortfoliosToPortfolio = createAsyncThunk(
+  "portfolios/addPortfolios",
+  async ({ id, portfolioIds }, thunkAPI) => {
+    try {
+      return await addPortfoliosToPortfolioAPI({ id, portfolioIds });
+    } catch (err) {
+      return thunkAPI.rejectWithValue(err.response?.data?.message || err.message);
+    }
+  }
+);
+
 // REMOVE project from portfolio
 export const removeProjectFromPortfolio = createAsyncThunk(
   "portfolios/removeProject",
   async ({ id, projectId }, thunkAPI) => {
     try {
       return await removeProjectFromPortfolioAPI({ id, projectId });
+    } catch (err) {
+      return thunkAPI.rejectWithValue(err.response?.data?.message || err.message);
+    }
+  }
+);
+
+// REMOVE portfolio from portfolio
+export const removePortfolioFromPortfolio = createAsyncThunk(
+  "portfolios/removePortfolio",
+  async ({ id, childPortfolioId }, thunkAPI) => {
+    try {
+      return await removePortfolioFromPortfolioAPI({ id, childPortfolioId });
     } catch (err) {
       return thunkAPI.rejectWithValue(err.response?.data?.message || err.message);
     }
@@ -145,6 +171,17 @@ const portfolioSlice = createSlice({
         toast.error(action.payload || "Failed to add projects");
       })
 
+      // ADD PORTFOLIOS
+      .addCase(addPortfoliosToPortfolio.fulfilled, (state, action) => {
+        state.portfolios = state.portfolios.map((p) =>
+          p._id === action.payload.data._id ? action.payload.data : p
+        );
+        toast.success("Portfolios added to portfolio");
+      })
+      .addCase(addPortfoliosToPortfolio.rejected, (_, action) => {
+        toast.error(action.payload || "Failed to add portfolios");
+      })
+
       // REMOVE PROJECT
       .addCase(removeProjectFromPortfolio.fulfilled, (state, action) => {
         state.portfolios = state.portfolios.map((p) =>
@@ -154,6 +191,17 @@ const portfolioSlice = createSlice({
       })
       .addCase(removeProjectFromPortfolio.rejected, (_, action) => {
         toast.error(action.payload || "Failed to remove project");
+      })
+
+      // REMOVE PORTFOLIO
+      .addCase(removePortfolioFromPortfolio.fulfilled, (state, action) => {
+        state.portfolios = state.portfolios.map((p) =>
+          p._id === action.payload.data._id ? action.payload.data : p
+        );
+        toast.success("Portfolio removed from portfolio");
+      })
+      .addCase(removePortfolioFromPortfolio.rejected, (_, action) => {
+        toast.error(action.payload || "Failed to remove portfolio");
       });
   },
 });

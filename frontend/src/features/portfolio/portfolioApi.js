@@ -32,10 +32,26 @@ export const addProjectsToPortfolioAPI = async ({ id, projectIds }) => {
   return response.data;
 };
 
+// ADD portfolios to a portfolio (batch)
+export const addPortfoliosToPortfolioAPI = async ({ id, portfolioIds }) => {
+  const response = await axiosInstance.put(`/portfolios/${id}/portfolios`, {
+    portfolioIds,
+  });
+  return response.data;
+};
+
 // REMOVE a single project from a portfolio
 export const removeProjectFromPortfolioAPI = async ({ id, projectId }) => {
   const response = await axiosInstance.delete(
     `/portfolios/${id}/projects/${projectId}`
+  );
+  return response.data;
+};
+
+// REMOVE a single portfolio from a portfolio
+export const removePortfolioFromPortfolioAPI = async ({ id, childPortfolioId }) => {
+  const response = await axiosInstance.delete(
+    `/portfolios/${id}/portfolios/${childPortfolioId}`
   );
   return response.data;
 };

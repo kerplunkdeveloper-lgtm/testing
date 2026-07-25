@@ -23,6 +23,8 @@ import {
   FiCalendar,
   FiCheck,
   FiEye,
+  FiArrowLeft,
+  FiMoreHorizontal,
 } from "react-icons/fi";
 import { FaRegBuilding } from "react-icons/fa";
 import {
@@ -42,6 +44,8 @@ import {
 } from "../../../features/clients/clientslice";
 
 import { getUsers } from "../../../features/users/userSlice";
+import { getProjects } from "../../../features/projects/projectSlice";
+import { getTasks } from "../../../features/tasks/taskSlice";
 import { useTheme } from "../../../context/ThemeContext";
 
 const getUserColor = (userId) => {
@@ -260,6 +264,8 @@ const Clients = () => {
   const { clients, loading } = useSelector((state) => state.clients);
   const { users } = useSelector((state) => state.users);
   const { user } = useSelector((state) => state.auth);
+  const { projects } = useSelector((state) => state.projects);
+  const { tasks } = useSelector((state) => state.tasks);
   const { theme } = useTheme();
 
   const [showModal, setShowModal] = useState(false);
@@ -319,6 +325,8 @@ const Clients = () => {
   useEffect(() => {
     dispatch(getClients());
     dispatch(getUsers());
+    dispatch(getProjects());
+    dispatch(getTasks());
   }, [dispatch]);
 
   const handleChange = (e) => {
@@ -671,17 +679,20 @@ const Clients = () => {
                   <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[260px] border-r border-slate-200 dark:border-slate-700/60">
                     <div className="flex items-center justify-start gap-1.5">
                       <FaRegBuilding size={11} className="opacity-70" />
-                      Client Profile
+                      Client Name
                     </div>
                   </th>
-                  <th className="px-5 py-4 font-extrabold bg-transparent text-left border-r border-slate-200 dark:border-slate-700/60">
-                    Contact Info
+                  <th className="px-5 py-4 font-extrabold bg-transparent text-center border-r border-slate-200 dark:border-slate-700/60 w-28">
+                    No. of Projects
                   </th>
-                  <th className="px-5 py-4  font-extrabold bg-transparent  text-left border-r border-slate-200 dark:border-slate-700/60">
+                  <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[380px] border-r border-slate-200 dark:border-slate-700/60">
                     Service & Members
                   </th>
-                  <th className="px-5 py-4 font-extrabold bg-transparent text-left w-48 border-r border-slate-200 dark:border-slate-700/60">
+                  <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[280px] border-r border-slate-200 dark:border-slate-700/60">
                     Deliverables
+                  </th>
+                  <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[140px] border-r border-slate-200 dark:border-slate-700/60">
+                    Financials 
                   </th>
                   {user?.role === "team" && (
                     <th className="px-5 py-4 font-extrabold bg-transparent text-center border-r border-slate-200 dark:border-slate-700/60 last:border-r-0">
@@ -780,8 +791,11 @@ const Clients = () => {
                               })()}
                               <div className="min-w-[120px]">
                                 <h2
-                                  className="font-bold transition-colors text-[14px]  truncate max-w-[200px]"
-                                  style={{ color: clientColor }}
+                                  className="font-bold transition-colors text-[14px] text-slate-800 dark:text-slate-100 truncate max-w-[200px] cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                                  onClick={() => {
+                                    setViewClient(client);
+                                    setShowViewOffcanvas(true);
+                                  }}
                                 >
                                   {client.companyName}
                                 </h2>
@@ -806,46 +820,14 @@ const Clients = () => {
                             </div>
                           </td>
 
-                          {/* Contact Info */}
-                          <td className={cellClass}>
-                            <div className="flex flex-col gap-1.5">
-                              {client.spoc && (
-                                <div className="text-[12px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                  <FiUser
-                                    size={11}
-                                    className="text-slate-400 shrink-0"
-                                  />
-                                  <span
-                                    className="truncate max-w-[150px]"
-                                    title={client.spoc}
-                                  >
-                                    {client.spoc}
-                                    {client.designation && (
-                                      <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-medium ml-1">
-                                        ({client.designation})
-                                      </span>
-                                    )}
-                                  </span>
-                                </div>
-                              )}
-                              {client.phoneNumber ? (
-                                <a
-                                  href={`tel:${client.phoneNumber}`}
-                                  className="inline-flex items-center gap-1.5 text-[11.5px] text-slate-650 dark:text-slate-300 hover:theme-text-accent font-semibold transition-colors group/link"
-                                >
-                                  <FiPhone
-                                    size={11}
-                                    className="text-slate-400 group-hover/link:theme-text-accent transition-colors"
-                                  />
-                                  <span>{client.phoneNumber}</span>
-                                </a>
-                              ) : (
-                                <span className="text-[10.5px] text-slate-450 dark:text-slate-600 italic">
-                                  No Phone
-                                </span>
-                              )}
-                            </div>
+                          {/* No. of Projects */}
+                          <td className="px-5 py-4 bg-transparent transition-colors border-r border-slate-200 dark:border-slate-700/60 text-center w-28">
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold text-[11px] border border-blue-200/50 dark:border-blue-800/30">
+                              {projects?.filter(p => p.client?._id === client._id || p.client === client._id).length || 0}
+                            </span>
                           </td>
+
+
 
                           {/* Service Info */}
                           <td className={cellClass}>
@@ -871,7 +853,7 @@ const Clients = () => {
                                   })}
                               </div>
 
-                              <div className="grid grid-cols-2 md:grid-cols-3   gap-2 min-w-[250px] max-w-[350px]">
+                              <div className="flex flex-wrap gap-2 max-w-[350px]">
                                 {client.assignedTo &&
                                 (Array.isArray(client.assignedTo)
                                   ? client.assignedTo.length > 0
@@ -980,14 +962,14 @@ const Clients = () => {
                                   </div>
                                   <div className="flex flex-wrap gap-1">
                                     {client.posts > 0 && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-450 border border-blue-100 dark:border-blue-900/30 font-bold text-[9px]">
-                                        <FiLayers size={8.5} /> {client.posts}{" "}
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 font-bold text-[9.5px]">
+                                        <FiLayers size={9} /> {client.posts}{" "}
                                         Posts
                                       </span>
                                     )}
                                     {client.reels > 0 && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/20 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/30 font-bold text-[9px]">
-                                        <FiVideo size={8.5} /> {client.reels}{" "}
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 font-bold text-[9.5px]">
+                                        <FiVideo size={9} /> {client.reels}{" "}
                                         Reels
                                       </span>
                                     )}
@@ -1005,15 +987,15 @@ const Clients = () => {
                                   </div>
                                   <div className="flex flex-wrap gap-1">
                                     {client.story > 0 && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-405 border border-rose-100 dark:border-rose-900/30 font-bold text-[9px]">
-                                        <FiVideo size={8.5} /> {client.story}{" "}
-                                        storys
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 font-bold text-[9.5px]">
+                                        <FiVideo size={9} /> {client.story}{" "}
+                                        Stories
                                       </span>
                                     )}
                                     {client.needDslr &&
                                       client.needDslr !== "No DSLR" && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30 font-bold text-[9px]">
-                                          <FiVideo size={8.5} /> DSLR:{" "}
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 font-bold text-[9.5px]">
+                                          <FiVideo size={9} /> DSLR:{" "}
                                           {client.needDslr}
                                         </span>
                                       )}
@@ -1028,8 +1010,8 @@ const Clients = () => {
                                     Website
                                   </div>
                                   <div className="flex flex-wrap gap-1">
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30 font-bold text-[9px]">
-                                      <FiGlobe size={8.5} /> {client.pages}{" "}
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold text-[9.5px]">
+                                      <FiGlobe size={9} /> {client.pages}{" "}
                                       Pages
                                     </span>
                                   </div>
@@ -1044,13 +1026,13 @@ const Clients = () => {
                                   </div>
                                   <div className="flex flex-wrap gap-1">
                                     {client.onpage && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30 font-bold text-[9px]">
-                                        <FiSearch size={8.5} /> On-Page
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800/60 font-bold text-[9.5px]">
+                                        <FiSearch size={9} /> On-Page
                                       </span>
                                     )}
                                     {client.offpage && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30 font-bold text-[9px]">
-                                        <FiSearch size={8.5} /> Off-Page
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800/60 font-bold text-[9.5px]">
+                                        <FiSearch size={9} /> Off-Page
                                       </span>
                                     )}
                                   </div>
@@ -1068,6 +1050,18 @@ const Clients = () => {
                                     No deliverables set.
                                   </span>
                                 )}
+                            </div>
+                          </td>
+
+                          {/* Financials (INR) */}
+                          <td className={cellClass}>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[13px] font-extrabold text-slate-800 dark:text-slate-100">
+                                ₹{(client.totalBudget || client.budget || 0).toLocaleString("en-IN")}
+                              </span>
+                              <span className="text-[10.5px] text-slate-400 dark:text-slate-500 font-bold">
+                                Base: ₹{(client.budget || 0).toLocaleString("en-IN")} • GST: {client.gst || 18}%
+                              </span>
                             </div>
                           </td>
 
@@ -1241,7 +1235,7 @@ const Clients = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3"
+            className="fixed inset-0 z-5  flex items-center justify-center p-3"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
@@ -2220,150 +2214,225 @@ const Clients = () => {
       {/* VIEW CLIENT OFFCANVAS */}
       <AnimatePresence>
         {showViewOffcanvas && viewClient && (
-          <>
+          <React.Fragment>
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowViewOffcanvas(false)}
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/40"
             />
+            
             {/* Offcanvas Panel */}
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col"
+              className="fixed inset-y-0 right-0 z-50 w-full md:w-[750px] lg:w-[900px] bg-slate-50 dark:bg-slate-950 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col"
             >
-              <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
-                <h3 className="text-sm font-bold theme-text-primary flex items-center gap-2">
-                  <FiEye className="theme-text-accent" />
-                  Client Details
-                </h3>
-                <button
+              {/* Header Top */}
+              <div className="px-6 py-4 flex items-center justify-between bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setShowViewOffcanvas(false)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+                  >
+                    <FiArrowLeft size={16} />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                      {viewClient.companyName}
+                    </h2>
+                    <span className="px-2.5 py-1 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 font-bold text-[10px] border border-emerald-200 dark:border-emerald-800/60">
+                      Active
+                    </span>
+                  </div>
+                </div>
+                <button 
                   onClick={() => setShowViewOffcanvas(false)}
-                  className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-transparent text-slate-400 hover:text-rose-500 transition-colors shadow-sm cursor-pointer"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:border-rose-200 dark:hover:border-rose-800 transition-colors"
                 >
-                  <FiX size={16} className="stroke-[2.5]" />
+                  <FiX size={16} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Profile Details */}
-                <div>
-                  <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
-                    Profile Details
-                  </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
-                        Company Name
-                      </span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {viewClient.companyName}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
-                        Industry
-                      </span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {viewClient.industry}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
-                        Onboarding Date
-                      </span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {viewClient.onboardingDate &&
-                          new Date(
-                            viewClient.onboardingDate,
-                          ).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                      </span>
-                    </div>
-                  </div>
+              {/* Tabs */}
+              <div className="px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+                <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
+                  {["Overview"].map((tab) => (
+                    <button
+                      key={tab}
+                      className={`py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+                        tab === "Overview"
+                          ? "border-emerald-500 text-slate-800 dark:text-slate-100"
+                          : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                {/* Contact Info */}
-                <div>
-                  <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
-                    Contact Info
-                  </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
-                        SPOC
-                      </span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {viewClient.spoc || "N/A"}
-                      </span>
-                      {viewClient.designation && (
-                        <span className="text-[10px] text-slate-500 ml-1">
-                          ({viewClient.designation})
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
-                        Phone Number
-                      </span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {viewClient.phoneNumber || "N/A"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 dark:bg-slate-950">
+                {(() => {
+                  // Calculate Stats
+                  const clientProjects = projects.filter(p => {
+                    const cId = p.client?._id || p.client;
+                    return cId === viewClient._id;
+                  });
+                  
+                  const clientTasks = tasks.filter(t => {
+                    const cId = t.client?._id || t.client || t.project?.client?._id || t.project?.client;
+                    return cId === viewClient._id;
+                  });
 
-                {/* Financials */}
-                {user?.role !== "team" && (
-                  <div>
-                    <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
-                      Financials
-                    </h4>
-                    <div className="space-y-3">
-                      <div>
-                        <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
-                          Budget
-                        </span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          ₹
-                          {Number(viewClient.budget || 0).toLocaleString(
-                            "en-IN",
-                          )}
-                        </span>
+                  const totalTasks = clientTasks.length;
+                  const inProgressTasks = clientTasks.filter(t => t.status === "In Progress" || t.status === "Pending").length;
+                  const completedTasks = clientTasks.filter(t => t.status === "Completed").length;
+                  const overdueTasks = clientTasks.filter(t => {
+                    if (t.status === "Completed") return false;
+                    return t.status === "Overdue" || (t.dueDate && new Date(t.dueDate) < new Date());
+                  }).length;
+
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                      
+                      {/* LEFT COLUMN: Client Details */}
+                      <div className="lg:col-span-5 flex flex-col">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm h-full flex flex-col">
+                          <h3 className="text-[15px] font-extrabold text-slate-800 dark:text-slate-100 mb-6">
+                            Client Details
+                          </h3>
+                          <div className="space-y-5 flex-1">
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-3">
+                              <span className="text-xs font-bold text-slate-500">Client Name</span>
+                              <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200 text-right">{viewClient.companyName}</span>
+                            </div>
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-3">
+                              <span className="text-xs font-bold text-slate-500">Industry</span>
+                              <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200 text-right">{viewClient.industry || "-"}</span>
+                            </div>
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-3">
+                              <span className="text-xs font-bold text-slate-500">Account Manager</span>
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">
+                                  {viewClient.spoc ? viewClient.spoc.charAt(0).toUpperCase() : "-"}
+                                </div>
+                                <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200 text-right">{viewClient.spoc || "-"}</span>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-3">
+                              <span className="text-xs font-bold text-slate-500">Contact Person</span>
+                              <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200 text-right">
+                                {viewClient.spoc || "-"}
+                                {viewClient.designation ? ` (${viewClient.designation})` : ""}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-3">
+                              <span className="text-xs font-bold text-slate-500">Phone</span>
+                              <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200 text-right">{viewClient.phoneNumber || "-"}</span>
+                            </div>
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-3">
+                              <span className="text-xs font-bold text-slate-500">Status</span>
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 font-bold text-[10px] border border-emerald-200 dark:border-emerald-800/60">
+                                Active
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center pb-3">
+                              <span className="text-xs font-bold text-slate-500">Onboard Date</span>
+                              <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200 text-right">
+                                {viewClient.onboardingDate
+                                  ? new Date(viewClient.onboardingDate).toLocaleDateString("en-IN", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                    })
+                                  : "-"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
-                          GST
-                        </span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          {viewClient.gst}%
-                        </span>
+
+                      {/* RIGHT COLUMN: Projects & Tasks */}
+                      <div className="lg:col-span-7 flex flex-col gap-6">
+                        {/* Projects Card */}
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex-1">
+                          <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-[15px] font-extrabold text-slate-800 dark:text-slate-100">
+                              Projects ({clientProjects.length})
+                            </h3>
+                            <button className="text-[13px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                              View All
+                            </button>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            {clientProjects.slice(0, 5).map(project => (
+                              <div key={project._id} className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-800/30 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60">
+                                <div className="flex items-center gap-3.5">
+                                  <div 
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm"
+                                    style={{ background: project.color || "var(--accent-gradient)" }}
+                                  >
+                                    <FiBriefcase size={14} />
+                                  </div>
+                                  <span className="font-bold text-slate-800 dark:text-slate-200 text-[13px]">{project.name}</span>
+                                </div>
+                                <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+                                  {project.status || "Active"}
+                                </span>
+                              </div>
+                            ))}
+                            {clientProjects.length === 0 && (
+                              <div className="flex flex-col items-center justify-center py-6 text-slate-400">
+                                <FiBriefcase size={24} className="mb-2 opacity-30" />
+                                <span className="text-xs font-bold">No projects assigned yet.</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Tasks Summary Card */}
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
+                          <h3 className="text-[15px] font-extrabold text-slate-800 dark:text-slate-100 mb-5">
+                            Tasks Summary
+                          </h3>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {/* Total */}
+                            <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40">
+                              <span className="text-2xl font-black text-blue-700 dark:text-blue-400 mb-1">{totalTasks}</span>
+                              <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center">Total Tasks</span>
+                            </div>
+                            {/* In Progress */}
+                            <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40">
+                              <span className="text-2xl font-black text-amber-600 dark:text-amber-400 mb-1">{inProgressTasks}</span>
+                              <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center">In Progress</span>
+                            </div>
+                            {/* Completed */}
+                            <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
+                              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mb-1">{completedTasks}</span>
+                              <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center">Completed</span>
+                            </div>
+                            {/* Overdue */}
+                            <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40">
+                              <span className="text-2xl font-black text-rose-600 dark:text-rose-400 mb-1">{overdueTasks}</span>
+                              <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center">Overdue</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <span className="block text-[9.5px] font-bold text-slate-500 uppercase">
-                          Total (Inc. GST)
-                        </span>
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                          ₹
-                          {Number(viewClient.totalBudget || 0).toLocaleString(
-                            "en-IN",
-                          )}
-                        </span>
-                      </div>
+                      
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </motion.div>
-          </>
+          </React.Fragment>
         )}
       </AnimatePresence>
     </div>

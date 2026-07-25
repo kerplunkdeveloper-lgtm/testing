@@ -6,6 +6,8 @@ const {
   deletePortfolio,
   addProjectsToPortfolio,
   removeProjectFromPortfolio,
+  addPortfoliosToPortfolio,
+  removePortfolioFromPortfolio,
 } = require("../controllers/portfolioController");
 
 const { protect, authorize } = require("../middleware/auth");
@@ -27,7 +29,15 @@ router
   .put(protect, authorize("admin", "operationmanager","team"), addProjectsToPortfolio);
 
 router
+  .route("/:id/portfolios")
+  .put(protect, authorize("admin", "operationmanager","team"), addPortfoliosToPortfolio);
+
+router
   .route("/:id/projects/:projectId")
   .delete(protect, authorize("admin", "operationmanager","team"), removeProjectFromPortfolio);
+
+router
+  .route("/:id/portfolios/:childPortfolioId")
+  .delete(protect, authorize("admin", "operationmanager","team"), removePortfolioFromPortfolio);
 
 module.exports = router;

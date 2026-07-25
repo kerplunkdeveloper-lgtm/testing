@@ -15,6 +15,7 @@ exports.getPortfolios = async (req, res) => {
     };
     const portfolios = await Portfolio.find(query)
         .populate("projectIds", "name status client")
+        .populate("portfolioIds", "name color access")
         .populate("createdBy", "name department");
     res.status(200).json({ success: true, data: portfolios });
   } catch (err) {
@@ -33,6 +34,7 @@ exports.createPortfolio = async (req, res) => {
     });
     const populatedPortfolio = await Portfolio.findById(portfolio._id)
       .populate("projectIds", "name status client")
+      .populate("portfolioIds", "name color access")
       .populate("createdBy", "name department");
     res.status(201).json({ success: true, data: populatedPortfolio });
   } catch (err) {
@@ -62,6 +64,7 @@ exports.updatePortfolio = async (req, res) => {
       { new: true, runValidators: true }
     )
       .populate("projectIds", "name status client")
+      .populate("portfolioIds", "name color access")
       .populate("createdBy", "name department");
 
     res.status(200).json({ success: true, data: portfolio });
@@ -119,7 +122,44 @@ exports.addProjectsToPortfolio = async (req, res) => {
     portfolio.projectIds = merged;
     await portfolio.save();
     const updated = await Portfolio.findById(req.params.id)
-      .populate("projectIds", "name status client");
+      .populate("projectIds", "name status client")
+      .populate("portfolioIds", "name color access")
+      .populate("createdBy", "name department");
+    res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Add portfolios to a portfolio
+// @route   PUT /api/portfolios/:id/portfolios
+// @access  Private/Admin
+exports.addPortfoliosToPortfolio = async (req, res) => {
+  try {
+    const { portfolioIds } = req.body;
+    const portfolio = await Portfolio.findById(req.params.id);
+    if (!portfolio) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Portfolio not found" });
+    }
+
+    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "You are not authorized to modify this private portfolio" });
+    }
+
+    const merged = Array.from(
+      new Set([
+        ...(portfolio.portfolioIds || []).map((id) => id.toString()),
+        ...portfolioIds,
+      ])
+    );
+    portfolio.portfolioIds = merged;
+    await portfolio.save();
+    const updated = await Portfolio.findById(req.params.id)
+      .populate("projectIds", "name status client")
+      .populate("portfolioIds", "name color access")
+      .populate("createdBy", "name department");
     res.status(200).json({ success: true, data: updated });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -147,7 +187,39 @@ exports.removeProjectFromPortfolio = async (req, res) => {
     );
     await portfolio.save();
     const updated = await Portfolio.findById(req.params.id)
-      .populate("projectIds", "name status client");
+      .populate("projectIds", "name status client")
+      .populate("portfolioIds", "name color access")
+      .populate("createdBy", "name department");
+    res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Remove a portfolio from a portfolio
+// @route   DELETE /api/portfolios/:id/portfolios/:childPortfolioId
+// @access  Private/Admin
+exports.removePortfolioFromPortfolio = async (req, res) => {
+  try {
+    const portfolio = await Portfolio.findById(req.params.id);
+    if (!portfolio) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Portfolio not found" });
+    }
+
+    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "You are not authorized to modify this private portfolio" });
+    }
+
+    portfolio.portfolioIds = (portfolio.portfolioIds || []).filter(
+      (pid) => pid.toString() !== req.params.childPortfolioId
+    );
+    await portfolio.save();
+    const updated = await Portfolio.findById(req.params.id)
+      .populate("projectIds", "name status client")
+      .populate("portfolioIds", "name color access")
+      .populate("createdBy", "name department");
     res.status(200).json({ success: true, data: updated });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

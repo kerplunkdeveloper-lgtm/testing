@@ -26,6 +26,12 @@ const PortfolioSchema = new mongoose.Schema(
         ref: "Project",
       },
     ],
+    portfolioIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Portfolio",
+      },
+    ],
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
