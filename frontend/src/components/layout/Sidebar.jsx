@@ -390,7 +390,11 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
               list,
               groupByUser = false,
             ) => {
-              if (!list || list.length === 0) return null;
+              if (title === "My Projects" || title === "My Project") {
+                if (!projects || projects.length === 0) return null;
+              } else {
+                if (!list || list.length === 0) return null;
+              }
 
               const renderPortfolioItems = (portfoliosToRender) => {
                 return portfoliosToRender.map((portfolio) => {
@@ -682,20 +686,26 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                 if (
                   title === "Works" ||
                   title === "My Projects" ||
+                  title === "My Project" ||
                   title === "Portfolios"
                 ) {
-                  const allProjectIds = new Set();
-                  list.forEach((port) => {
-                    (port.projectIds || []).forEach((pId) => {
-                      const id =
-                        typeof pId === "object" && pId !== null ? pId._id : pId;
-                      if (id) allProjectIds.add(id);
+                  let matchedProjects = [];
+                  if (title === "My Projects" || title === "My Project") {
+                    matchedProjects = projects || [];
+                  } else {
+                    const allProjectIds = new Set();
+                    list.forEach((port) => {
+                      (port.projectIds || []).forEach((pId) => {
+                        const id =
+                          typeof pId === "object" && pId !== null ? pId._id : pId;
+                        if (id) allProjectIds.add(id);
+                      });
                     });
-                  });
 
-                  const matchedProjects = (projects || []).filter((proj) =>
-                    allProjectIds.has(proj._id),
-                  );
+                    matchedProjects = (projects || []).filter((proj) =>
+                      allProjectIds.has(proj._id),
+                    );
+                  }
 
                   content =
                     matchedProjects.length > 0 ? (
@@ -827,18 +837,17 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
 
               return (
                 <>
-                  {isAdminOrOpManager &&
-                    renderPortfolioDropdown(
-                      "My Projects",
-                      <FiLayers
-                        size={14}
-                        className="shrink-0 transition-colors"
-                      />,
-                      isPortfoliosListOpen,
-                      setIsPortfoliosListOpen,
-                      generalPortfolios,
-                      false, // Disable user name folder dropdown under My Projects
-                    )}
+                  {renderPortfolioDropdown(
+                    "My Project",
+                    <FiLayers
+                      size={14}
+                      className="shrink-0 transition-colors"
+                    />,
+                    isPortfoliosListOpen,
+                    setIsPortfoliosListOpen,
+                    [], // list not used for My Project
+                    false, // Disable user name folder dropdown under My Project
+                  )}
                   {renderPortfolioDropdown(
                     "Works",
                     <div className="w-5 h-5 rounded-full bg-amber-500 text-black font-extrabold text-[8px] flex items-center justify-center tracking-tighter leading-none shrink-0 shadow-2xs">
@@ -992,8 +1001,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                       </NavLink>
 
                       {isPortfoliosItem &&
-                        portfolios &&
-                        portfolios.length > 0 &&
+                        ((portfolios && portfolios.length > 0) || (projects && projects.length > 0)) &&
                         (() => {
                           hasRenderedPortfoliosList = true;
                           return renderPortfoliosList();
@@ -1006,11 +1014,11 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
 
                 {/* Fallback at the bottom if items were not in the menu list */}
                 {!hasRenderedPortfoliosList &&
-                  portfolios &&
-                  portfolios.length > 0 &&
+                  ((portfolios && portfolios.length > 0) || (projects && projects.length > 0)) &&
                   (role === "admin" ||
                     currentUser?.permissions?.manage_portfolios?.read ||
-                    currentUser?.permissions?.manage_portfolios === true) &&
+                    currentUser?.permissions?.manage_portfolios === true ||
+                    (projects && projects.length > 0)) &&
                   renderPortfoliosList()}
               </>
             );

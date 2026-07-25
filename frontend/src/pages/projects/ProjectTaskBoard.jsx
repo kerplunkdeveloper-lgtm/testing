@@ -4721,14 +4721,12 @@ const ProjectTaskBoard = ({
                                                       {!hiddenColumns.client && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 font-medium">
                                                           <div onClick={(e) => e.stopPropagation()}>
-                                                            <ClientDropdown
-                                                              selectedClient={task.client?._id || task.client || (activeProject?.client?._id || activeProject?.client)}
-                                                              clients={clients}
-                                                              onChange={(clientId) =>
-                                                                handleTaskFieldChange(task._id, { client: clientId })
-                                                              }
-                                                              isAdminOrManager={isAdminOrManager}
-                                                            />
+                                                            {(() => {
+                                                              const clientId = activeProject?.client?._id || activeProject?.client;
+                                                              const clientObj = clients?.find((c) => c._id === clientId);
+                                                              if (!clientObj) return <span className="text-slate-400 text-[10px] italic">No Client</span>;
+                                                              return <ClientBadge client={clientObj} size="sm" />;
+                                                            })()}
                                                           </div>
                                                         </td>
                                                       )}

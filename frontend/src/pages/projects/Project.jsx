@@ -52,12 +52,14 @@ const Project = () => {
 
   // Form State for creating project
   const [name, setName] = useState("");
+  const [client, setClient] = useState("");
   const [status, setStatus] = useState("Active");
   const [access, setAccess] = useState("Public");
 
   // Form State for editing project
   const [editProjectId, setEditProjectId] = useState("");
   const [editName, setEditName] = useState("");
+  const [editClient, setEditClient] = useState("");
   const [editStatus, setEditStatus] = useState("Active");
   const [editAccess, setEditAccess] = useState("Public");
 
@@ -98,6 +100,7 @@ const Project = () => {
   // Handle modal trigger
   const handleOpenCreate = () => {
     setName("");
+    setClient("");
     setStatus("Active");
     setAccess("Public");
     setShowCreateModal(true);
@@ -110,6 +113,7 @@ const Project = () => {
     dispatch(
       createProject({
         name,
+        client: client ? client : null,
         status,
         access,
       }),
@@ -122,6 +126,7 @@ const Project = () => {
     e.stopPropagation();
     setEditProjectId(project._id);
     setEditName(project.name);
+    setEditClient(project.client?._id || project.client || "");
     setEditStatus(project.status);
     setEditAccess(project.access || "Public");
     setShowEditModal(true);
@@ -136,6 +141,7 @@ const Project = () => {
         id: editProjectId,
         data: {
           name: editName,
+          client: editClient ? editClient : null,
           status: editStatus,
           access: editAccess,
         },
@@ -327,7 +333,9 @@ const Project = () => {
                 <th className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
                   Project Name
                 </th>
-
+                <th className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
+                  Client
+                </th>
                 <th className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
                   Project created by
                 </th>
@@ -381,6 +389,15 @@ const Project = () => {
                           )}
                         </span>
                       </div>
+                    </td>
+
+                    <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
+                      {(() => {
+                        const clientId = project.client?._id || project.client;
+                        const clientObj = clients?.find((c) => c._id === clientId);
+                        if (!clientObj) return <span className="text-slate-400 text-[10px] italic">No Client</span>;
+                        return <ClientBadge client={clientObj} size="sm" />;
+                      })()}
                     </td>
 
                     <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
@@ -528,7 +545,31 @@ const Project = () => {
                     />
                   </div>
 
-
+                  {/* Client Select field */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                      Client
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={client}
+                        onChange={(e) => setClient(e.target.value)}
+                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
+                      >
+                        <option value="" className="dark:bg-[#111111]">
+                          Select a client
+                        </option>
+                        {clients?.map((c) => (
+                          <option key={c._id} value={c._id} className="dark:bg-[#111111]">
+                            {c.companyName || c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <FiChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Access Select field */}
                   <div className="space-y-1.5">
@@ -669,7 +710,31 @@ const Project = () => {
                     />
                   </div>
 
-
+                  {/* Client Select field */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                      Client
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={editClient}
+                        onChange={(e) => setEditClient(e.target.value)}
+                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
+                      >
+                        <option value="" className="dark:bg-[#111111]">
+                          Select a client (optional)
+                        </option>
+                        {clients?.map((c) => (
+                          <option key={c._id} value={c._id} className="dark:bg-[#111111]">
+                            {c.companyName || c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <FiChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Access Select field */}
                   <div className="space-y-1.5">
