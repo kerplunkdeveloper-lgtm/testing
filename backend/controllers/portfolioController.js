@@ -6,13 +6,16 @@ const User = require("../models/User");
 // @access  Private
 exports.getPortfolios = async (req, res) => {
   try {
-    let query = {
-      $or: [
-        { access: "Public" },
-        { access: { $exists: false } },
-        { createdBy: req.user._id }
-      ]
-    };
+    let query = {};
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager") {
+      query = {
+        $or: [
+          { access: "Public" },
+          { access: { $exists: false } },
+          { createdBy: req.user._id }
+        ]
+      };
+    }
     const portfolios = await Portfolio.find(query)
         .populate("projectIds", "name status client")
         .populate("portfolioIds", "name color access")
@@ -54,7 +57,7 @@ exports.updatePortfolio = async (req, res) => {
         .json({ success: false, message: "Portfolio not found" });
     }
 
-    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager" && portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not authorized to edit this private portfolio" });
     }
 
@@ -85,7 +88,7 @@ exports.deletePortfolio = async (req, res) => {
         .json({ success: false, message: "Portfolio not found" });
     }
 
-    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager" && portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not authorized to delete this private portfolio" });
     }
 
@@ -109,7 +112,7 @@ exports.addProjectsToPortfolio = async (req, res) => {
         .json({ success: false, message: "Portfolio not found" });
     }
 
-    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager" && portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not authorized to modify this private portfolio" });
     }
 
@@ -144,7 +147,7 @@ exports.addPortfoliosToPortfolio = async (req, res) => {
         .json({ success: false, message: "Portfolio not found" });
     }
 
-    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager" && portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not authorized to modify this private portfolio" });
     }
 
@@ -178,7 +181,7 @@ exports.removeProjectFromPortfolio = async (req, res) => {
         .json({ success: false, message: "Portfolio not found" });
     }
 
-    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager" && portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not authorized to modify this private portfolio" });
     }
 
@@ -208,7 +211,7 @@ exports.removePortfolioFromPortfolio = async (req, res) => {
         .json({ success: false, message: "Portfolio not found" });
     }
 
-    if (portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager" && portfolio.access === "Private" && portfolio.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not authorized to modify this private portfolio" });
     }
 

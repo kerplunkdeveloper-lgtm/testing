@@ -692,7 +692,7 @@ const Clients = () => {
                     Deliverables
                   </th>
                   <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[140px] border-r border-slate-200 dark:border-slate-700/60">
-                    Financials 
+                    Financials
                   </th>
                   {user?.role === "team" && (
                     <th className="px-5 py-4 font-extrabold bg-transparent text-center border-r border-slate-200 dark:border-slate-700/60 last:border-r-0">

@@ -127,10 +127,16 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
   );
   const { profile } = useSelector((state) => state.profile);
   const { unreadCounts = {} } = useSelector((state) => state.chat);
-  const totalUnreadChatCount = Object.values(unreadCounts).reduce(
+  const localUnreadChatCount = Object.values(unreadCounts).reduce(
     (sum, val) => sum + (val || 0),
     0,
   );
+  const dbUnreadChatCount = notifications
+    ? notifications.filter((n) => !n.isRead && n.type === "message_received").length
+    : 0;
+  
+  // Use the database notifications count as the source of truth if it exists, otherwise fallback to local session state
+  const totalUnreadChatCount = Math.max(localUnreadChatCount, dbUnreadChatCount);
 
   const menuItems = (sidebarConfig[role] || []).filter((item) => {
     // Hide Projects Overview for Social Media Manager department
@@ -509,7 +515,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                                   className={`w-full flex items-center gap-2 text-left text-[11px] lg:text-[0.625rem] font-semibold py-1 px-1.5 rounded-md transition-all duration-150 cursor-pointer ${
                                     isProjectActive
                                       ? "bg-slate-100 dark:bg-slate-800/80 theme-text-accent font-bold"
-                                      : "text-slate-500 dark:text-slate-400 hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
+                                      : "text-slate-500 dark:text-white/80 hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
                                   }`}
                                   title={project.name}
                                 >
@@ -581,7 +587,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                               [folderId]: !prev[folderId],
                             }));
                           }}
-                          className="w-full flex items-center gap-2 text-left text-xs lg:text-[0.6875rem] font-bold py-1.5 px-2 rounded-lg hover:bg-slate-100/60 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400 group transition-all"
+                          className="w-full flex items-center gap-2 text-left text-xs lg:text-[0.6875rem] font-bold py-1.5 px-2 rounded-lg hover:bg-slate-100/60 dark:hover:bg-white/5 text-slate-600 dark:text-white/90 group transition-all"
                         >
                           <div className="w-4 h-4 shrink-0 flex items-center justify-center">
                             <svg
@@ -636,7 +642,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                                     className={`w-full flex items-center gap-2 text-left text-[11px] lg:text-[0.625rem] font-semibold py-1.5 px-2 rounded-lg transition-all duration-150 cursor-pointer ${
                                       isProjectActive
                                         ? "bg-slate-100 dark:bg-slate-800/80 theme-text-accent font-bold"
-                                        : "text-slate-600 dark:text-slate-400 hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
+                                        : "text-slate-600 dark:text-white/80 hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
                                     }`}
                                     title={project.name}
                                   >
@@ -729,7 +735,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                               className={`w-full flex items-center gap-2 text-left text-[11px] lg:text-[0.625rem] font-semibold py-1.5 px-2 rounded-lg transition-all duration-150 cursor-pointer ${
                                 isProjectActive
                                   ? "bg-slate-100 dark:bg-slate-800/80 theme-text-accent font-bold"
-                                  : "text-slate-600 dark:text-slate-400 hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
+                                  : "text-slate-600 dark:text-white/80 hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
                               }`}
                               title={project.name}
                             >
@@ -815,26 +821,6 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
             };
 
             const renderPortfoliosList = () => {
-              const smeRoles = [
-                "Social Media Executive",
-                "Social Media Manager",
-              ];
-              const smePortfolios = portfolios.filter(
-                (p) =>
-                  smeRoles.includes(p.createdBy?.department) ||
-                  smeRoles.includes(p.createdBy?.role),
-              );
-              const generalPortfolios = portfolios.filter(
-                (p) =>
-                  !smeRoles.includes(p.createdBy?.department) &&
-                  !smeRoles.includes(p.createdBy?.role),
-              );
-
-              const isAdminOrOpManager =
-                currentUser?.role === "admin" ||
-                currentUser?.role === "operationmanager" ||
-                currentUser?.role === "managingpartner";
-
               return (
                 <>
                   {renderPortfolioDropdown(
@@ -847,16 +833,6 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                     setIsPortfoliosListOpen,
                     [], // list not used for My Project
                     false, // Disable user name folder dropdown under My Project
-                  )}
-                  {renderPortfolioDropdown(
-                    "Works",
-                    <div className="w-5 h-5 rounded-full bg-amber-500 text-black font-extrabold text-[8px] flex items-center justify-center tracking-tighter leading-none shrink-0 shadow-2xs">
-                      SM
-                    </div>,
-                    isSmePortfoliosListOpen,
-                    setIsSmePortfoliosListOpen,
-                    smePortfolios,
-                    isAdminOrOpManager, // Show SM User Name Folders for Admin & Operation Manager
                   )}
                 </>
               );
@@ -888,8 +864,8 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                           <motion.div
                             className={`flex items-center gap-2.5 px-3 py-2 lg:py-1.5 w-full rounded-xl relative overflow-hidden transition-all duration-200 text-left border ${
                               isActive
-                                ? "bg-slate-900/10 dark:bg-white/10 shadow-sm border-slate-900/5 dark:border-white/5"
-                                : "hover:bg-slate-900/5 dark:hover:bg-white/5 border-transparent"
+                                ? "bg-slate-900/10 dark:bg-white/20 shadow-sm border-slate-900/5 dark:border-white/10"
+                                : "hover:bg-slate-900/5 dark:hover:bg-white/10 border-transparent"
                             }`}
                             whileHover={{ x: 2 }}
                             transition={{
@@ -917,8 +893,8 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                             <motion.div
                               className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center relative overflow-hidden transition-colors duration-200 ${
                                 isActive
-                                  ? "bg-slate-900 dark:bg-white shadow-md shadow-slate-900/20 dark:shadow-white/20"
-                                  : "bg-slate-900/5 dark:bg-white/5 group-hover:bg-slate-900/10 dark:group-hover:bg-white/10"
+                                  ? "bg-slate-900 dark:bg-white shadow-md shadow-slate-900/20 dark:shadow-black/50"
+                                  : "bg-slate-900/5 dark:bg-white/10 group-hover:bg-slate-900/10 dark:group-hover:bg-white/20"
                               }`}
                               whileHover={{
                                 scale: 1.22,
@@ -950,7 +926,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                                 className={`transition-colors duration-200 relative z-10 ${
                                   isActive
                                     ? "text-white dark:text-slate-900"
-                                    : "text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white"
+                                    : "text-slate-700 dark:text-white/90 group-hover:text-slate-900 dark:group-hover:text-white"
                                 }`}
                               />
                             </motion.div>
@@ -960,7 +936,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                               className={`text-xs lg:text-[0.6875rem] truncate flex-1 text-left transition-colors duration-200 ${
                                 isActive
                                   ? "text-slate-900 dark:text-white font-black"
-                                  : "text-slate-700 dark:text-slate-300 font-bold group-hover:text-slate-900 dark:group-hover:text-white"
+                                  : "text-slate-700 dark:text-white/90 font-bold group-hover:text-slate-900 dark:group-hover:text-white"
                               }`}
                             >
                               {item.name}

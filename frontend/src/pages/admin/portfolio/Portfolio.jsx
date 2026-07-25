@@ -376,7 +376,7 @@ const Portfolio = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [portfolioName, setPortfolioName] = useState("");
   const [portfolioColor, setPortfolioColor] = useState("#ff80bf");
-  const [portfolioAccess, setPortfolioAccess] = useState(role === "admin" ? "Private" : "Public");
+  const [portfolioAccess, setPortfolioAccess] = useState("Private");
   const [portfolioId, setPortfolioId] = useState(null);
   const [menuOpenId, setMenuOpenId] = useState(null);
 
@@ -410,7 +410,7 @@ const Portfolio = () => {
   const handleOpenCreateModal = () => {
     setPortfolioName("");
     setPortfolioColor("#ff80bf");
-    setPortfolioAccess(role === "admin" ? "Private" : "Public");
+    setPortfolioAccess("Private");
     setIsEditMode(false);
     setIsModalOpen(true);
   };
@@ -420,7 +420,7 @@ const Portfolio = () => {
     setPortfolioId(p._id);
     setPortfolioName(p.name);
     setPortfolioColor(p.color || "#ff80bf");
-    setPortfolioAccess(p.access || "Public");
+    setPortfolioAccess(p.access || "Private");
     setIsEditMode(true);
     setIsModalOpen(true);
   };
@@ -1474,17 +1474,8 @@ const Portfolio = () => {
                       onChange={(e) => setPortfolioAccess(e.target.value)}
                       className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all appearance-none cursor-pointer"
                     >
-                      {role === "admin" ? (
-                        <>
-                          <option value="Private">Private - Only visible to you</option>
-                          <option value="Public">Public - Visible to all</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="Public">Public - Visible to all</option>
-                          <option value="Private">Private - Only visible to you</option>
-                        </>
-                      )}
+                      <option value="Private">Private - Only visible to you</option>
+                      <option value="Public">Public - Visible to all</option>
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                       <FiChevronDown size={14} />

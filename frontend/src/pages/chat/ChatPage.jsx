@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { ZegoUIKitPrebuilt } from "@zegocloud/zego-uikit-prebuilt";
 import { useSearchParams } from "react-router-dom";
 import { getUsers } from "../../features/users/userSlice";
+import { markAsRead } from "../../features/notifications/notificationSlice";
 import {
   fetchDirectMessages,
   fetchGroupMessages,
@@ -267,6 +268,7 @@ const ChatPage = () => {
   const [manageSelectedMembers, setManageSelectedMembers] = useState([]);
 
   // Call System State
+  const { notifications } = useSelector((state) => state.notifications);
   const [activeCall, setActiveCall] = useState(null); // 'video' or 'voice' or null
   const [callRoomId, setCallRoomId] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -351,8 +353,16 @@ const ChatPage = () => {
   useEffect(() => {
     if (activeChat) {
       dispatch(markChatAsRead(activeChat));
+      // Mark corresponding database notifications as read to clear the sidebar badge
+      if (notifications && notifications.length > 0) {
+        notifications.forEach((n) => {
+          if (!n.isRead && n.type === "message_received" && n.chatRoomId === activeChat) {
+            dispatch(markAsRead(n._id));
+          }
+        });
+      }
     }
-  }, [activeChat, dispatch]);
+  }, [activeChat, dispatch, notifications]);
 
   // Load directories and rooms
   useEffect(() => {

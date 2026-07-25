@@ -47,6 +47,14 @@ const Project = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [createdByFilter, setCreatedByFilter] = useState("All");
+  const [clientFilter, setClientFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, createdByFilter, clientFilter]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
@@ -54,14 +62,14 @@ const Project = () => {
   const [name, setName] = useState("");
   const [client, setClient] = useState("");
   const [status, setStatus] = useState("Active");
-  const [access, setAccess] = useState("Public");
+  const [access, setAccess] = useState("Private");
 
   // Form State for editing project
   const [editProjectId, setEditProjectId] = useState("");
   const [editName, setEditName] = useState("");
   const [editClient, setEditClient] = useState("");
   const [editStatus, setEditStatus] = useState("Active");
-  const [editAccess, setEditAccess] = useState("Public");
+  const [editAccess, setEditAccess] = useState("Private");
 
   // Load Data
   useEffect(() => {
@@ -94,15 +102,25 @@ const Project = () => {
       createdByFilter === "All" ||
       (project.createdBy && project.createdBy._id === createdByFilter) ||
       project.createdBy === createdByFilter;
-    return matchesSearch && matchesStatus && matchesCreatedBy;
+    const matchesClient =
+      clientFilter === "All" ||
+      (project.client && project.client._id === clientFilter) ||
+      project.client === clientFilter;
+    return matchesSearch && matchesStatus && matchesCreatedBy && matchesClient;
   });
+
+  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
+  const paginatedProjects = filteredProjects.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Handle modal trigger
   const handleOpenCreate = () => {
     setName("");
     setClient("");
     setStatus("Active");
-    setAccess("Public");
+    setAccess("Private");
     setShowCreateModal(true);
   };
 
@@ -128,7 +146,7 @@ const Project = () => {
     setEditName(project.name);
     setEditClient(project.client?._id || project.client || "");
     setEditStatus(project.status);
-    setEditAccess(project.access || "Public");
+    setEditAccess(project.access || "Private");
     setShowEditModal(true);
   };
 
@@ -229,20 +247,7 @@ const Project = () => {
   // VIEW 2: DEFAULT PROJECT DIRECTORY TABLE
   return (
     <div className=" space-y-6 ">
-      {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
-      
-
-        {isAdminOrManager && (
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 bg-blue-600 dark:bg-[#3b82f6] hover:bg-blue-700 dark:hover:bg-[#ccff00] text-white dark:text-black px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 dark:shadow-[#3b82f6]/20 active:scale-95 whitespace-nowrap"
-          >
-            <FiPlus size={16} />
-            New Project
-          </button>
-        )}
-      </div>
+     
 
       {/* FILTER AND SEARCH BAR */}
       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
@@ -268,6 +273,27 @@ const Project = () => {
             {users?.map((user) => (
               <option key={user._id} value={user._id} className="dark:bg-[#111111]">
                 {user.name}
+              </option>
+            ))}
+          </select>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <FiChevronDown size={14} />
+          </div>
+        </div>
+
+        {/* Client Filter Dropdown */}
+        <div className="relative shrink-0 w-full md:w-auto">
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="w-full appearance-none px-5 py-3 pr-11 rounded-2xl bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/5 text-xs font-bold text-slate-700 dark:text-white hover:border-slate-300 dark:hover:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] cursor-pointer shadow-sm md:min-w-[140px] transition-all"
+          >
+            <option value="All" className="dark:bg-[#111111]">
+              All Clients
+            </option>
+            {clients?.map((client) => (
+              <option key={client._id} value={client._id} className="dark:bg-[#111111]">
+                {client.companyName}
               </option>
             ))}
           </select>
@@ -303,6 +329,20 @@ const Project = () => {
             <FiChevronDown size={14} />
           </div>
         </div>
+
+
+         {/* HEADER SECTION */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
+      
+          <button
+            onClick={handleOpenCreate}
+            className="flex items-center gap-2 bg-blue-600 dark:bg-[#3b82f6] hover:bg-blue-700 dark:hover:bg-[#ccff00] text-white dark:text-black px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 dark:shadow-[#3b82f6]/20 active:scale-95 whitespace-nowrap"
+          >
+            <FiPlus size={16} />
+            New Project
+          </button>
+          
+      </div>
 
 
       </div>
@@ -352,7 +392,7 @@ const Project = () => {
               </tr>
             </thead>
             <tbody className="text-xs bg-white dark:bg-slate-950/20">
-              {filteredProjects.map((project, index) => {
+              {paginatedProjects.map((project, index) => {
                 const projectPortfolio = portfolios.find((port) =>
                   (port.projectIds || []).some((id) =>
                     typeof id === "object" && id !== null
@@ -481,6 +521,43 @@ const Project = () => {
         </div>
       )}
 
+      {totalPages > 1 && filteredProjects.length > 0 && !projectsLoading && (
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredProjects.length)} of {filteredProjects.length} projects
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-xs rounded-md border border-slate-200 dark:border-slate-700 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                  currentPage === page
+                    ? "bg-blue-600 text-white border-blue-600 dark:bg-[#3b82f6] dark:border-[#3b82f6] dark:text-black font-bold"
+                    : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-xs rounded-md border border-slate-200 dark:border-slate-700 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* CREATE PROJECT OFFCANVAS DRAWER */}
       <AnimatePresence>
         {showCreateModal && (
@@ -582,11 +659,11 @@ const Project = () => {
                         onChange={(e) => setAccess(e.target.value)}
                         className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
                       >
-                        <option value="Public" className="dark:bg-[#111111]">
-                          Public
-                        </option>
                         <option value="Private" className="dark:bg-[#111111]">
                           Private
+                        </option>
+                        <option value="Public" className="dark:bg-[#111111]">
+                          Public
                         </option>
                       </select>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -747,11 +824,11 @@ const Project = () => {
                         onChange={(e) => setEditAccess(e.target.value)}
                         className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
                       >
-                        <option value="Public" className="dark:bg-[#111111]">
-                          Public
-                        </option>
                         <option value="Private" className="dark:bg-[#111111]">
                           Private
+                        </option>
+                        <option value="Public" className="dark:bg-[#111111]">
+                          Public
                         </option>
                       </select>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">

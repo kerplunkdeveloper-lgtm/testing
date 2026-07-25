@@ -38,9 +38,9 @@ export const sidebarConfig = {
     { name: "Home", path: "/operationmanager", icon: FiHome },
     { name: "Chat", path: "/operationmanager/chat", icon: LuMessagesSquare },
     { name: "Clients", path: "/operationmanager/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
-    { name: "Portfolio", path: "/operationmanager/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
     { name: "Projects", path: "/operationmanager/projects", icon: LuFolderKanban, permissionKey: "manage_projects" },
     { name: "Tasks", path: "/operationmanager/tasks", icon: LuClipboardCheck, permissionKey: "manage_tasks" },
+    { name: "Portfolio", path: "/operationmanager/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
     { name: "Template Library", path: "/operationmanager/template-library", icon: LuLayoutTemplate, permissionKey: "manage_settings" },
     { name: "Calendar", path: "/operationmanager/calendar", icon: LuCalendarDays },
     { name: "Users", path: "/operationmanager/users", icon: LuUsers, permissionKey: "manage_users" },
@@ -55,11 +55,9 @@ export const sidebarConfig = {
     { name: "Home", path: "/team", icon: FiHome },
     { name: "Chat", path: "/team/chat", icon: LuMessagesSquare },
     { name: "Clients", path: "/team/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
-
-    { name: "Portfolio", path: "/team/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
     { name: "Projects", path: "/team/projects", icon: LuFolderKanban, permissionKey: "manage_projects" },
     { name: "Tasks", path: "/team/tasks", icon: LuClipboardCheck, permissionKey: "manage_tasks" },
-  
+    { name: "Portfolio", path: "/team/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
     { name: "My Reports", path: "/team/eod-reports", icon: FiBarChart2, permissionKey: "view_reports" },
     { name: "Users", path: "/team/users", icon: LuUsers, permissionKey: "manage_users" },
     { name: "Profile", path: "/team/profile", icon: FiUser },

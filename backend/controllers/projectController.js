@@ -7,13 +7,16 @@ const Task = require("../models/Task");
 // @access  Private
 exports.getProjects = async (req, res) => {
   try {
-    let query = {
-      $or: [
-        { access: "Public" },
-        { access: { $exists: false } },
-        { createdBy: req.user._id }
-      ]
-    };
+    let query = {};
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager") {
+      query = {
+        $or: [
+          { access: "Public" },
+          { access: { $exists: false } },
+          { createdBy: req.user._id }
+        ]
+      };
+    }
     const projects = await Project.find(query)
       .populate("createdBy", "name department");
 
@@ -60,7 +63,7 @@ exports.updateProject = async (req, res) => {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
 
-    if (project.access === "Private" && project.createdBy.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager" && project.access === "Private" && project.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not authorized to edit this private project" });
     }
 
@@ -90,7 +93,7 @@ exports.deleteProject = async (req, res) => {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
 
-    if (project.access === "Private" && project.createdBy.toString() !== req.user._id.toString()) {
+    if (req.user.role !== "admin" && req.user.role !== "operationmanager" && project.access === "Private" && project.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "You are not authorized to delete this private project" });
     }
 

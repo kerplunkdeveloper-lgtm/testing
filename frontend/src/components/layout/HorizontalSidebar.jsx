@@ -6,11 +6,18 @@ import { sidebarConfig } from "../../config/sidebarConfig";
 const HorizontalSidebar = ({ role }) => {
   const { user: currentUser } = useSelector((state) => state.auth);
   const { unreadCounts = {} } = useSelector((state) => state.chat);
+  const { notifications } = useSelector((state) => state.notifications);
   
-  const totalUnreadChatCount = Object.values(unreadCounts).reduce(
+  const localUnreadChatCount = Object.values(unreadCounts).reduce(
     (sum, val) => sum + (val || 0),
     0,
   );
+  
+  const dbUnreadChatCount = notifications
+    ? notifications.filter((n) => !n.isRead && n.type === "message_received").length
+    : 0;
+
+  const totalUnreadChatCount = Math.max(localUnreadChatCount, dbUnreadChatCount);
 
   const menuItems = (sidebarConfig[role] || []).filter((item) => {
     if (role === "admin") return true;
@@ -22,7 +29,7 @@ const HorizontalSidebar = ({ role }) => {
   });
 
   return (
-    <div className="max-w-7xl w-full mx-auto mt-2 rounded-full h-14 bg-white/30 dark:bg-[#0f172a]/30 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 flex shrink-0 shadow-sm z-40 relative px-2">
+    <div className="max-w-8xl w-full mx-auto mt-2 rounded-full h-14  z-40 relative px-2">
       <div className="flex items-center w-full overflow-x-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <div className="flex items-center gap-1.5 mx-auto">
           {menuItems.map((item) => {
