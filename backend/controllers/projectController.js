@@ -1,6 +1,7 @@
 const Project = require("../models/Project");
 const User = require("../models/User");
 const Task = require("../models/Task");
+const Client = require("../models/Client");
 
 // @desc    Get all projects
 // @route   GET /api/projects
@@ -9,10 +10,27 @@ exports.getProjects = async (req, res) => {
   try {
     let query = {};
     if (req.user.role !== "admin" && req.user.role !== "operationmanager") {
+      const userClients = await Client.find({ assignedTo: req.user._id }).select("_id");
+      const userClientIds = userClients.map(c => c._id);
+
       query = {
         $or: [
-          { access: "Public" },
-          { access: { $exists: false } },
+          { 
+            access: "Public",
+            $or: [
+              { client: { $in: userClientIds } },
+              { client: null },
+              { client: { $exists: false } }
+            ]
+          },
+          { 
+            access: { $exists: false },
+            $or: [
+              { client: { $in: userClientIds } },
+              { client: null },
+              { client: { $exists: false } }
+            ]
+          },
           { createdBy: req.user._id }
         ]
       };

@@ -10,10 +10,14 @@ import {
   FiX,
   FiTag,
   FiCheck,
+  FiBriefcase,
+  FiSearch,
+  FiTrash2,
+  FiAlertCircle
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector } from "react-redux";
-import { useUpdateTaskMutation } from "../../features/api/apiSlice";
+import { useUpdateTaskMutation, useDeleteTaskMutation } from "../../features/api/apiSlice";
 import ClientBadge from "../../components/common/ClientBadge";
 
 const SimpleTimeTracker = ({
@@ -124,6 +128,19 @@ const TaskOverviewTab = ({
   dateDropdownRef,
 }) => {
   const [updateTaskTrigger] = useUpdateTaskMutation();
+  const [deleteTask] = useDeleteTaskMutation();
+  const [taskToDelete, setTaskToDelete] = useState(null);
+
+  const handleDeleteTask = async () => {
+    if (taskToDelete) {
+      try {
+        await deleteTask(taskToDelete).unwrap();
+        setTaskToDelete(null);
+      } catch (err) {
+        console.error("Failed to delete task:", err);
+      }
+    }
+  };
   const { clients } = useSelector((state) => state.clients);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -131,6 +148,7 @@ const TaskOverviewTab = ({
 
   const [overviewClientFilter, setOverviewClientFilter] = useState("All");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
   const clientDropdownRef = useRef(null);
 
   // Internal selected task state for workspace preview drawer
@@ -370,11 +388,9 @@ const TaskOverviewTab = ({
           }
         }
 
-        // Filter out tasks that do not have a client name (REMOVED - allow all tasks to display)
         const projId = task.project?._id || task.project;
         const projectObj = projects.find((p) => p._id === projId);
         const clientObj = projectObj?.client || task.project?.client;
-        const clientName = clientObj?.companyName || "";
 
         if (overviewClientFilter !== "All") {
           const cId = clientObj?._id || (typeof clientRaw === "string" ? clientRaw : null);
@@ -383,17 +399,14 @@ const TaskOverviewTab = ({
           }
         }
 
-        // 1. Local Priority Filter
         if (overviewPriorityFilter !== "All" && task.priority !== overviewPriorityFilter) {
           return false;
         }
 
-        // 2. Local Status Filter
         if (overviewStatusFilter !== "All" && task.status !== overviewStatusFilter) {
           return false;
         }
 
-        // 3. Local Start Date Filter (if selected)
         if (overviewStartDateFilter) {
           if (!task.startDate) return false;
           const tStart = new Date(task.startDate).setHours(0, 0, 0, 0);
@@ -401,7 +414,6 @@ const TaskOverviewTab = ({
           if (tStart < fStart) return false;
         }
 
-        // 4. Local End Date Filter (if selected)
         if (overviewEndDateFilter) {
           if (!task.dueDate) return false;
           const tDue = new Date(task.dueDate).setHours(23, 59, 59, 999);
@@ -409,7 +421,6 @@ const TaskOverviewTab = ({
           if (tDue > fDue) return false;
         }
 
-        // 5. Date filter (based on startDate, dueDate, or createdAt)
         if (dateFilter !== "All") {
           const targetDate = task.startDate
             ? new Date(task.startDate)
@@ -485,7 +496,7 @@ const TaskOverviewTab = ({
         const isCompletedA = a.status === "Completed" ? 1 : 0;
         const isCompletedB = b.status === "Completed" ? 1 : 0;
         if (isCompletedA !== isCompletedB) {
-          return isCompletedA - isCompletedB; // Completed tasks go to the end (1 - 0 = 1, so B first)
+          return isCompletedA - isCompletedB;
         }
 
         if (clientNameA < clientNameB) return -1;
@@ -511,7 +522,6 @@ const TaskOverviewTab = ({
   return (
     <>
     <div className="bg-white dark:bg-[#11131e] overflow-hidden flex flex-col h-[calc(100vh-160px)]">
-      {/* Header Search & Title */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 pt-1 border-b border-slate-100 dark:border-white/5 relative z-30 shrink-0">
         <div className="relative w-full sm:w-64">
           <input
@@ -523,9 +533,7 @@ const TaskOverviewTab = ({
           />
         </div>
 
-        {/* Right Controls: Client, Date, Filter, Hide Column */}
         <div className="flex items-center justify-end gap-2.5 w-full sm:w-auto">
-          {/* Client Filter Pill */}
           <div className="relative" ref={clientDropdownRef}>
             <button
               type="button"
@@ -556,45 +564,62 @@ const TaskOverviewTab = ({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.96 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-2 w-48 max-h-60 overflow-y-auto custom-scrollbar bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1.5 z-[70] flex flex-col gap-0.5"
+                  className="absolute right-0 top-full mt-2 w-64 max-h-[340px] flex flex-col bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[70] overflow-hidden"
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOverviewClientFilter("All");
-                      setShowClientDropdown(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                      overviewClientFilter === "All"
-                        ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
-                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
-                    }`}
-                  >
-                    All Clients
-                  </button>
-                  {clients?.map((client) => (
+                  <div className="p-2 border-b border-slate-100 dark:border-white/10 shrink-0">
+                    <div className="relative">
+                      <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                      <input
+                        type="text"
+                        placeholder="Search clients..."
+                        value={clientSearchQuery}
+                        onChange={(e) => setClientSearchQuery(e.target.value)}
+                        className="w-full pl-7 pr-3 py-1.5 text-[11px] font-semibold rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-0.5">
                     <button
-                      key={client._id}
                       type="button"
                       onClick={() => {
-                        setOverviewClientFilter(client._id);
+                        setOverviewClientFilter("All");
                         setShowClientDropdown(false);
                       }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all truncate ${
-                        overviewClientFilter === client._id
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                        overviewClientFilter === "All"
                           ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
                           : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
                       }`}
                     >
-                      {client.companyName}
+                      All Clients
                     </button>
-                  ))}
+                    {clients
+                      ?.filter(c => c.companyName?.toLowerCase().includes(clientSearchQuery.toLowerCase()))
+                      .map((client) => (
+                      <button
+                        key={client._id}
+                        type="button"
+                        onClick={() => {
+                          setOverviewClientFilter(client._id);
+                          setShowClientDropdown(false);
+                        }}
+                        className={`w-full text-left px-2 py-1.5 rounded-xl transition-all shrink-0 flex items-center ${
+                          overviewClientFilter === client._id
+                            ? "bg-blue-50 dark:bg-blue-500/10"
+                            : "hover:bg-slate-50 dark:hover:bg-white/5"
+                        }`}
+                      >
+                        <ClientBadge client={client} size="md" className="w-full justify-start" />
+                      </button>
+                    ))}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* Date Quick Filter Pill */}
           <div className="relative" ref={dateDropdownRef}>
             <button
               type="button"
@@ -655,7 +680,6 @@ const TaskOverviewTab = ({
             </AnimatePresence>
           </div>
 
-          {/* Filter Button with custom dropdown */}
           <div className="relative" ref={overviewFilterRef}>
             <button
               type="button"
@@ -720,7 +744,6 @@ const TaskOverviewTab = ({
                     )}
                   </div>
 
-                  {/* Status select */}
                   <div className="space-y-1 text-left">
                     <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400 uppercase tracking-wider">
                       Status
@@ -738,7 +761,6 @@ const TaskOverviewTab = ({
                     </select>
                   </div>
 
-                  {/* Priority select */}
                   <div className="space-y-1 text-left">
                     <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400 uppercase tracking-wider">
                       Priority
@@ -756,7 +778,6 @@ const TaskOverviewTab = ({
                     </select>
                   </div>
 
-                  {/* Start Date picker */}
                   <div className="space-y-1 text-left">
                     <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400 uppercase tracking-wider">
                       Start Date
@@ -769,7 +790,6 @@ const TaskOverviewTab = ({
                     />
                   </div>
 
-                  {/* End Date picker */}
                   <div className="space-y-1 text-left">
                     <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400 uppercase tracking-wider">
                       End Date
@@ -786,7 +806,6 @@ const TaskOverviewTab = ({
             </AnimatePresence>
           </div>
 
-          {/* Hide Columns Dropdown */}
           <div className="relative" ref={colsDropdownRef}>
             <button
               type="button"
@@ -879,7 +898,6 @@ const TaskOverviewTab = ({
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1 relative bg-white dark:bg-[#11131e]">
         <table className="w-full text-left border-collapse min-w-[1000px] table-auto">
           <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161826] shadow-sm">
@@ -997,7 +1015,6 @@ const TaskOverviewTab = ({
                                 );
                               }
 
-                              // Fallback colored gradient avatar with initials
                               const initials = (assignedUser?.name || "U")
                                 .split(" ")
                                 .map((n) => n[0])
@@ -1124,21 +1141,31 @@ const TaskOverviewTab = ({
 
                     {!hiddenColumns.action && (
                       <td className="py-2 px-3.5 text-right" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const userRole =
-                              user?.role === "admin"
-                                ? "admin"
-                                : user?.role === "operationmanager"
-                                  ? "operationmanager"
-                                  : "team";
-                            navigate(`/${userRole}/projects?id=${projId}`);
-                          }}
-                          className="px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-extrabold text-slate-800 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-[#3b82f6] hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
-                        >
-                          View Task
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const userRole =
+                                user?.role === "admin"
+                                  ? "admin"
+                                  : user?.role === "operationmanager"
+                                    ? "operationmanager"
+                                    : "team";
+                              navigate(`/${userRole}/projects?id=${projId}`);
+                            }}
+                            className="px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-extrabold text-slate-800 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-[#3b82f6] hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
+                          >
+                            View Task
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTaskToDelete(task._id)}
+                            className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 hover:border-red-200 transition-all cursor-pointer shadow-2xs"
+                            title="Delete Task"
+                          >
+                            <FiTrash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -1149,7 +1176,6 @@ const TaskOverviewTab = ({
         </table>
       </div>
 
-      {/* Pagination Controls */}
       {filteredOverviewTasks.length > itemsPerPage && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-[#161826] shrink-0 mt-auto">
           <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -1185,7 +1211,6 @@ const TaskOverviewTab = ({
       )}
     </div>
 
-      {/* WORKSPACE PREVIEW DRAWER */}
       <AnimatePresence>
         {selectedTask && (
           <div className="fixed inset-0 z-50 flex justify-end">
@@ -1318,6 +1343,44 @@ const TaskOverviewTab = ({
                       <option value="Rejected">Rejected</option>
                     )}
                   </select>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {taskToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white dark:bg-[#161826] rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-slate-100 dark:border-white/10"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center mb-4">
+                  <FiAlertCircle className="text-red-600 dark:text-red-500" size={24} />
+                </div>
+                <h3 className="text-lg font-black text-slate-800 dark:text-white mb-2">
+                  Delete Task
+                </h3>
+                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-6">
+                  Are you sure you want to delete this task? This action cannot be undone.
+                </p>
+                <div className="flex w-full gap-3">
+                  <button
+                    onClick={() => setTaskToDelete(null)}
+                    className="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    No, Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteTask}
+                    className="flex-1 py-2 rounded-xl font-bold text-sm bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/30 transition-colors cursor-pointer"
+                  >
+                    Yes, Delete
+                  </button>
                 </div>
               </div>
             </motion.div>

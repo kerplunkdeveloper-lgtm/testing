@@ -51,12 +51,14 @@ const Task = () => {
   }, [tasks, currentUserId]);
 
   const assignedTasksCount = React.useMemo(() => {
+    if (user?.role === "Admin" || user?.role === "OperationManager") {
+      return tasks.length;
+    }
     return tasks.filter((task) => {
       const creatorId = task.createdBy?._id || task.createdBy;
-      const assignedById = task.assignedBy?._id || task.assignedBy;
-      return creatorId === currentUserId || assignedById === currentUserId;
+      return creatorId === currentUserId;
     }).length;
-  }, [tasks, currentUserId]);
+  }, [tasks, currentUserId, user]);
 
   return (
     <div className="px-0 py-1 space-y-4 pb-16">
