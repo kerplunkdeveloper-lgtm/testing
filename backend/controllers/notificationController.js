@@ -65,6 +65,25 @@ exports.markAllAsRead = async (req, res) => {
   }
 };
 
+// @desc    Mark all chat notifications as read
+// @route   PUT /api/notifications/read-all-chat
+// @access  Private
+exports.markAllChatAsRead = async (req, res) => {
+  try {
+    await Notification.updateMany(
+      { recipient: req.user._id, isRead: false, type: 'message_received' },
+      { isRead: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'All chat notifications marked as read',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Delete notification
 // @route   DELETE /api/notifications/:id
 // @access  Private

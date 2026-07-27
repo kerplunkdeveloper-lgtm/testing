@@ -23,6 +23,8 @@ import { getUsers } from "../../features/users/userSlice";
 import { getPortfolios } from "../../features/portfolio/portfolioSlice";
 import { getClients } from "../../features/clients/clientslice";
 import { apiSlice } from "../../features/api/apiSlice";
+import { markAllChatAsRead } from "../../features/notifications/notificationSlice";
+import { clearAllUnreadCounts } from "../../features/chat/chatSlice";
 import ProjectIcon from "../common/ProjectIcon";
 
 const projectColors = [
@@ -850,6 +852,10 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                         to={item.path}
                         onClick={() => {
                           if (window.innerWidth < 1024) setSidebarOpen(false);
+                          if (item.name === "Chat") {
+                            dispatch(clearAllUnreadCounts());
+                            dispatch(markAllChatAsRead());
+                          }
                         }}
                         end={
                           item.path === "/admin" ||

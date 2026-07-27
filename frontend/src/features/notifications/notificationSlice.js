@@ -37,6 +37,18 @@ export const markAllAsRead = createAsyncThunk(
   }
 );
 
+export const markAllChatAsRead = createAsyncThunk(
+  'notifications/markAllChatAsRead',
+  async (_, thunkAPI) => {
+    try {
+      await axiosInstance.put('/notifications/read-all-chat');
+      return true;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response.data.message);
+    }
+  }
+);
+
 export const deleteNotification = createAsyncThunk(
   'notifications/deleteNotification',
   async (id, thunkAPI) => {
@@ -85,6 +97,13 @@ const notificationSlice = createSlice({
       })
       .addCase(markAllAsRead.fulfilled, (state) => {
         state.notifications.forEach(n => n.isRead = true);
+      })
+      .addCase(markAllChatAsRead.fulfilled, (state) => {
+        state.notifications.forEach(n => {
+          if (n.type === 'message_received') {
+            n.isRead = true;
+          }
+        });
       })
       .addCase(deleteNotification.fulfilled, (state, action) => {
         state.notifications = state.notifications.filter(n => n._id !== action.payload);

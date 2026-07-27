@@ -1,9 +1,12 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { sidebarConfig } from "../../config/sidebarConfig";
+import { markAllChatAsRead } from "../../features/notifications/notificationSlice";
+import { clearAllUnreadCounts } from "../../features/chat/chatSlice";
 
 const HorizontalSidebar = ({ role }) => {
+  const dispatch = useDispatch();
   const { user: currentUser } = useSelector((state) => state.auth);
   const { unreadCounts = {} } = useSelector((state) => state.chat);
   const { notifications } = useSelector((state) => state.notifications);
@@ -40,6 +43,12 @@ const HorizontalSidebar = ({ role }) => {
               <NavLink
                 key={item.name}
                 to={item.path}
+                onClick={() => {
+                  if (isChat) {
+                    dispatch(clearAllUnreadCounts());
+                    dispatch(markAllChatAsRead());
+                  }
+                }}
                 end={item.path === `/${role}`}
                 className={({ isActive }) =>
                   `flex items-center gap-2 px-3.5 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all group relative ${

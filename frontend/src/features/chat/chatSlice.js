@@ -193,6 +193,9 @@ const chatSlice = createSlice({
       const chatId = action.payload;
       state.unreadCounts[chatId] = 0;
     },
+    clearAllUnreadCounts: (state) => {
+      state.unreadCounts = {};
+    },
     incrementUnreadCount: (state, action) => {
       const chatId = action.payload;
       // If we are currently active on this chat, do not increment
@@ -306,5 +309,5 @@ const chatSlice = createSlice({
   },
 });
 
-export const { receiveMessage, removeMessage, clearMessages, markChatAsRead, setActiveChatId, clearChatLocal, incrementUnreadCount } = chatSlice.actions;
+export const { receiveMessage, removeMessage, clearMessages, markChatAsRead, clearAllUnreadCounts, setActiveChatId, clearChatLocal, incrementUnreadCount } = chatSlice.actions;
 export default chatSlice.reducer;
