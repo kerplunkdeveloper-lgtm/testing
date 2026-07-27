@@ -149,6 +149,10 @@ const useSocket = () => {
         socket.current.emit("join", userId);
       });
 
+      socket.current.on("task_updated", () => {
+        dispatch(apiSlice.util.invalidateTags(["Task"]));
+      });
+
       socket.current.on("notification", (notification) => {
         // Play premium audio chime
         playNotificationSound();

@@ -523,6 +523,11 @@ if (req.body.subtasks) {
       }
     }
 
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("task_updated", { taskId: task._id });
+    }
+
     res.status(200).json({
       success: true,
       data: task,

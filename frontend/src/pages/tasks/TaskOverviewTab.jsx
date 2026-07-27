@@ -232,6 +232,7 @@ const TaskOverviewTab = ({
 
   const [hiddenColumns, setHiddenColumns] = useState({
     taskName: false,
+    createdBy: false,
     clientName: false,
     assignee: false,
     startDate: false,
@@ -382,14 +383,19 @@ const TaskOverviewTab = ({
         const isAdminOrManager = user?.role === "admin" || user?.role === "operationmanager";
         const creatorId = task.createdBy?._id || task.createdBy;
         
+        const projId = task.project?._id || task.project;
+        const projectObj = projects.find((p) => p._id === projId);
+
         if (!isAdminOrManager) {
-          if (creatorId !== currentUserId) {
+          const isCreator = creatorId === currentUserId;
+          const assigneeId = task.assignedTo?._id || task.assignedTo;
+          const isAssignee = assigneeId === currentUserId;
+          const isPublicProject = projectObj?.access === "Public";
+
+          if (!isCreator && !isAssignee && !isPublicProject) {
             return false;
           }
         }
-
-        const projId = task.project?._id || task.project;
-        const projectObj = projects.find((p) => p._id === projId);
         const clientObj = projectObj?.client || task.project?.client;
 
         if (overviewClientFilter !== "All") {
@@ -568,7 +574,7 @@ const TaskOverviewTab = ({
                 >
                   <div className="p-2 border-b border-slate-100 dark:border-white/10 shrink-0">
                     <div className="relative">
-                      <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                  
                       <input
                         type="text"
                         placeholder="Search clients..."
@@ -844,6 +850,7 @@ const TaskOverviewTab = ({
                         onClick={() =>
                           setHiddenColumns({
                             taskName: false,
+                            createdBy: false,
                             clientName: false,
                             startDate: false,
                             dueDate: false,
@@ -863,6 +870,7 @@ const TaskOverviewTab = ({
                   <div className="flex flex-col gap-1 max-h-60 overflow-y-auto custom-scrollbar">
                     {[
                       { key: "taskName", label: "Task Name" },
+                      { key: "createdBy", label: "Created By" },
                       { key: "clientName", label: "Client Name" },
                       { key: "assignee", label: "Assignee" },
                       { key: "startDate", label: "Start Date" },
@@ -903,6 +911,7 @@ const TaskOverviewTab = ({
           <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161826] shadow-sm">
             <tr className="border-b border-slate-200/80 dark:border-white/10 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               {!hiddenColumns.taskName && <th className="py-2.5 px-3.5">TASK NAME</th>}
+              {!hiddenColumns.createdBy && <th className="py-2.5 px-3.5">CREATED BY</th>}
               {!hiddenColumns.clientName && <th className="py-2.5 px-3.5">CLIENT NAME</th>}
               {!hiddenColumns.assignee && <th className="py-2.5 px-3.5">ASSIGNEE</th>}
               {!hiddenColumns.startDate && <th className="py-2.5 px-3.5 text-center">START DATE</th>}
@@ -971,6 +980,73 @@ const TaskOverviewTab = ({
                           <span className={`truncate max-w-[180px] text-[11px] ${isCompleted ? "line-through text-slate-400 dark:text-slate-500" : ""}`} title={task.title}>
                             {task.title}
                           </span>
+                        </div>
+                      </td>
+                    )}
+
+                    {!hiddenColumns.createdBy && (
+                      <td className="py-2 px-3.5 text-left">
+                        <div className="flex items-center gap-2.5">
+                          <div className="relative shrink-0">
+                            {(() => {
+                              const createdUser = task.createdBy;
+                              const avatarUrl =
+                                (typeof createdUser?.profile?.profileImage === "object"
+                                  ? createdUser?.profile?.profileImage?.url
+                                  : createdUser?.profile?.profileImage) ||
+                                (typeof createdUser?.profileImage === "object"
+                                  ? createdUser?.profileImage?.url
+                                  : createdUser?.profileImage) ||
+                                createdUser?.profilePic ||
+                                createdUser?.avatar ||
+                                createdUser?.profile?.profilePic ||
+                                createdUser?.profile?.avatar;
+
+                              if (avatarUrl) {
+                                return (
+                                  <img
+                                    src={avatarUrl}
+                                    alt={createdUser?.name || "Creator"}
+                                    className="w-8 h-8 rounded-full object-cover border border-slate-200/80 dark:border-white/10 shadow-sm"
+                                  />
+                                );
+                              }
+
+                              const initials = (createdUser?.name || "U")
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .substring(0, 2)
+                                .toUpperCase();
+                              
+                              const AVATAR_COLORS = [
+                                "from-violet-500 to-indigo-600",
+                                "from-cyan-500 to-blue-600",
+                                "from-emerald-500 to-teal-600",
+                                "from-orange-500 to-amber-600",
+                                "from-pink-500 to-rose-600",
+                              ];
+                              const colorClass =
+                                AVATAR_COLORS[
+                                  ((createdUser?.name || "U").charCodeAt(0) || 0) %
+                                    AVATAR_COLORS.length
+                                ];
+
+                              return (
+                                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center text-white font-black text-[10px] border border-white/10 shadow-sm`}>
+                                  {initials}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-extrabold text-[11px] text-slate-800 dark:text-slate-200">
+                              {task.createdBy?.name || "Unknown"}
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                              {task.createdBy?.department || "Creator"}
+                            </span>
+                          </div>
                         </div>
                       </td>
                     )}

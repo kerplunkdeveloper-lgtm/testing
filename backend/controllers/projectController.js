@@ -36,7 +36,11 @@ exports.getProjects = async (req, res) => {
       };
     }
     const projects = await Project.find(query)
-      .populate("createdBy", "name department");
+      .populate({
+        path: "createdBy",
+        select: "name department profile profileImage profilePic avatar",
+        populate: { path: "profile" }
+      });
 
     res.status(200).json({
       success: true,
@@ -59,7 +63,11 @@ exports.createProject = async (req, res) => {
     });
 
     const populatedProject = await Project.findById(project._id)
-      .populate("createdBy", "name department");
+      .populate({
+        path: "createdBy",
+        select: "name department profile profileImage profilePic avatar",
+        populate: { path: "profile" }
+      });
 
     res.status(201).json({
       success: true,
@@ -89,7 +97,11 @@ exports.updateProject = async (req, res) => {
       new: true,
       runValidators: true,
     })
-      .populate("createdBy", "name department");
+      .populate({
+        path: "createdBy",
+        select: "name department profile profileImage profilePic avatar",
+        populate: { path: "profile" }
+      });
 
     res.status(200).json({
       success: true,

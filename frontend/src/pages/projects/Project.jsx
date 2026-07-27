@@ -80,8 +80,6 @@ const Project = () => {
     dispatch(getPortfolios());
   }, [dispatch]);
 
-
-
   const isAdmin =
     currentUser?.role === "admin" ||
     currentUser?.role === "operationmanager" ||
@@ -93,9 +91,9 @@ const Project = () => {
 
   // Filter projects
   const filteredProjects = projects.filter((project) => {
-
-    const matchesSearch =
-      project.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = project.name
+      ?.toLowerCase()
+      .includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "All" || project.status === statusFilter;
     const matchesCreatedBy =
@@ -112,7 +110,7 @@ const Project = () => {
   const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
   const paginatedProjects = filteredProjects.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
   // Handle modal trigger
@@ -247,8 +245,6 @@ const Project = () => {
   // VIEW 2: DEFAULT PROJECT DIRECTORY TABLE
   return (
     <div className=" space-y-6 ">
-     
-
       {/* FILTER AND SEARCH BAR */}
       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
         <div className="flex-1 relative">
@@ -271,7 +267,11 @@ const Project = () => {
               All Users
             </option>
             {users?.map((user) => (
-              <option key={user._id} value={user._id} className="dark:bg-[#111111]">
+              <option
+                key={user._id}
+                value={user._id}
+                className="dark:bg-[#111111]"
+              >
                 {user.name}
               </option>
             ))}
@@ -292,7 +292,11 @@ const Project = () => {
               All Clients
             </option>
             {clients?.map((client) => (
-              <option key={client._id} value={client._id} className="dark:bg-[#111111]">
+              <option
+                key={client._id}
+                value={client._id}
+                className="dark:bg-[#111111]"
+              >
                 {client.companyName}
               </option>
             ))}
@@ -330,10 +334,8 @@ const Project = () => {
           </div>
         </div>
 
-
-         {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
-      
+        {/* HEADER SECTION */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4">
           <button
             onClick={handleOpenCreate}
             className="flex items-center gap-2 bg-blue-600 dark:bg-[#3b82f6] hover:bg-blue-700 dark:hover:bg-[#ccff00] text-white dark:text-black px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 dark:shadow-[#3b82f6]/20 active:scale-95 whitespace-nowrap"
@@ -341,10 +343,7 @@ const Project = () => {
             <FiPlus size={16} />
             New Project
           </button>
-          
-      </div>
-
-
+        </div>
       </div>
 
       {/* TABLE VIEW OF PROJECTS */}
@@ -423,7 +422,10 @@ const Project = () => {
                         <span className="hover:text-blue-600 dark:hover:text-[#3b82f6] transition-colors flex items-center gap-1.5">
                           {project.name}
                           {project.access === "Private" && (
-                            <span title="Private Project" className="text-slate-400 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md">
+                            <span
+                              title="Private Project"
+                              className="text-slate-400 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md"
+                            >
                               <FiLock size={10} />
                             </span>
                           )}
@@ -434,16 +436,82 @@ const Project = () => {
                     <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
                       {(() => {
                         const clientId = project.client?._id || project.client;
-                        const clientObj = clients?.find((c) => c._id === clientId);
-                        if (!clientObj) return <span className="text-slate-400 text-[10px] italic">No Client</span>;
+                        const clientObj = clients?.find(
+                          (c) => c._id === clientId,
+                        );
+                        if (!clientObj)
+                          return (
+                            <span className="text-slate-400 text-[10px] italic">
+                              No Client
+                            </span>
+                          );
                         return <ClientBadge client={clientObj} size="sm" />;
                       })()}
                     </td>
 
                     <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
-                      <span className="font-semibold text-slate-700 dark:text-slate-350">
-                        {project.createdBy?.name || "N/A"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const createdUser = project.createdBy;
+                          const avatarUrl =
+                            (typeof createdUser?.profile?.profileImage === "object"
+                              ? createdUser?.profile?.profileImage?.url
+                              : createdUser?.profile?.profileImage) ||
+                            (typeof createdUser?.profileImage === "object"
+                              ? createdUser?.profileImage?.url
+                              : createdUser?.profileImage) ||
+                            createdUser?.profilePic ||
+                            createdUser?.avatar ||
+                            createdUser?.profile?.profilePic ||
+                            createdUser?.profile?.avatar;
+
+                          if (avatarUrl) {
+                            return (
+                              <img
+                                src={avatarUrl}
+                                alt={createdUser?.name || "Creator"}
+                                className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm"
+                              />
+                            );
+                          }
+
+                          const initials = (createdUser?.name || "U")
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .substring(0, 2)
+                            .toUpperCase();
+                          
+                          const AVATAR_COLORS = [
+                            "from-violet-500 to-indigo-600",
+                            "from-cyan-500 to-blue-600",
+                            "from-emerald-500 to-teal-600",
+                            "from-orange-500 to-amber-600",
+                            "from-pink-500 to-rose-600",
+                          ];
+                          const colorClass =
+                            AVATAR_COLORS[
+                              ((createdUser?.name || "U").charCodeAt(0) || 0) %
+                                AVATAR_COLORS.length
+                            ];
+
+                          return (
+                            <div className={`w-6 h-6 rounded-full bg-gradient-to-tr ${colorClass} flex items-center justify-center text-white text-[9px] font-black shadow-inner`}>
+                              {initials}
+                            </div>
+                          );
+                        })()}
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-700 dark:text-slate-350 text-[11px]">
+                            {project.createdBy?.name || "N/A"}
+                          </span>
+                          {project.createdBy?.department && (
+                            <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-1.5 py-0.5 rounded flex items-center justify-center w-max mt-0.5 shadow-sm">
+                              {project.createdBy.department}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
 
                     <td className="px-4 py-2 border-r border-b border-slate-200 dark:border-slate-800">
@@ -503,7 +571,9 @@ const Project = () => {
                               <FiEdit2 size={13} />
                             </button>
                             <button
-                              onClick={(e) => handleProjectDelete(e, project._id)}
+                              onClick={(e) =>
+                                handleProjectDelete(e, project._id)
+                              }
                               className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-red-500 dark:hover:bg-slate-800 transition-colors rounded cursor-pointer"
                               title="Delete Project"
                             >
@@ -524,7 +594,9 @@ const Project = () => {
       {totalPages > 1 && filteredProjects.length > 0 && !projectsLoading && (
         <div className="flex items-center justify-between mt-4">
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredProjects.length)} of {filteredProjects.length} projects
+            Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+            {Math.min(currentPage * itemsPerPage, filteredProjects.length)} of{" "}
+            {filteredProjects.length} projects
           </span>
           <div className="flex items-center gap-1">
             <button
@@ -548,7 +620,9 @@ const Project = () => {
               </button>
             ))}
             <button
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
               disabled={currentPage === totalPages}
               className="px-3 py-1 text-xs rounded-md border border-slate-200 dark:border-slate-700 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
             >
@@ -637,7 +711,11 @@ const Project = () => {
                           Select a client
                         </option>
                         {clients?.map((c) => (
-                          <option key={c._id} value={c._id} className="dark:bg-[#111111]">
+                          <option
+                            key={c._id}
+                            value={c._id}
+                            className="dark:bg-[#111111]"
+                          >
                             {c.companyName || c.name}
                           </option>
                         ))}
@@ -802,7 +880,11 @@ const Project = () => {
                           Select a client (optional)
                         </option>
                         {clients?.map((c) => (
-                          <option key={c._id} value={c._id} className="dark:bg-[#111111]">
+                          <option
+                            key={c._id}
+                            value={c._id}
+                            className="dark:bg-[#111111]"
+                          >
                             {c.companyName || c.name}
                           </option>
                         ))}
