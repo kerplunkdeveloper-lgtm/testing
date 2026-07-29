@@ -31,7 +31,23 @@ const Task = () => {
   }, [canSeeTaskOverview, activeTab]);
 
   // Common quick date filter state passed to TaskOverviewTab
-  const [dateFilter, setDateFilter] = useState("All");
+  const [dateFilter, setDateFilter] = useState(() => {
+    try {
+      const saved = localStorage.getItem("task_date_filter");
+      return saved || "All";
+    } catch {
+      return "All";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("task_date_filter", dateFilter);
+    } catch (e) {
+      console.error("Failed to save date filter:", e);
+    }
+  }, [dateFilter]);
+
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const dateDropdownRef = useRef(null);
 
@@ -51,7 +67,8 @@ const Task = () => {
   }, [tasks, currentUserId]);
 
   const assignedTasksCount = React.useMemo(() => {
-    if (user?.role === "Admin" || user?.role === "OperationManager") {
+    const role = user?.role?.toLowerCase();
+    if (role === "admin" || role === "operationmanager" || role === "managingpartner") {
       return tasks.length;
     }
     return tasks.filter((task) => {
@@ -131,6 +148,8 @@ const Task = () => {
           currentUserId={currentUserId}
           user={user}
           loading={loading}
+          dateFilter={dateFilter}
+          setDateFilter={setDateFilter}
         />
       )}
     </div>

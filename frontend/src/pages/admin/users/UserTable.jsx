@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import io from "socket.io-client";
 import {
   FiEdit2,
   FiTrash2,
@@ -113,6 +114,30 @@ const UserTable = ({
 }) => {
   const { user: currentUser } = useSelector((state) => state.auth);
   const [copiedId, setCopiedId] = useState(null);
+  const [onlineUserIds, setOnlineUserIds] = useState([]);
+
+  useEffect(() => {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL;
+    const socketUrl = baseUrl ? baseUrl : (typeof window !== 'undefined' ? window.location.origin : "http://localhost:5001");
+    
+    const socket = io(socketUrl, {
+      transports: ["polling", "websocket"],
+      withCredentials: true
+    });
+
+    const userId = currentUser?._id || currentUser?.id;
+    if (userId) {
+      socket.emit("join", userId);
+    }
+
+    socket.on("online_users_list", (usersList) => {
+      setOnlineUserIds(usersList);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [currentUser]);
 
   const handleEdit = (u) => { setEditUser(u); setOpenModal(true); };
   const handlePermissions = (u) => { setPermissionsUser(u); setOpenPermissionsModal(true); };
@@ -128,7 +153,7 @@ const UserTable = ({
   const rolesPerms = currentUser?.permissions?.["manage_roles"];
   const canManageRoles = currentUser?.role === "admin" || rolesPerms === true || rolesPerms?.update;
 
-  const colSpan = isReadOnly ? 4 : 5;
+  const colSpan = isReadOnly ? 5 : 6;
 
   return (
     /* ── Container ─────────────────────────────────────────────── */
@@ -139,7 +164,7 @@ const UserTable = ({
           {/* ── HEADER ─────────────────────────────────────────── */}
           <thead>
             <tr className="bg-slate-50 dark:bg-[#0d1117] border-b border-slate-100 dark:border-white/5">
-              {["User", "Email Address", "Role", "Department", !isReadOnly && "Actions"]
+              {["User", "Email Address", "Role", "Department", "Status", !isReadOnly && "Actions"]
                 .filter(Boolean)
                 .map((h) => (
                   <th
@@ -202,7 +227,7 @@ const UserTable = ({
                             )}
                           </div>
                           {/* Online dot */}
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" />
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 transition-colors duration-300 ${onlineUserIds.includes(user._id) ? "bg-emerald-500" : "bg-slate-400"}`} />
                         </div>
 
                         {/* Name + ID */}
@@ -259,6 +284,21 @@ const UserTable = ({
                         </span>
                       ) : (
                         <span className="text-slate-300 dark:text-slate-600 text-sm font-semibold">—</span>
+                      )}
+                    </td>
+
+                    {/* ── STATUS ───────────────────────────────── */}
+                    <td className="px-5 py-3.5 align-middle">
+                      {onlineUserIds.includes(user._id) ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10.5px] font-black border bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-transparent">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Online
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10.5px] font-black border bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                          Offline
+                        </span>
                       )}
                     </td>
 

@@ -644,7 +644,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                                     className={`w-full flex items-center gap-2 text-left text-[11px] lg:text-[0.625rem] font-semibold py-1.5 px-2 rounded-lg transition-all duration-150 cursor-pointer ${
                                       isProjectActive
                                         ? "bg-slate-100 dark:bg-slate-800/80 theme-text-accent font-bold"
-                                        : "text-slate-600 dark:text-white/80 hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
+                                        : "text-slate-600 dark:text-white hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
                                     }`}
                                     title={project.name}
                                   >
@@ -737,7 +737,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                               className={`w-full flex items-center gap-2 text-left text-[11px] lg:text-[0.625rem] font-semibold py-1.5 px-2 rounded-lg transition-all duration-150 cursor-pointer ${
                                 isProjectActive
                                   ? "bg-slate-100 dark:bg-slate-800/80 theme-text-accent font-bold"
-                                  : "text-slate-600 dark:text-white/80 hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
+                                  : "text-slate-600 dark:text-white hover:theme-text-accent hover:bg-slate-100/50 dark:hover:bg-white/5"
                               }`}
                               title={project.name}
                             >
@@ -787,7 +787,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                   <button
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-left rounded-xl border border-transparent hover:bg-slate-100/60 dark:hover:bg-white/5 transition-all duration-200 cursor-pointer group text-slate-500 dark:text-slate-400 hover:theme-text-accent"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-left rounded-xl border border-transparent hover:bg-slate-100/60 dark:hover:bg-white/5 transition-all duration-200 cursor-pointer group text-slate-500 dark:text-white hover:theme-text-accent"
                   >
                     <div className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center bg-slate-100/70 dark:bg-white/5 group-hover:bg-[var(--accent-light-bg-subtle)] dark:group-hover:bg-[var(--accent-dark-bg-subtle)] transition-colors">
                       {icon}
@@ -823,9 +823,14 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
             };
 
             const renderPortfoliosList = () => {
+              const canSeeMyProject =
+                currentUser?.role?.toLowerCase() === "managingpartner" ||
+                currentUser?.role?.toLowerCase() === "operationmanager" ||
+                currentUser?.department?.toLowerCase() === "social media manager";
+
               return (
                 <>
-                  {renderPortfolioDropdown(
+                  {canSeeMyProject && renderPortfolioDropdown(
                     "My Project",
                     <FiLayers
                       size={14}
@@ -840,159 +845,191 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
               );
             };
 
-            return (
-              <>
-                {menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isPortfoliosItem = item.name === "Portfolio";
+            const renderMenuItem = (item) => {
+              const Icon = item.icon;
+              const isPortfoliosItem = item.name === "Portfolio";
 
-                  return (
-                    <React.Fragment key={item.path}>
-                      <NavLink
-                        to={item.path}
-                        onClick={() => {
-                          if (window.innerWidth < 1024) setSidebarOpen(false);
-                          if (item.name === "Chat") {
-                            dispatch(clearAllUnreadCounts());
-                            dispatch(markAllChatAsRead());
-                          }
-                        }}
-                        end={
-                          item.path === "/admin" ||
-                          item.path === "/operationmanager" ||
-                          item.path === "/team"
-                        }
-                        className={({ isActive }) => {
-                          return `block rounded-xl transition-all duration-200 relative group ${isActive ? "" : ""}`;
+              return (
+                <React.Fragment key={item.path}>
+                  <NavLink
+                    to={item.path}
+                    onClick={() => {
+                      if (window.innerWidth < 1024) setSidebarOpen(false);
+                      if (item.name === "Chat") {
+                        dispatch(clearAllUnreadCounts());
+                        dispatch(markAllChatAsRead());
+                      }
+                    }}
+                    end={
+                      item.path === "/admin" ||
+                      item.path === "/operationmanager" ||
+                      item.path === "/team"
+                    }
+                    className={({ isActive }) => {
+                      return `block rounded-xl transition-all duration-200 relative group ${isActive ? "" : ""}`;
+                    }}
+                  >
+                    {({ isActive }) => (
+                      <motion.div
+                        className={`flex items-center gap-2.5 px-3 py-2 lg:py-1.5 w-full rounded-xl relative overflow-hidden transition-all duration-200 text-left border ${
+                          isActive
+                            ? "bg-slate-900/10 dark:bg-white/20 shadow-sm border-slate-900/5 dark:border-white/10"
+                            : "hover:bg-slate-900/5 dark:hover:bg-white/10 border-transparent"
+                        }`}
+                        whileHover={{ x: 2 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 400,
+                          damping: 25,
                         }}
                       >
-                        {({ isActive }) => (
-                          <motion.div
-                            className={`flex items-center gap-2.5 px-3 py-2 lg:py-1.5 w-full rounded-xl relative overflow-hidden transition-all duration-200 text-left border ${
-                              isActive
-                                ? "bg-slate-900/10 dark:bg-white/20 shadow-sm border-slate-900/5 dark:border-white/10"
-                                : "hover:bg-slate-900/5 dark:hover:bg-white/10 border-transparent"
-                            }`}
-                            whileHover={{ x: 2 }}
+                        {/* Active left accent bar */}
+                        {isActive && (
+                          <motion.span
+                            layoutId="activeBar"
+                            className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4.5 rounded-r-full theme-bg-accent"
+                            initial={{ scaleY: 0 }}
+                            animate={{ scaleY: 1 }}
                             transition={{
                               type: "spring",
                               stiffness: 400,
                               damping: 25,
                             }}
-                          >
-                            {/* Active left accent bar */}
-                            {isActive && (
-                              <motion.span
-                                layoutId="activeBar"
-                                className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4.5 rounded-r-full theme-bg-accent"
-                                initial={{ scaleY: 0 }}
-                                animate={{ scaleY: 1 }}
-                                transition={{
-                                  type: "spring",
-                                  stiffness: 400,
-                                  damping: 25,
-                                }}
-                              />
-                            )}
-
-                            {/* Icon wrapper — fixed w-6 h-6 ensures all icons align on same column */}
-                            <motion.div
-                              className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center relative overflow-hidden transition-colors duration-200 ${
-                                isActive
-                                  ? "bg-slate-900 dark:bg-white shadow-md shadow-slate-900/20 dark:shadow-black/50"
-                                  : "bg-slate-900/5 dark:bg-white/10 group-hover:bg-slate-900/10 dark:group-hover:bg-white/20"
-                              }`}
-                              whileHover={{
-                                scale: 1.22,
-                                rotate: [0, -10, 7, -4, 0],
-                                y: -1,
-                                boxShadow:
-                                  "0 0 0 3px rgba(99,102,241,0.25), 0 0 12px rgba(99,102,241,0.15)",
-                              }}
-                              whileTap={{ scale: 0.85 }}
-                              transition={{
-                                scale: {
-                                  type: "spring",
-                                  stiffness: 500,
-                                  damping: 14,
-                                },
-                                rotate: { duration: 0.38, ease: "easeInOut" },
-                                y: {
-                                  type: "spring",
-                                  stiffness: 500,
-                                  damping: 18,
-                                },
-                                boxShadow: { duration: 0.25 },
-                              }}
-                            >
-                              {/* Shimmer burst on hover */}
-                              <span className="absolute inset-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.35)_0%,rgba(255,255,255,0)_70%)]" />
-                              <Icon
-                                size={14}
-                                className={`transition-colors duration-200 relative z-10 ${
-                                  isActive
-                                    ? "text-white dark:text-slate-900"
-                                    : "text-slate-700 dark:text-white/90 group-hover:text-slate-900 dark:group-hover:text-white"
-                                }`}
-                              />
-                            </motion.div>
-
-                            {/* Label */}
-                            <span
-                              className={`text-xs lg:text-[0.6875rem] truncate flex-1 text-left transition-colors duration-200 ${
-                                isActive
-                                  ? "text-slate-900 dark:text-white font-black"
-                                  : "text-slate-700 dark:text-white/90 font-bold group-hover:text-slate-900 dark:group-hover:text-white"
-                              }`}
-                            >
-                              {item.name}
-                            </span>
-
-                            {/* Notification badges */}
-                            {item.name === "Notifications" &&
-                              unreadCount > 0 && (
-                                <span className="min-w-[1rem] h-[1rem] px-1 bg-red-500 text-white rounded-full flex items-center justify-center text-[0.5625rem] font-bold animate-pulse shrink-0">
-                                  {unreadCount}
-                                </span>
-                              )}
-                            {item.name === "Chat" &&
-                              totalUnreadChatCount > 0 && (
-                                <span className="flex h-[1rem] min-w-[1rem] items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-red-600 px-1 text-[0.5625rem] font-black text-white animate-pulse shrink-0">
-                                  {totalUnreadChatCount}
-                                </span>
-                              )}
-
-                            {/* Active dot (for items without badge) */}
-                            {isActive &&
-                              !unreadCount &&
-                              item.name !== "Notifications" &&
-                              item.name !== "Chat" && (
-                                <motion.span
-                                  className="w-1.5 h-1.5 rounded-full bg-slate-900 dark:bg-white shrink-0"
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  transition={{
-                                    type: "spring",
-                                    stiffness: 500,
-                                    damping: 20,
-                                  }}
-                                />
-                              )}
-                          </motion.div>
+                          />
                         )}
-                      </NavLink>
 
-                      {isPortfoliosItem &&
-                        ((portfolios && portfolios.length > 0) || (projects && projects.length > 0)) &&
-                        (() => {
-                          hasRenderedPortfoliosList = true;
-                          return renderPortfoliosList();
-                        })()}
+                        {/* Icon wrapper — fixed w-6 h-6 ensures all icons align on same column */}
+                        <motion.div
+                          className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center relative overflow-hidden transition-colors duration-200 ${
+                            isActive
+                              ? "bg-slate-900 dark:bg-white shadow-md shadow-slate-900/20 dark:shadow-black/50"
+                              : "bg-slate-900/5 dark:bg-white/10 group-hover:bg-slate-900/10 dark:group-hover:bg-white/20"
+                          }`}
+                          whileHover={{
+                            scale: 1.22,
+                            rotate: [0, -10, 7, -4, 0],
+                            y: -1,
+                            boxShadow:
+                              "0 0 0 3px rgba(99,102,241,0.25), 0 0 12px rgba(99,102,241,0.15)",
+                          }}
+                          whileTap={{ scale: 0.85 }}
+                          transition={{
+                            scale: {
+                              type: "spring",
+                              stiffness: 500,
+                              damping: 14,
+                            },
+                            rotate: { duration: 0.38, ease: "easeInOut" },
+                            y: {
+                              type: "spring",
+                              stiffness: 500,
+                              damping: 18,
+                            },
+                            boxShadow: { duration: 0.25 },
+                          }}
+                        >
+                          {/* Shimmer burst on hover */}
+                          <span className="absolute inset-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.35)_0%,rgba(255,255,255,0)_70%)]" />
+                          <Icon
+                            size={14}
+                            className={`transition-colors duration-200 relative z-10 ${
+                              isActive
+                                ? "text-white dark:text-slate-900"
+                                : "text-slate-700 dark:text-white group-hover:text-slate-900 dark:group-hover:text-white"
+                            }`}
+                          />
+                        </motion.div>
 
-                      {/* Projects item list is removed */}
-                    </React.Fragment>
-                  );
-                })}
+                        {/* Label */}
+                        <span
+                          className={`text-xs lg:text-[0.6875rem] truncate flex-1 text-left transition-colors duration-200 ${
+                            isActive
+                              ? "text-slate-900 dark:text-white font-black"
+                              : "text-slate-700 dark:text-white font-bold group-hover:text-slate-900 dark:group-hover:text-white"
+                          }`}
+                        >
+                          {item.name}
+                        </span>
+
+                        {/* Notification badges */}
+                        {item.name === "Notifications" &&
+                          unreadCount > 0 && (
+                            <span className="min-w-[1rem] h-[1rem] px-1 bg-red-500 text-white rounded-full flex items-center justify-center text-[0.5625rem] font-bold animate-pulse shrink-0">
+                              {unreadCount}
+                            </span>
+                          )}
+                        {item.name === "Chat" &&
+                          totalUnreadChatCount > 0 && (
+                            <span className="flex h-[1rem] min-w-[1rem] items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-red-600 px-1 text-[0.5625rem] font-black text-white animate-pulse shrink-0">
+                              {totalUnreadChatCount}
+                            </span>
+                          )}
+
+                        {/* Active dot (for items without badge) */}
+                        {isActive &&
+                          !unreadCount &&
+                          item.name !== "Notifications" &&
+                          item.name !== "Chat" && (
+                            <motion.span
+                              className="w-1.5 h-1.5 rounded-full bg-slate-900 dark:bg-white shrink-0"
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 500,
+                                damping: 20,
+                              }}
+                            />
+                          )}
+                      </motion.div>
+                    )}
+                  </NavLink>
+
+                  {isPortfoliosItem &&
+                    ((portfolios && portfolios.length > 0) || (projects && projects.length > 0)) &&
+                    (() => {
+                      hasRenderedPortfoliosList = true;
+                      return renderPortfoliosList();
+                    })()}
+                </React.Fragment>
+              );
+            };
+
+            const isGroupedRole = role === "admin" || role === "operationmanager";
+
+            return (
+              <>
+                {isGroupedRole ? (
+                  <div className="space-y-4">
+                    {/* General / Core Group */}
+                    <div className="space-y-1">
+                      <div className="px-3 py-1 text-[9px] font-black tracking-wider text-slate-450 dark:text-slate-500 uppercase">
+                        Workspace
+                      </div>
+                      <div className="border border-slate-200/60 dark:border-white/5 bg-slate-50/30 dark:bg-white/[0.01] rounded-2xl p-1.5 space-y-0.5 shadow-sm">
+                        {menuItems
+                          .filter((item) => ["Home", "Chat", "Users"].includes(item.name))
+                          .map((item) => renderMenuItem(item))}
+                      </div>
+                    </div>
+
+                    {/* Management Group */}
+                    <div className="space-y-1">
+                      <div className="px-3 py-1 text-[9px] font-black tracking-wider text-slate-450 dark:text-slate-500 uppercase">
+                        Management
+                      </div>
+                      <div className="space-y-0.5">
+                        {menuItems
+                          .filter((item) => !["Home", "Chat", "Users"].includes(item.name))
+                          .map((item) => renderMenuItem(item))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {menuItems.map((item) => renderMenuItem(item))}
+                  </div>
+                )}
 
                 {/* Fallback at the bottom if items were not in the menu list */}
                 {!hasRenderedPortfoliosList &&

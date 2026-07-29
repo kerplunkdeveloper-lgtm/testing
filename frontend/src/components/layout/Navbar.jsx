@@ -52,7 +52,7 @@ const Navbar = ({ setSidebarOpen }) => {
   const { user } = useSelector((state) => state.auth);
   const { profile, loading: profileLoading } = useSelector((state) => state.profile);
   const { clients = [], loading: clientsLoading } = useSelector((state) => state.clients);
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, sidebarLayout } = useTheme();
 
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -426,9 +426,10 @@ const Navbar = ({ setSidebarOpen }) => {
       className="
         sticky top-0 z-50
         h-14
-        bg-white dark:bg-slate-900
+      bg-white  dark:bg-black
         px-3 md:px-5
         flex items-center justify-between
+      
       
 
     
@@ -436,21 +437,23 @@ const Navbar = ({ setSidebarOpen }) => {
     >
       {/* LEFT */}
       <div className="flex items-center gap-2.5 shrink-0">
-        {/* SIDEBAR TOGGLE BUTTON */}
-        <button
-          onClick={() => setSidebarOpen((prev) => !prev)}
-          className="
-            w-8 h-8
-            rounded-lg border theme-border theme-bg-main
-            theme-text-secondary hover:theme-text-primary
-            flex items-center justify-center
-            hover:bg-slate-50 dark:hover:bg-white/5
-            transition-all duration-200 cursor-pointer
-          "
-          title="Toggle Sidebar"
-        >
-          <HiOutlineMenuAlt3 className="text-[1.0625rem] transform hover:scale-110 transition-transform duration-200" />
-        </button>
+        {/* SIDEBAR TOGGLE BUTTON - hidden on lg when horizontal layout */}
+        {!(sidebarLayout === "horizontal") && (
+          <button
+            onClick={() => setSidebarOpen((prev) => !prev)}
+            className="
+              w-8 h-8
+              rounded-lg border theme-border theme-bg-main
+              theme-text-secondary hover:theme-text-primary
+              flex items-center justify-center
+              hover:bg-slate-50 dark:hover:bg-white/5
+              transition-all duration-200 cursor-pointer
+            "
+            title="Toggle Sidebar"
+          >
+            <HiOutlineMenuAlt3 className="text-[1.0625rem] transform hover:scale-110 transition-transform duration-200" />
+          </button>
+        )}
 
         {/* PAGE TITLE */}
         <h1 className="text-xs md:text-[1.05rem] theme-text-accent font-medium shrink-0">
@@ -695,17 +698,21 @@ const Navbar = ({ setSidebarOpen }) => {
               transition-all cursor-pointer
             "
           >
-            {profile?.profileImage?.url ? (
-              <img
-                src={profile.profileImage.url}
-                alt="profile"
-                className="w-7 h-7 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-7 h-7 rounded-full theme-bg-accent flex items-center justify-center text-white dark:text-black">
-                <FiUser size={13} />
-              </div>
-            )}
+            <div className="relative shrink-0">
+              {profile?.profileImage?.url ? (
+                <img
+                  src={profile.profileImage.url}
+                  alt="profile"
+                  className="w-7 h-7 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full theme-bg-accent flex items-center justify-center text-white dark:text-black">
+                  <FiUser size={13} />
+                </div>
+              )}
+              {/* Online status indicator dot */}
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900 animate-pulse" />
+            </div>
 
             <div className="text-left hidden md:block">
               <h3 className="text-[12px] font-black theme-text-primary leading-tight">
@@ -736,13 +743,19 @@ const Navbar = ({ setSidebarOpen }) => {
                 "
               >
                 {/* User Info Header */}
-                <div className="px-3 py-2 border-b theme-border mb-1">
-                  <p className="text-[12px] font-black theme-text-primary truncate">
-                    {user?.name}
-                  </p>
-                  <p className="text-[10px] theme-text-secondary truncate capitalize font-medium">
-                    {user?.role}
-                  </p>
+                <div className="px-3 py-2 border-b theme-border mb-1 flex items-center justify-between gap-2">
+                  <div className="truncate">
+                    <p className="text-[12px] font-black theme-text-primary truncate">
+                      {user?.name}
+                    </p>
+                    <p className="text-[10px] theme-text-secondary truncate capitalize font-medium">
+                      {user?.role}
+                    </p>
+                  </div>
+                  <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 shrink-0">
+                    <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                    ACTIVE
+                  </span>
                 </div>
 
                 <button

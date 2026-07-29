@@ -7,8 +7,11 @@ import Sidebar from "./Sidebar";
 import useSocket from "../../hooks/useSocket.jsx";
 import { exitImpersonation } from "../../features/auth/authSlice";
 import { apiSlice } from "../../features/api/apiSlice";
+import HorizontalSidebar from "./HorizontalSidebar";
+import { useTheme } from "../../context/ThemeContext";
 
 const DashboardLayout = ({ role }) => {
+  const { sidebarLayout } = useTheme();
   useSocket();
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -42,16 +45,27 @@ const DashboardLayout = ({ role }) => {
       <div className="fixed bottom-[20%] left-[-5%] w-[250px] h-[250px] rounded-full bg-gradient-to-br from-pink-400/10 to-purple-500/15 blur-[60px] pointer-events-none z-0 dark:from-purple-500/5 dark:to-blue-500/5" />
       
       {/* SIDEBAR */}
-      <Sidebar
-        role={role}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-      />
+      {sidebarLayout === "vertical" && (
+        <Sidebar
+          role={role}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+        />
+      )}
+      {sidebarLayout === "horizontal" && sidebarOpen && (
+        <div className="lg:hidden">
+          <Sidebar
+            role={role}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+          />
+        </div>
+      )}
 
       {/* RIGHT SIDE / MAIN CONTENT */}
       <div
         className={`flex-1 h-screen flex flex-col relative z-10 transition-all duration-300 ease-in-out ${
-          sidebarOpen ? "lg:ml-60 xl:ml-52" : "lg:ml-0"
+          sidebarLayout === "vertical" && sidebarOpen ? "lg:ml-60 xl:ml-52" : "lg:ml-0"
         }`}
       >
         {/* IMPERSONATION BANNER */}
@@ -87,6 +101,13 @@ const DashboardLayout = ({ role }) => {
         {/* NAVBAR */}
         <Navbar setSidebarOpen={setSidebarOpen} />
 
+        {/* HORIZONTAL SIDEBAR */}
+        {sidebarLayout === "horizontal" && (
+          <div className="hidden lg:block sticky top-0 z-40 bg-white pb-2 shrink-0">
+            <HorizontalSidebar role={role} />
+          </div>
+        )}
+
         {/* SCROLLABLE CONTENT */}
         <main
           ref={mainContainerRef}
@@ -96,7 +117,9 @@ const DashboardLayout = ({ role }) => {
             className={
               isChatPage
                 ? "h-full theme-bg-card"
-                : "min-h-full  theme-bg-card border theme-border dark:shadow-none shadow-sm p-2 sm:p-3 md:p-4"
+                : `min-h-full ${
+                    sidebarLayout === "horizontal" ? "max-w-8xl mt-15" : "max-w-8xl"
+                  } mx-auto w-full dark:shadow-none p-2 sm:p-3 md:p-2`
             }
           >
             <Outlet />

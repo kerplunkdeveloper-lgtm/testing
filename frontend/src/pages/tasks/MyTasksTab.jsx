@@ -22,6 +22,8 @@ import {
   FiColumns,
   FiTag,
   FiCopy,
+  FiMessageSquare,
+  FiEdit,
 } from "react-icons/fi";
 import {
   useUpdateTaskMutation,
@@ -118,7 +120,11 @@ const TimeTracker = ({
     blockerHistory,
   ]);
 
-  if (!startTime && status !== "In Progress") return null;
+  if (!startTime && status !== "In Progress") {
+    return (
+      <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">—</span>
+    );
+  }
   if (!startTime && status === "In Progress")
     return (
       <div className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] font-bold tracking-wider bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30 shadow-sm">
@@ -237,6 +243,8 @@ const MyTasksTab = ({
   user,
   setSelectedTaskId,
   loading,
+  dateFilter: dateFilterProp,
+  setDateFilter: setDateFilterProp,
 }) => {
   const navigate = useNavigate();
 
@@ -248,7 +256,32 @@ const MyTasksTab = ({
   const [projectFilter, setProjectFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [clientFilter, setClientFilter] = useState("All");
-  const [dateFilter, setDateFilter] = useState("All");
+  
+  const [localDateFilter, setLocalDateFilter] = useState(() => {
+    try {
+      const saved = localStorage.getItem("task_date_filter");
+      return saved || "All";
+    } catch {
+      return "All";
+    }
+  });
+
+  const dateFilter = dateFilterProp !== undefined ? dateFilterProp : localDateFilter;
+
+  const setDateFilter = (val) => {
+    const nextVal = typeof val === "function" ? val(dateFilter) : val;
+    if (setDateFilterProp) {
+      setDateFilterProp(nextVal);
+    } else {
+      setLocalDateFilter(nextVal);
+    }
+    try {
+      localStorage.setItem("task_date_filter", nextVal);
+    } catch (e) {
+      console.error("Failed to save date filter:", e);
+    }
+  };
+
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const dateDropdownRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -308,6 +341,11 @@ const MyTasksTab = ({
   const [blockerExpectedTime, setBlockerExpectedTime] = useState("15 mins");
   const [blockerPriority, setBlockerPriority] = useState("Normal");
 
+  // Feedback states
+  const [feedbackText, setFeedbackText] = useState("");
+  const [editingFeedbackId, setEditingFeedbackId] = useState(null);
+  const [editingFeedbackText, setEditingFeedbackText] = useState("");
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) {
@@ -323,6 +361,17 @@ const MyTasksTab = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    priorityFilter,
+    projectFilter,
+    statusFilter,
+    clientFilter,
+    dateFilter,
+    searchTerm,
+  ]);
 
   // Filter tasks based on "My Tasks" (assigned to current user)
   const activeTasksList = React.useMemo(() => {
@@ -342,7 +391,9 @@ const MyTasksTab = ({
         projectFilter === "All" || taskProjectId === projectFilter;
 
       const projectObj = projects.find((p) => p._id === taskProjectId);
-      const clientObj = projectObj?.client || task.project?.client;
+      const clientObj = task.project?.client?.companyName
+        ? task.project.client
+        : projectObj?.client || task.project?.client;
       const clientId = clientObj?._id || clientObj?.id;
       const matchesClient = clientFilter === "All" || clientId === clientFilter;
 
@@ -355,11 +406,7 @@ const MyTasksTab = ({
 
       let matchesDate = true;
       if (dateFilter !== "All") {
-        const targetDate = task.dueDate
-          ? new Date(task.dueDate)
-          : task.createdAt
-            ? new Date(task.createdAt)
-            : null;
+        const targetDate = task.dueDate ? new Date(task.dueDate) : null;
 
         if (!targetDate || isNaN(targetDate.getTime())) {
           matchesDate = false;
@@ -393,12 +440,16 @@ const MyTasksTab = ({
             const dayOfWeek = now.getDay();
             const startOfWeek = new Date(todayStart);
             startOfWeek.setDate(
-              startOfWeek.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1),
+              startOfWeek.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)
             );
-            matchesDate = targetDate >= startOfWeek && targetDate <= todayEnd;
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+            endOfWeek.setHours(23, 59, 59, 999);
+            matchesDate = targetDate >= startOfWeek && targetDate <= endOfWeek;
           } else if (dateFilter === "This Month") {
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            matchesDate = targetDate >= startOfMonth && targetDate <= todayEnd;
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+            matchesDate = targetDate >= startOfMonth && targetDate <= endOfMonth;
           }
         }
       }
@@ -476,7 +527,7 @@ const MyTasksTab = ({
     return filteredTasks.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredTasks, currentPage, itemsPerPage]);
 
-  const sortedTasks = filteredTasks;
+  const sortedTasks = paginatedTasks;
   const selectedTask = tasks.find((t) => t._id === selectedTaskId);
 
   const handleTaskFieldChange = (taskId, fields) => {
@@ -503,6 +554,8 @@ const MyTasksTab = ({
     setBlockerExpectedTime("15 mins");
     setBlockerPriority("Normal");
   };
+
+
 
   const handleSubmitBlocker = () => {
     if (!blockerModalTask) return;
@@ -800,7 +853,9 @@ const MyTasksTab = ({
     activeTasksList.forEach((t) => {
       const projId = t.project?._id || t.project;
       const projectObj = projects.find((p) => p._id === projId);
-      const client = projectObj?.client || t.project?.client;
+      const client = t.project?.client?.companyName
+        ? t.project.client
+        : projectObj?.client || t.project?.client;
       if (client) {
         const cId = client._id || client.id;
         clientsMap[cId] = {
@@ -1362,7 +1417,7 @@ const MyTasksTab = ({
                             )}
                           </div>
                           <h4
-                            className={`text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug flex flex-col gap-1.5 ${isCompleted ? "line-through text-slate-405" : ""}`}
+                            className={`text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug flex flex-col gap-1.5 ${isCompleted ? "line-through decoration-green-600 dark:decoration-green-500 decoration-2 text-slate-405" : ""}`}
                           >
                             <span>{task.title}</span>
                             {task.isBlocked && task.blockerReason && (
@@ -1394,8 +1449,9 @@ const MyTasksTab = ({
                                 const projectObj = projects.find(
                                   (p) => p._id === projId,
                                 );
-                                const client =
-                                  projectObj?.client || task.project?.client;
+                                const client = task.project?.client?.companyName
+                                  ? task.project.client
+                                  : projectObj?.client || task.project?.client;
                                 if (client?.companyName) {
                                   return (
                                     <ClientBadge client={client} size="sm" />
@@ -1520,7 +1576,7 @@ const MyTasksTab = ({
                     />
                     <ResizableHeader
                       id="endDate"
-                      label="End Date"
+                      label="DUE DATE"
                       colWidths={colWidths}
                       handleMouseDown={handleMouseDown}
                       defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-32"
@@ -1545,7 +1601,7 @@ const MyTasksTab = ({
                   {sortedTasks.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={14}
+                        colSpan={13}
                         className="px-6 py-8 text-center text-slate-450 dark:text-slate-500 font-bold bg-slate-50/5 dark:bg-slate-900/5 text-xs"
                       >
                         No tasks found.
@@ -1590,7 +1646,7 @@ const MyTasksTab = ({
                             <td className="px-3 py-2 font-bold border border-slate-200/70 dark:border-transparent text-left">
                               <div className="flex items-center gap-3">
                                 <span
-                                  className={`text-xs sm:text-[11px] ${isCompleted ? "line-through text-slate-400 dark:text-slate-505" : "text-slate-700 dark:text-white"}`}
+                                  className={`text-xs sm:text-[11px] ${isCompleted ? "line-through decoration-green-600 dark:decoration-green-500 decoration-2 text-slate-400 dark:text-slate-555" : "text-slate-700 dark:text-white"}`}
                                 >
                                   <span className="flex items-center gap-1 text-[12.5px] sm:text-[12px] whitespace-nowrap">
                                     <BiFile /> {task.title}
@@ -1626,7 +1682,10 @@ const MyTasksTab = ({
                             </td>
 
                             {/* Content Copy */}
-                            <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent" onClick={(e) => e.stopPropagation()}>
+                            <td
+                              className="px-3 py-2 border border-slate-200/70 dark:border-transparent"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <div className="flex items-center gap-2 group/copy text-xs sm:text-[11px] text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap break-words w-full max-w-[250px]">
                                 {task.contentCopy ? (
                                   <>
@@ -1634,8 +1693,12 @@ const MyTasksTab = ({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        navigator.clipboard.writeText(task.contentCopy);
-                                        toast.success("Content copied to clipboard!");
+                                        navigator.clipboard.writeText(
+                                          task.contentCopy,
+                                        );
+                                        toast.success(
+                                          "Content copied to clipboard!",
+                                        );
                                       }}
                                       className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-500 transition-all cursor-pointer shrink-0"
                                       title="Copy to clipboard"
@@ -1659,8 +1722,9 @@ const MyTasksTab = ({
                                 const projectObj = projects.find(
                                   (p) => p._id === projId,
                                 );
-                                const client =
-                                  projectObj?.client || task.project?.client;
+                                const client = task.project?.client?.companyName
+                                  ? task.project.client
+                                  : projectObj?.client || task.project?.client;
                                 if (client) {
                                   return (
                                     <ClientBadge client={client} size="sm" />
@@ -1940,7 +2004,7 @@ const MyTasksTab = ({
                               </span>
                             </td>
 
-                            {/* End Date */}
+                            {/* DUE DATE */}
                             <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent w-32 text-center">
                               <span
                                 className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-[10px] font-bold whitespace-nowrap ${task.dueDate ? "bg-rose-200 text-rose-700 dark:bg-rose-500/10 dark:text-rose-350 border border-rose-200/50 dark:border-rose-500/20" : "text-slate-450 dark:text-slate-550 border border-dashed border-slate-200 dark:border-[#1e293b]/40"}`}
@@ -1951,73 +2015,82 @@ const MyTasksTab = ({
                             </td>
 
                             {/* Assigned By */}
-                             <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent w-44 text-left">
-                               <div className="flex items-center gap-2">
-                                 <div className="relative shrink-0">
-                                   {(() => {
-                                     const assignerUser = task.assignedBy || task.createdBy;
-                                     const avatarUrl =
-                                       (typeof assignerUser?.profile?.profileImage === "object"
-                                         ? assignerUser?.profile?.profileImage?.url
-                                         : assignerUser?.profile?.profileImage) ||
-                                       (typeof assignerUser?.profileImage === "object"
-                                         ? assignerUser?.profileImage?.url
-                                         : assignerUser?.profileImage) ||
-                                       assignerUser?.profilePic ||
-                                       assignerUser?.avatar ||
-                                       assignerUser?.profile?.profilePic ||
-                                       assignerUser?.profile?.avatar;
+                            <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent w-44 text-left">
+                              <div className="flex items-center gap-2">
+                                <div className="relative shrink-0">
+                                  {(() => {
+                                    const assignerUser =
+                                      task.assignedBy || task.createdBy;
+                                    const avatarUrl =
+                                      (typeof assignerUser?.profile
+                                        ?.profileImage === "object"
+                                        ? assignerUser?.profile?.profileImage
+                                            ?.url
+                                        : assignerUser?.profile
+                                            ?.profileImage) ||
+                                      (typeof assignerUser?.profileImage ===
+                                      "object"
+                                        ? assignerUser?.profileImage?.url
+                                        : assignerUser?.profileImage) ||
+                                      assignerUser?.profilePic ||
+                                      assignerUser?.avatar ||
+                                      assignerUser?.profile?.profilePic ||
+                                      assignerUser?.profile?.avatar;
 
-                                     if (avatarUrl) {
-                                       return (
-                                         <img
-                                           src={avatarUrl}
-                                           alt={assignerUser?.name || "Assigner"}
-                                           className="w-8 h-8 rounded-full object-cover border border-slate-200/80 dark:border-white/10 shadow-sm"
-                                         />
-                                       );
-                                     }
+                                    if (avatarUrl) {
+                                      return (
+                                        <img
+                                          src={avatarUrl}
+                                          alt={assignerUser?.name || "Assigner"}
+                                          className="w-8 h-8 rounded-full object-cover border border-slate-200/80 dark:border-white/10 shadow-sm"
+                                        />
+                                      );
+                                    }
 
-                                     // Fallback colored gradient avatar with initials
-                                     const initials = (assignerUser?.name || "I")
-                                       .split(" ")
-                                       .map((n) => n[0])
-                                       .join("")
-                                       .substring(0, 2)
-                                       .toUpperCase();
-                                     
-                                     const AVATAR_COLORS = [
-                                       "from-violet-500 to-indigo-600",
-                                       "from-cyan-500 to-blue-600",
-                                       "from-emerald-500 to-teal-600",
-                                       "from-orange-500 to-amber-600",
-                                       "from-pink-500 to-rose-600",
-                                     ];
-                                     const colorClass =
-                                       AVATAR_COLORS[
-                                         ((assignerUser?.name || "I").charCodeAt(0) || 0) %
-                                           AVATAR_COLORS.length
-                                       ];
+                                    // Fallback colored gradient avatar with initials
+                                    const initials = (assignerUser?.name || "I")
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")
+                                      .substring(0, 2)
+                                      .toUpperCase();
 
-                                     return (
-                                       <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center text-white font-black text-[9px] border border-white/10 shadow-sm`}>
-                                         {initials}
-                                       </div>
-                                     );
-                                   })()}
-                                 </div>
-                                 <div className="flex flex-col">
-                                   <span className="font-extrabold text-[11px] text-slate-800 dark:text-slate-200">
-                                     {task.assignedBy?.name ||
-                                       task.createdBy?.name ||
-                                       "Internal"}
-                                   </span>
-                                   <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
-                                     {(task.assignedBy || task.createdBy)?.department || "Management"}
-                                   </span>
-                                 </div>
-                               </div>
-                             </td>
+                                    const AVATAR_COLORS = [
+                                      "from-violet-500 to-indigo-600",
+                                      "from-cyan-500 to-blue-600",
+                                      "from-emerald-500 to-teal-600",
+                                      "from-orange-500 to-amber-600",
+                                      "from-pink-500 to-rose-600",
+                                    ];
+                                    const colorClass =
+                                      AVATAR_COLORS[
+                                        ((assignerUser?.name || "I").charCodeAt(
+                                          0,
+                                        ) || 0) % AVATAR_COLORS.length
+                                      ];
+
+                                    return (
+                                      <div
+                                        className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center text-white font-black text-[9px] border border-white/10 shadow-sm`}
+                                      >
+                                        {initials}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="font-extrabold text-[11px] text-slate-800 dark:text-slate-200">
+                                    {task.assignedBy?.name ||
+                                      task.createdBy?.name ||
+                                      "Internal"}
+                                  </span>
+                                  <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                                    {(task.assignedBy || task.createdBy)
+                                      ?.department || "Management"}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
 
                             {/* Created Time */}
                             <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent text-center font-bold text-slate-500 dark:text-slate-400 text-xs sm:text-[11.5px]">
@@ -2031,7 +2104,7 @@ const MyTasksTab = ({
                             task.subtasks.length > 0 && (
                               <tr>
                                 <td
-                                  colSpan={14}
+                                  colSpan={13}
                                   className="bg-slate-50/[0.15] dark:bg-[#121522]/30 px-6 py-4"
                                 >
                                   <div className="space-y-2 border-l-2 border-blue-500/60 dark:border-blue-500/40 pl-6">
@@ -2062,7 +2135,7 @@ const MyTasksTab = ({
                                                 )}
                                               </button>
                                               <span
-                                                className={`text-xs font-bold text-slate-700 dark:text-slate-200 ${subCompleted ? "line-through text-slate-400 dark:text-slate-500" : ""}`}
+                                                className={`text-xs font-bold text-slate-700 dark:text-slate-200 ${subCompleted ? "line-through decoration-green-600 dark:decoration-green-500 decoration-2 text-slate-400 dark:text-slate-500" : ""}`}
                                               >
                                                 {sub.title}
                                               </span>
@@ -2287,7 +2360,7 @@ const MyTasksTab = ({
                   </div>
                   <div>
                     <h2 className="text-sm font-black text-slate-800 dark:text-white tracking-wider">
-                      Task Workspace 
+                      Task Workspace
                     </h2>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold tracking-wider mt-0.5">
                       Preview & Modify Details
@@ -2369,9 +2442,11 @@ const MyTasksTab = ({
                       <div className="flex items-center gap-2 mt-1">
                         <div className="relative shrink-0">
                           {(() => {
-                            const assignerUser = selectedTask.assignedBy || selectedTask.createdBy;
+                            const assignerUser =
+                              selectedTask.assignedBy || selectedTask.createdBy;
                             const avatarUrl =
-                              (typeof assignerUser?.profile?.profileImage === "object"
+                              (typeof assignerUser?.profile?.profileImage ===
+                              "object"
                                 ? assignerUser?.profile?.profileImage?.url
                                 : assignerUser?.profile?.profileImage) ||
                               (typeof assignerUser?.profileImage === "object"
@@ -2409,13 +2484,15 @@ const MyTasksTab = ({
                             ];
                             const colorClass =
                               AVATAR_COLORS[
-                                ((assignerUser?.name || "I").charCodeAt(0) || 0) %
-                                  AVATAR_COLORS.length
+                                ((assignerUser?.name || "I").charCodeAt(0) ||
+                                  0) % AVATAR_COLORS.length
                               ];
 
                             return (
-                              <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center text-white font-black text-[10px] border border-white/10 shadow-sm`}>
-                                  {initials}
+                              <div
+                                className={`w-8 h-8 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center text-white font-black text-[10px] border border-white/10 shadow-sm`}
+                              >
+                                {initials}
                               </div>
                             );
                           })()}
@@ -2427,7 +2504,8 @@ const MyTasksTab = ({
                               "Internal"}
                           </span>
                           <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
-                            {(selectedTask.assignedBy || selectedTask.createdBy)?.department || "Management"}
+                            {(selectedTask.assignedBy || selectedTask.createdBy)
+                              ?.department || "Management"}
                           </span>
                         </div>
                       </div>
@@ -2623,12 +2701,171 @@ const MyTasksTab = ({
                         </div>
                       </div>
                     )}
+
+                  {/* Feedbacks Section */}
+                  <div className="p-4 bg-blue-500/5 dark:bg-[#111827] border border-blue-200/50 dark:border-rose-900/30 rounded-3xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-blue-600 dark:text-blue-400 tracking-wider flex items-center gap-1.5 uppercase">
+                        <FiMessageSquare size={14} /> Feedbacks ({(selectedTask.feedbacks || []).length})
+                      </label>
+                    </div>
+
+                    {/* Add Feedback inline form */}
+                    <div className="space-y-2">
+                      <textarea
+                        value={feedbackText}
+                        onChange={(e) => setFeedbackText(e.target.value)}
+                        placeholder="Type a new feedback..."
+                        rows={2}
+                        className="w-full bg-white dark:bg-[#1a1d2d] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!feedbackText.trim()) {
+                              toast.error("Feedback text cannot be empty");
+                              return;
+                            }
+                            const newFeedback = {
+                              _id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+                              text: feedbackText.trim(),
+                              addedAt: new Date().toISOString(),
+                              addedBy: currentUserId,
+                            };
+                            const updated = [...(selectedTask.feedbacks || []), newFeedback];
+                            handleTaskFieldChange(selectedTask._id, { feedbacks: updated });
+                            setFeedbackText("");
+                            toast.success("Feedback added successfully");
+                          }}
+                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-xl text-[10px] font-black tracking-wider uppercase transition-all cursor-pointer shadow-sm"
+                        >
+                          Submit
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* List of Feedbacks */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1 scrollbar-thin">
+                      {!(selectedTask.feedbacks) || selectedTask.feedbacks.length === 0 ? (
+                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic text-center py-2">
+                          No feedbacks added yet.
+                        </p>
+                      ) : (
+                        selectedTask.feedbacks
+                          .slice()
+                          .reverse()
+                          .map((fb, idx) => {
+                            const fbId = fb._id || fb.addedAt;
+                            const isEditing = editingFeedbackId === fbId;
+                            return (
+                              <div
+                                key={fbId || idx}
+                                className="group p-2.5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1.5"
+                              >
+                                {isEditing ? (
+                                  <div className="space-y-1.5">
+                                    <textarea
+                                      value={editingFeedbackText}
+                                      onChange={(e) => setEditingFeedbackText(e.target.value)}
+                                      rows={2}
+                                      className="w-full bg-slate-50 dark:bg-[#1a1d2d] border border-slate-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 transition-all resize-none"
+                                    />
+                                    <div className="flex justify-end gap-2 text-[8.5px] font-extrabold uppercase">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingFeedbackId(null)}
+                                        className="px-2 py-0.5 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!editingFeedbackText.trim()) {
+                                            toast.error("Feedback text cannot be empty");
+                                            return;
+                                          }
+                                          const updated = (selectedTask.feedbacks || []).map((item) => {
+                                            const isTarget = item._id ? item._id === fb._id : item.addedAt === fb.addedAt;
+                                            if (isTarget) {
+                                              return {
+                                                ...item,
+                                                text: editingFeedbackText.trim(),
+                                                updatedAt: new Date().toISOString(),
+                                              };
+                                            }
+                                            return item;
+                                          });
+                                          handleTaskFieldChange(selectedTask._id, { feedbacks: updated });
+                                          setEditingFeedbackId(null);
+                                          setEditingFeedbackText("");
+                                          toast.success("Feedback updated successfully");
+                                        }}
+                                        className="px-2 py-0.5 bg-blue-600 dark:bg-blue-500 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors cursor-pointer"
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex justify-between items-center text-[8.5px] text-slate-500 dark:text-slate-400">
+                                      <span>
+                                        {new Date(fb.addedAt).toLocaleString()}
+                                      </span>
+                                      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingFeedbackId(fbId);
+                                            setEditingFeedbackText(fb.text);
+                                          }}
+                                          className="p-0.5 hover:text-blue-500 transition-colors cursor-pointer"
+                                          title="Edit Feedback"
+                                        >
+                                          <FiEdit size={10} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (!window.confirm("Are you sure you want to delete this feedback?")) return;
+                                            const updated = (selectedTask.feedbacks || []).filter((item) => {
+                                              return item._id ? item._id !== fb._id : item.addedAt !== fb.addedAt;
+                                            });
+                                            handleTaskFieldChange(selectedTask._id, { feedbacks: updated });
+                                            toast.success("Feedback deleted successfully");
+                                          }}
+                                          className="p-0.5 hover:text-rose-500 transition-colors cursor-pointer"
+                                          title="Delete Feedback"
+                                        >
+                                          <FiTrash2 size={10} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-slate-700 dark:text-slate-200 font-medium break-words leading-relaxed">
+                                      {fb.text}
+                                    </p>
+                                    {fb.updatedAt && (
+                                      <div className="text-[8px] text-slate-400 dark:text-slate-500 text-right italic">
+                                        Edited: {new Date(fb.updatedAt).toLocaleString()}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
     </>
   );
 };
