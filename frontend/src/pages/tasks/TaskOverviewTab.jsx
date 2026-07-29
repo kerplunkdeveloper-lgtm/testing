@@ -46,7 +46,7 @@ const SimpleTimeTracker = ({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "IN-REVIEW", "In Review", "IN-Review"].includes(
+        ["On Hold", "Rejected", "Approval"].includes(
           status,
         )
       ) {
@@ -312,8 +312,7 @@ const TaskOverviewTab = ({
         return {
           bg: "!bg-amber-50 !text-amber-700 !border-amber-200 dark:!bg-amber-500/20 dark:!text-amber-300 dark:!border-amber-500/40",
         };
-      case "IN-REVIEW":
-      case "In Review":
+      case "Approval":
         return {
           bg: "!bg-sky-50 !text-sky-700 !border-sky-200 dark:!bg-sky-500/20 dark:!text-sky-350 dark:!border-sky-500/40",
         };
@@ -1107,7 +1106,6 @@ const TaskOverviewTab = ({
                       "All",
                       "Pending",
                       "In Progress",
-                      "IN-REVIEW",
                       "On Hold",
                       "Completed",
                       "Rejected",
@@ -1745,8 +1743,7 @@ const TaskOverviewTab = ({
                                     ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-550/30"
                                     : task.status === "On Hold"
                                       ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-550/30"
-                                      : task.status === "IN-REVIEW" ||
-                                          task.status === "In Review"
+                                      : task.status === "Approval"
                                         ? "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/20 dark:text-sky-355 dark:border-sky-550/30"
                                         : task.status === "Rejected"
                                           ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/20 dark:text-rose-355 dark:border-rose-550/30"
@@ -1765,12 +1762,7 @@ const TaskOverviewTab = ({
                               >
                                 In Progress
                               </option>
-                              <option
-                                value="IN-REVIEW"
-                                className="bg-white dark:bg-[#151725] text-sky-700 dark:text-sky-400"
-                              >
-                                In Review
-                              </option>
+
                               <option
                                 value="Completed"
                                 className="bg-white dark:bg-[#151725] text-emerald-700 dark:text-emerald-400"
@@ -2070,7 +2062,7 @@ const TaskOverviewTab = ({
                   >
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
-                    <option value="IN-REVIEW">In Review</option>
+
                     {selectedTask.status === "Completed" && (
                       <option value="Completed">Completed</option>
                     )}

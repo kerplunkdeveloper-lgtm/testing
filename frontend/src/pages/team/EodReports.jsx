@@ -147,9 +147,7 @@ const getStatusBadgeStyle = (status) => {
     case "IN PROGRESS":
     case "IN_PROGRESS":
       return "bg-blue-50 text-blue-600 border-blue-200/50 dark:bg-blue-950/25 dark:text-blue-400 dark:border-blue-900/30";
-    case "IN-REVIEW":
-    case "IN REVIEW":
-    case "IN_REVIEW":
+    case "APPROVAL":
       return "bg-purple-50 text-purple-600 border-purple-200/50 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30";
     case "ON HOLD":
     case "ON_HOLD":
@@ -169,9 +167,7 @@ const getStatusTextColor = (status) => {
     case "IN PROGRESS":
     case "IN_PROGRESS":
       return "text-blue-600 dark:text-blue-400";
-    case "IN-REVIEW":
-    case "IN REVIEW":
-    case "IN_REVIEW":
+    case "APPROVAL":
       return "text-purple-605 dark:text-purple-400";
     case "ON HOLD":
     case "ON_HOLD":
@@ -628,18 +624,18 @@ const EodReports = () => {
     if (tasksState.length > 0) {
       const hasPending = tasksState.some(
         (t) =>
-          !["Completed", "In Review", "IN-REVIEW", "IN-Review"].includes(
+          !["Completed", "Approval"].includes(
             t.statusAtEod,
           ),
       );
-      const hasInReview = tasksState.some((t) =>
-        ["In Review", "IN-REVIEW", "IN-Review"].includes(t.statusAtEod),
+      const hasApproval = tasksState.some((t) =>
+        ["Approval"].includes(t.statusAtEod),
       );
       const allCompleted = tasksState.every((t) => t.statusAtEod === "Completed");
 
       if (hasPending) {
         setOverallStatus("Delayed");
-      } else if (hasInReview) {
+      } else if (hasApproval) {
         setOverallStatus("On Track");
       } else if (allCompleted) {
         setOverallStatus("Completed");
@@ -743,8 +739,8 @@ const EodReports = () => {
   const onHoldCount = tasksState.filter(
     (t) => t.statusAtEod === "On Hold",
   ).length;
-  const inReviewCount = tasksState.filter((t) =>
-    ["IN-REVIEW", "In Review", "IN-Review"].includes(t.statusAtEod),
+  const approvalCount = tasksState.filter((t) =>
+    ["Approval"].includes(t.statusAtEod),
   ).length;
   const revisionCount = tasksState.filter((t) =>
     ["Revision", "Revision Pending"].includes(t.statusAtEod),
@@ -756,7 +752,7 @@ const EodReports = () => {
       rejectedCount -
       inProgressCount -
       onHoldCount -
-      inReviewCount -
+      approvalCount -
       revisionCount,
   );
 
@@ -1022,14 +1018,14 @@ const EodReports = () => {
               </span>
             </div>
 
-            {/* In Review Card */}
+            {/* Approval Card */}
             <div className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent dark:from-purple-500/15 dark:via-purple-500/5 dark:to-transparent border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/5 rounded-full -mr-6 -mt-6 blur-md group-hover:bg-purple-500/10 transition-all duration-300" />
               <span className="text-2xl font-black tracking-tight text-purple-600 dark:text-purple-400 block relative z-10">
-                {inReviewCount}
+                {approvalCount}
               </span>
               <span className="text-[10px] font-black text-purple-700/80 dark:text-purple-300/80 uppercase tracking-widest mt-1.5 block relative z-10">
-                In Review
+                Approval
               </span>
             </div>
 

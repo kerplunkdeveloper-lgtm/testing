@@ -4891,9 +4891,6 @@ const ProjectTaskBoard = ({
                                                                 <option value="In Progress">
                                                                   In Progress
                                                                 </option>
-                                                                <option value="IN-REVIEW">
-                                                                  In Review
-                                                                </option>
                                                                 <option value="Completed">
                                                                   Completed
                                                                 </option>
@@ -6041,10 +6038,6 @@ const ProjectTaskBoard = ({
                                                                         <option value="In Progress">
                                                                           In
                                                                           Progress
-                                                                        </option>
-                                                                        <option value="IN-REVIEW">
-                                                                          In
-                                                                          Review
                                                                         </option>
                                                                         <option value="Completed">
                                                                           Completed
