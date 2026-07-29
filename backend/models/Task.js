@@ -81,19 +81,6 @@ const TaskSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
-    feedbacks: [
-      {
-        text: String,
-        addedAt: {
-          type: Date,
-          default: Date.now,
-        },
-        addedBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-      }
-    ],
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",

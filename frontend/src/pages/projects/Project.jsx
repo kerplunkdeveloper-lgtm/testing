@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,51 +44,14 @@ const Project = () => {
   const { user: currentUser } = useSelector((state) => state.auth);
 
   // Local State
-  const [searchTerm, setSearchTerm] = useState(() => {
-    return localStorage.getItem("project_searchTerm") || "";
-  });
-  const [statusFilter, setStatusFilter] = useState(() => {
-    return localStorage.getItem("project_statusFilter") || "All";
-  });
-  const [createdByFilter, setCreatedByFilter] = useState(() => {
-    return localStorage.getItem("project_createdByFilter") || "All";
-  });
-  const [clientFilter, setClientFilter] = useState(() => {
-    return localStorage.getItem("project_clientFilter") || "All";
-  });
-  const [currentPage, setCurrentPage] = useState(() => {
-    const saved = localStorage.getItem("project_currentPage");
-    return saved ? parseInt(saved, 10) : 1;
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [createdByFilter, setCreatedByFilter] = useState("All");
+  const [clientFilter, setClientFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
-  const isFirstRender = useRef(true);
-
   useEffect(() => {
-    localStorage.setItem("project_searchTerm", searchTerm);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    localStorage.setItem("project_statusFilter", statusFilter);
-  }, [statusFilter]);
-
-  useEffect(() => {
-    localStorage.setItem("project_createdByFilter", createdByFilter);
-  }, [createdByFilter]);
-
-  useEffect(() => {
-    localStorage.setItem("project_clientFilter", clientFilter);
-  }, [clientFilter]);
-
-  useEffect(() => {
-    localStorage.setItem("project_currentPage", currentPage.toString());
-  }, [currentPage]);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
     setCurrentPage(1);
   }, [searchTerm, statusFilter, createdByFilter, clientFilter]);
 
@@ -162,7 +125,7 @@ const Project = () => {
   // Submit Create Project
   const handleCreateSubmit = (e) => {
     e.preventDefault();
-    if (!name || !client) return;
+    if (!name) return;
     dispatch(
       createProject({
         name,
@@ -491,8 +454,7 @@ const Project = () => {
                         {(() => {
                           const createdUser = project.createdBy;
                           const avatarUrl =
-                            (typeof createdUser?.profile?.profileImage ===
-                            "object"
+                            (typeof createdUser?.profile?.profileImage === "object"
                               ? createdUser?.profile?.profileImage?.url
                               : createdUser?.profile?.profileImage) ||
                             (typeof createdUser?.profileImage === "object"
@@ -519,7 +481,7 @@ const Project = () => {
                             .join("")
                             .substring(0, 2)
                             .toUpperCase();
-
+                          
                           const AVATAR_COLORS = [
                             "from-violet-500 to-indigo-600",
                             "from-cyan-500 to-blue-600",
@@ -534,9 +496,7 @@ const Project = () => {
                             ];
 
                           return (
-                            <div
-                              className={`w-6 h-6 rounded-full bg-gradient-to-tr ${colorClass} flex items-center justify-center text-white text-[9px] font-black shadow-inner`}
-                            >
+                            <div className={`w-6 h-6 rounded-full bg-gradient-to-tr ${colorClass} flex items-center justify-center text-white text-[9px] font-black shadow-inner`}>
                               {initials}
                             </div>
                           );
@@ -739,13 +699,12 @@ const Project = () => {
                   {/* Client Select field */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Client <span className="text-red-500">*</span>
+                      Client
                     </label>
                     <div className="relative">
                       <select
                         value={client}
                         onChange={(e) => setClient(e.target.value)}
-                        required
                         className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
                       >
                         <option value="" className="dark:bg-[#111111]">

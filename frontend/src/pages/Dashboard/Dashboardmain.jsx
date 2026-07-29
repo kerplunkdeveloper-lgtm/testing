@@ -13,8 +13,7 @@ import { getClients } from "../../features/clients/clientslice";
 import { getUsers } from "../../features/users/userSlice";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
-import { useGetTasksQuery, useUpdateTaskMutation, useDeleteTaskMutation } from "../../features/api/apiSlice";
-import toast from "react-hot-toast";
+import { useGetTasksQuery } from "../../features/api/apiSlice";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -38,9 +37,6 @@ import {
   FiCheck,
   FiCheckCircle,
   FiSliders,
-  FiLock,
-  FiFolder,
-  FiTrash2,
 } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -104,22 +100,13 @@ const getDaysRemaining = (dueDateStr) => {
 
 const GraphicDesignerDeadlines = ({ user }) => {
   const navigate = useNavigate();
-  const { users = [] } = useSelector((state) => state.users || {});
   const { data: tasks = [], isLoading } = useGetTasksQuery(undefined, {
     refetchOnMountOrArgChange: true,
   });
 
-  const getTodayDateString = () => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  };
-
-  const [filterTab, setFilterTab] = useState("all"); // "active" | "overdue" | "today" | "completed" | "all"
+  const [filterTab, setFilterTab] = useState("active"); // "active" | "overdue" | "today" | "completed" | "all"
   const [selectedClient, setSelectedClient] = useState("all");
-  const [selectedDate, setSelectedDate] = useState(getTodayDateString());
+  const [selectedDate, setSelectedDate] = useState("");
 
   // Filter tasks assigned to this user
   const currentUserId = user?._id || user?.id;
@@ -291,6 +278,35 @@ const GraphicDesignerDeadlines = ({ user }) => {
         <div className="flex flex-wrap gap-2">
           {[
             {
+              id: "active",
+              label: "Active Tasks",
+              count: taskStats.activeCount,
+              color:
+                "border-blue-500/20 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20",
+            },
+            {
+              id: "overdue",
+              label: "Overdue",
+              count: taskStats.overdueCount,
+              color:
+                "border-rose-500/20 text-rose-600 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20",
+              highlight: taskStats.overdueCount > 0,
+            },
+            {
+              id: "today",
+              label: "Due Today",
+              count: taskStats.todayCount,
+              color:
+                "border-amber-500/20 text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20",
+            },
+            {
+              id: "completed",
+              label: "Completed",
+              count: taskStats.completedCount,
+              color:
+                "border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20",
+            },
+            {
               id: "all",
               label: "All Tasks",
               count: myTasks.filter((t) => {
@@ -319,35 +335,6 @@ const GraphicDesignerDeadlines = ({ user }) => {
               color:
                 "border-slate-500/20 text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-950/20",
             },
-            {
-              id: "active",
-              label: "Active Tasks",
-              count: taskStats.activeCount,
-              color:
-                "border-blue-500/20 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20",
-            },
-            {
-              id: "overdue",
-              label: "Overdue",
-              count: taskStats.overdueCount,
-              color:
-                "border-rose-500/20 text-rose-600 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20",
-              highlight: taskStats.overdueCount > 0,
-            },
-            {
-              id: "today",
-              label: "Due Today",
-              count: taskStats.todayCount,
-              color:
-                "border-amber-500/20 text-amber-605 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20",
-            },
-            {
-              id: "completed",
-              label: "Completed",
-              count: taskStats.completedCount,
-              color:
-                "border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20",
-            },
           ].map((tab) => {
             const isActive = filterTab === tab.id;
             return (
@@ -375,34 +362,12 @@ const GraphicDesignerDeadlines = ({ user }) => {
           })}
         </div>
 
-        {/* Date Filter Input */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Date Picker */}
-          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 border theme-border px-3 py-1.5 rounded-xl text-slate-755 dark:text-slate-300 shadow-sm relative">
-            <FiCalendar className="shrink-0 text-indigo-500" size={13} />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-[11px] font-bold outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
-            />
-            {selectedDate && (
-              <button
-                onClick={() => setSelectedDate("")}
-                className="text-slate-400 hover:text-rose-500 transition-colors ml-1"
-              >
-                <FiX size={12} />
-              </button>
-            )}
-          </div>
-
-          <button
-            onClick={() => navigate(`/${user?.role}/tasks`)}
-            className="inline-flex items-center gap-1 text-[10px] font-black text-blue-600 dark:text-[#3b82f6] hover:underline uppercase tracking-wider ml-1"
-          >
-            View Task Board <FiChevronRight size={12} />
-          </button>
-        </div>
+       <button
+          onClick={() => navigate(`/${user?.role}/tasks`)}
+          className="inline-flex items-center gap-1 text-[10px] font-black text-blue-600 dark:text-[#3b82f6] hover:underline uppercase tracking-wider"
+        >
+          View Task Board <FiChevronRight size={12} />
+        </button>
 
 
       </div>
@@ -419,10 +384,6 @@ const GraphicDesignerDeadlines = ({ user }) => {
               daysLeft !== null &&
               daysLeft === 0;
             const isCompleted = task.status === "Completed";
-
-            const createdByUserId = typeof task.createdBy === "object" ? task.createdBy?._id || task.createdBy?.id : task.createdBy;
-            const creatorUserObj = users?.find(u => u._id === createdByUserId);
-            const taskCreatorName = task.createdBy?.name || creatorUserObj?.name || "Admin";
 
             // Priority styling (left border & glow)
             const priorityBorder =
@@ -475,27 +436,6 @@ const GraphicDesignerDeadlines = ({ user }) => {
                       }`}
                     >
                       {task.status}
-                    </span>
-
-                    {/* Priority Badge */}
-                    <span
-                      className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                        task.priority === "Top High"
-                          ? "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-250 animate-pulse font-extrabold"
-                          : task.priority === "High"
-                            ? "bg-pink-50 dark:bg-pink-950/20 text-pink-600 dark:text-pink-400 border border-pink-200/50"
-                            : task.priority === "Medium"
-                              ? "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-200/50"
-                              : "bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 border border-slate-200/50"
-                      }`}
-                    >
-                      {task.priority || "Medium"}
-                    </span>
-
-                    {/* Creator Badge */}
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/20 text-indigo-650 dark:text-indigo-400 font-bold flex items-center gap-1 border border-indigo-150/40">
-                      <FiUser size={10} className="text-indigo-550" />
-                      <span>Created By: {taskCreatorName}</span>
                     </span>
                   </div>
 
@@ -582,63 +522,10 @@ const Dashboardmain = () => {
     theme === "dark" ||
     (theme === "system" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const { data: tasks = [] } = useGetTasksQuery();
-  const [updateTask] = useUpdateTaskMutation();
-  const [deleteTask] = useDeleteTaskMutation();
   const { events, loading } = useSelector((state) => state.events);
   const { projects } = useSelector((state) => state.projects);
   const { clients } = useSelector((state) => state.clients);
   const { users } = useSelector((state) => state.users);
-
-  const [taskTab, setTaskTab] = useState("Upcoming");
-
-  const myTasks = React.useMemo(() => {
-    const currentUserId = user?._id || user?.id;
-    return tasks.filter((t) => {
-      const assignedId = t.assignedTo?._id || t.assignedTo;
-      return assignedId === currentUserId;
-    });
-  }, [tasks, user]);
-
-  const taskStats = React.useMemo(() => {
-    let upcoming = [];
-    let overdue = [];
-    let completed = [];
-
-    myTasks.forEach((t) => {
-      const isCompleted = t.status?.toLowerCase() === "completed";
-      if (isCompleted) {
-        completed.push(t);
-      } else {
-        const days = getDaysRemaining(t.dueDate);
-        if (days !== null && days < 0) {
-          overdue.push(t);
-        } else {
-          upcoming.push(t);
-        }
-      }
-    });
-
-    return { upcoming, overdue, completed };
-  }, [myTasks]);
-
-  const activeTabTasks = React.useMemo(() => {
-    if (taskTab === "Upcoming") return taskStats.upcoming;
-    if (taskTab === "Overdue") return taskStats.overdue;
-    return taskStats.completed;
-  }, [taskTab, taskStats]);
-
-  const recentProjects = React.useMemo(() => {
-    if (!projects) return [];
-    const currentUserId = user?._id || user?.id;
-    return [...projects]
-      .filter((p) => {
-        const creatorId = p.createdBy?._id || p.createdBy;
-        return creatorId === currentUserId;
-      })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 5);
-  }, [projects, user]);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -735,7 +622,6 @@ const Dashboardmain = () => {
   const [status, setStatus] = useState("Active");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [activeDeptTab, setActiveDeptTab] = useState("Graphic Designer");
-  const [access, setAccess] = useState("Private");
 
   const filterClients = React.useMemo(() => {
     const uniqueClientsMap = new Map();
@@ -838,14 +724,12 @@ const Dashboardmain = () => {
         name,
         client: clientId,
         status,
-        access,
       }),
     );
     setShowCreateModal(false);
     setName("");
     setClientId(clients[0]?._id || "");
     setStatus("Active");
-    setAccess("Private");
   };
 
   const projectColors = [
@@ -900,296 +784,21 @@ const Dashboardmain = () => {
     return eventDate.toDateString() === today.toDateString();
   };
 
-  const handleToggleTaskComplete = async (task) => {
-    const isCompleted = task.status === "Completed";
-    const newStatus = isCompleted ? "Pending" : "Completed";
-    try {
-      await updateTask({ id: task._id, taskData: { status: newStatus } }).unwrap();
-      toast.success(`Task marked as ${newStatus}`);
-    } catch (err) {
-      toast.error("Failed to update task status");
-    }
-  };
-
-  const handleDeleteTaskClick = async (taskId) => {
-    if (window.confirm("Are you sure you want to delete this task?")) {
-      try {
-        await deleteTask(taskId).unwrap();
-        toast.success("Task deleted successfully");
-      } catch (err) {
-        toast.error("Failed to delete task");
-      }
-    }
-  };
-
   return (
     <div className="space-y-4 pb-6 ">
       {/* GREETING */}
       <WelcomeUser />
-
-
-      {/* Admin - task shortcut  */}
-      {user?.role === "admin" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2 relative z-10">
-          
-          {/* LEFT COLUMN: My Tasks */}
-          <div className=" sidebar-bg   rounded-3xl border border-slate-200 dark:border-white/5 shadow-xs p-5 flex flex-col h-[400px] transition-all hover:shadow-md">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                {/* Avatar with initials */}
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 text-white font-black text-[10px] flex items-center justify-center shadow-xs shrink-0">
-                  {getInitials(user?.name)}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                    My Tasks
-                  </h3>
-                  <FiLock size={12} className="text-slate-400 dark:text-slate-500" />
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate("/admin/tasks")}
-                className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-center text-slate-400 hover:text-slate-655 transition-colors cursor-pointer"
-              >
-                <FiSliders size={14} />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-4 border-b border-slate-150 dark:border-white/5 pb-2 mb-3">
-              {[
-                { id: "Upcoming", label: "Upcoming" },
-                { id: "Completed", label: `Completed (${taskStats.completed.length})` }
-              ].map((tab) => {
-                const isActive = taskTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setTaskTab(tab.id)}
-                    className={`text-[10px] font-black uppercase tracking-wider relative pb-1.5 cursor-pointer transition-colors ${
-                      isActive
-                        ? "text-blue-500 dark:text-blue-400"
-                        : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"
-                    }`}
-                  >
-                    {tab.label}
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeAdminTaskTab"
-                        className="absolute bottom-0 left-0 right-0 h-[2px] bg-blue-500 dark:bg-blue-400"
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Tasks List */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
-              {activeTabTasks.map((t) => {
-                const days = getDaysRemaining(t.dueDate);
-                const projId = typeof t.project === "object" ? t.project?._id || t.project?.id : t.project;
-                return (
-                  <div
-                    key={t._id}
-                    className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50/50 dark:bg-white/5 border border-slate-150/40 dark:border-white/5 hover:bg-slate-100/50 dark:hover:bg-white/10 transition-all group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleTaskComplete(t);
-                        }}
-                        className="shrink-0 text-slate-400 dark:text-slate-550 focus:outline-none cursor-pointer"
-                      >
-                        {t.status?.toLowerCase() === "completed" ? (
-                          <FiCheckCircle className="w-4 h-4 text-emerald-500 hover:scale-110 transition-transform" />
-                        ) : (
-                          <div className="w-4 h-4 rounded-full border-2 border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 hover:scale-110 transition-all" />
-                        )}
-                      </button>
-                      <span className={`text-[10px] font-bold truncate leading-none ${
-                        t.status?.toLowerCase() === "completed"
-                          ? "line-through text-slate-400 dark:text-slate-500 font-medium"
-                          : "text-slate-700 dark:text-slate-300"
-                      }`}>
-                        {t.title}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0 pl-2">
-                      {t.dueDate && (
-                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-                          days !== null && days < 0
-                            ? "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 border border-rose-200/50 dark:border-rose-500/20"
-                            : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400 border border-slate-200 dark:border-white/5"
-                        }`}>
-                          {new Date(t.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                        </span>
-                      )}
-                      
-                      {projId && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/${user?.role || "admin"}/projects?id=${projId}`);
-                          }}
-                          className="text-[9px] font-black uppercase tracking-wider bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-500/30 px-2.5 py-0.5 rounded-full transition-all duration-200 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-500 dark:hover:text-white cursor-pointer"
-                        >
-                          View Task
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteTaskClick(t._id);
-                        }}
-                        className="w-6 h-6 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors cursor-pointer shrink-0"
-                      >
-                        <FiTrash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {activeTabTasks.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-center py-6">
-                  <FiCheck className="w-7 h-7 text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 rounded-full p-1.5 mb-1.5 animate-bounce" />
-                  <span className="text-[10px] font-black text-slate-450 dark:text-slate-500 uppercase tracking-wider">
-                    All caught up!
-                  </span>
-                </div>
-              )}
-            </div>
-
-          </div>
-
-          {/* RIGHT COLUMN: Projects */}
-          <div className="sidebar-bg rounded-3xl border border-slate-200 dark:border-white/5 shadow-xs p-5 flex flex-col h-[400px] transition-all hover:shadow-md">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                  MY Projects
-                </h3>
-               
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate("/admin/projects")}
-                className=" rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-center text-slate-400 hover:text-slate-655 transition-colors cursor-pointer"
-              >
-               Go to project page
-              </button>
-            </div>
-
-            {/* Projects Content */}
-            <div className="flex-1 flex flex-col min-h-0">
-              {recentProjects.length > 0 ? (
-                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pb-1">
-                    
-                    {/* Create Project Button */}
-                    <button
-                      type="button"
-                      onClick={() => setShowCreateModal(true)}
-                      className="flex flex-col items-center justify-center p-3 rounded-2xl border-2 border-dashed border-slate-250 dark:border-white/5 hover:border-blue-500 dark:hover:border-blue-500/50 hover:bg-blue-50/20 dark:hover:bg-blue-500/5 transition-all text-center h-[80px] cursor-pointer group shrink-0"
-                    >
-                      <FiPlus className="w-5 h-5 text-slate-450 group-hover:text-blue-500 transition-colors mb-1" />
-                      <span className="text-[9px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest group-hover:text-blue-500 transition-colors">
-                        Create Project
-                      </span>
-                    </button>
-
-                    {/* Project List Items */}
-                    {recentProjects.map((p, idx) => {
-                      const projectColors = [
-                        "bg-fuchsia-500/10 text-fuchsia-500 dark:bg-fuchsia-500/20",
-                        "bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20",
-                        "bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/20",
-                        "bg-rose-500/10 text-rose-500 dark:bg-rose-500/20",
-                        "bg-cyan-500/10 text-cyan-500 dark:bg-cyan-500/20",
-                        "bg-amber-500/10 text-amber-500 dark:bg-amber-500/20",
-                      ];
-                      const colorClass = projectColors[idx % projectColors.length];
-
-                      return (
-                        <div
-                          key={p._id}
-                          onClick={() => navigate(`/admin/projects?id=${p._id}`)}
-                          className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50/50 dark:bg-white/5 hover:shadow-sm cursor-pointer transition-all h-[80px]"
-                        >
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 font-bold ${colorClass}`}>
-                            <FiList size={15} />
-                          </div>
-                          <div className="min-w-0 flex-1 flex flex-col text-left">
-                            <span className="text-[10px] font-black text-slate-750 dark:text-slate-200 truncate leading-snug">
-                              {p.name}
-                            </span>
-                            <span className="text-[8px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-550 mt-1 leading-none">
-                              {p.status || "Active"}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-slate-50/50 dark:bg-[#151725]/20 border border-dashed border-slate-200 dark:border-white/5 rounded-3xl h-full justify-items-center">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3 shadow-inner">
-                    <FiFolder size={20} className="animate-pulse" />
-                  </div>
-                  <h4 className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
-                    No Projects Yet
-                  </h4>
-                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold max-w-[200px] mt-1 leading-normal uppercase">
-                    Get started by creating your very first project!
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/admin/projects")}
-                    className="mt-4 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-500/20 hover:scale-105 hover:shadow-indigo-500/25 active:scale-95 transition-all duration-300 cursor-pointer"
-                  >
-                    Add Project
-                  </button>
-                </div>
-              )}
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
-
-
-
-
-
-
-
-
 
       {/* .................................................Dashboard Cards / Assigned Clients.............................. */}
       {(() => {
         const isAdminOrOpManager =
           user?.role === "admin" || user?.role === "operationmanager";
         return isAdminOrOpManager ? (
-          <div className="mb-4 p-4">
+          <div className="mb-4">
             <DashboardCards />
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 p-4 gap-3 md:gap-4 mb-4 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 mb-4 items-start">
             <div className="col-span-1">
               <DashboardCards />
             </div>
@@ -1629,177 +1238,6 @@ const Dashboardmain = () => {
           </div>
         </div>
       )}
-      {/* CREATE PROJECT OFFCANVAS DRAWER */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex justify-end">
-            {/* Backdrop overlay */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowCreateModal(false)}
-              className="absolute inset-0 bg-slate-900/40 dark:bg-[#111111]/70 backdrop-blur-[2px]"
-            />
-            {/* Side Sheet */}
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "tween", ease: "easeOut", duration: 0.3 }}
-              className="relative w-full max-w-md bg-white dark:bg-[#111111] h-full shadow-2xl flex flex-col z-10 border-l border-slate-100 dark:border-white/5"
-            >
-              {/* Header */}
-              <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-slate-50/50 dark:bg-[#1a1a1a]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-[#3b82f6]/10 border border-blue-100 dark:border-[#3b82f6]/20 flex items-center justify-center text-blue-600 dark:text-[#3b82f6]">
-                    <FiBriefcase size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-black text-slate-800 dark:text-white">
-                      Add New Project
-                    </h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                      Project Details
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-center text-slate-400 hover:text-slate-650 transition-colors"
-                >
-                  <FiX size={18} />
-                </button>
-              </div>
-
-              {/* Form Content */}
-              <form
-                onSubmit={handleCreateSubmit}
-                className="flex-1 flex flex-col overflow-hidden"
-              >
-                <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-                  {/* Name field */}
-                  <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Project Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Enter project name..."
-                      className="w-full px-4 py-3 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white placeholder-slate-400 transition-all focus:shadow-sm"
-                    />
-                  </div>
-
-                  {/* Client Select field */}
-                  <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Client <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={clientId}
-                        onChange={(e) => setClientId(e.target.value)}
-                        required
-                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
-                      >
-                        <option value="" className="dark:bg-[#111111]">
-                          Select a client
-                        </option>
-                        {clients?.map((c) => (
-                          <option
-                            key={c._id}
-                            value={c._id}
-                            className="dark:bg-[#111111]"
-                          >
-                            {c.companyName || c.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <FiChevronDown size={16} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Access Select field */}
-                  <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Access
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={access}
-                        onChange={(e) => setAccess(e.target.value)}
-                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
-                      >
-                        <option value="Private" className="dark:bg-[#111111]">
-                          Private
-                        </option>
-                        <option value="Public" className="dark:bg-[#111111]">
-                          Public
-                        </option>
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <FiChevronDown size={16} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status Select field */}
-                  <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Status
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value)}
-                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
-                      >
-                        <option value="Active" className="dark:bg-[#111111]">
-                          Active
-                        </option>
-                        <option value="On Hold" className="dark:bg-[#111111]">
-                          On Hold
-                        </option>
-                        <option value="Completed" className="dark:bg-[#111111]">
-                          Completed
-                        </option>
-                        <option value="Inactive" className="dark:bg-[#111111]">
-                          Inactive
-                        </option>
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <FiChevronDown size={16} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sticky Footer */}
-                <div className="p-6 border-t border-slate-100 dark:border-white/5 bg-slate-50/30 dark:bg-[#1a1a1a] flex justify-end gap-3 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-white/5 active:scale-95 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-3 rounded-2xl bg-blue-600 dark:bg-[#3b82f6] hover:bg-blue-500 dark:hover:bg-[#ccff00] text-white dark:text-black text-sm font-bold shadow-md shadow-blue-500/10 dark:shadow-[#3b82f6]/20 active:scale-95 transition-all"
-                  >
-                    Create Project
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

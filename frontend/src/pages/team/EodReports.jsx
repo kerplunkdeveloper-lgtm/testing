@@ -118,7 +118,10 @@ const formatElapsed = (
       ? new Date(pausedAt).getTime()
       : Date.now();
 
-  const paused = totalPausedMs || 0;
+  let paused = totalPausedMs || 0;
+  if (pausedAt && !endTime) {
+    paused += Math.max(0, Date.now() - new Date(pausedAt).getTime());
+  }
 
   const elapsed = Math.max(0, Math.floor((end - start - paused) / 1000));
   const hours = Math.floor(elapsed / 3600);
@@ -159,6 +162,7 @@ const getStatusBadgeStyle = (status) => {
   }
 };
 
+<<<<<<< HEAD
 const getStatusTextColor = (status) => {
   const s = (status || "Pending").toUpperCase();
   switch (s) {
@@ -179,6 +183,8 @@ const getStatusTextColor = (status) => {
   }
 };
 
+=======
+>>>>>>> parent of a8a1094 (commit)
 const calculateTotalLoggedTime = (tasks) => {
   let totalMinutes = 0;
   (tasks || []).forEach((t) => {
@@ -264,10 +270,10 @@ const EodReports = () => {
       const isAssignedToMe = assigneeId === (user?._id || user?.id);
       if (!isAssignedToMe) return false;
 
-      // Filter strictly by selectedDate (using dueDate instead of createdAt)
-      if (!task.dueDate) return false;
+      // Filter strictly by selectedDate
+      if (!task.createdAt) return false;
 
-      const taskDate = new Date(task.dueDate);
+      const taskDate = new Date(task.createdAt);
       const year = taskDate.getFullYear();
       const month = String(taskDate.getMonth() + 1).padStart(2, "0");
       const day = String(taskDate.getDate()).padStart(2, "0");
@@ -365,9 +371,7 @@ const EodReports = () => {
             priority: t.priority,
             contentType: t.contentType || "",
             client: t.client,
-            revision: correspondingTask
-              ? correspondingTask.revisions || 0
-              : t.revisions || 0,
+            revision: correspondingTask ? (correspondingTask.revisions || 0) : (t.revisions || 0),
             time: t.loggedTime || "",
             statusAtEod: actualStatus,
             outputLink: t.outputLink || "",
@@ -619,6 +623,7 @@ const EodReports = () => {
     }
   }, [myTasks, projects, users]);
 
+<<<<<<< HEAD
   // Automatically calculate overallStatus from tasksState
   useEffect(() => {
     if (tasksState.length > 0) {
@@ -651,6 +656,8 @@ const EodReports = () => {
     }
   }, [tasksState, todayReport]);
 
+=======
+>>>>>>> parent of a8a1094 (commit)
   const updateTask = (taskId, field, value) => {
     setTasksState((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, [field]: value } : t)),
@@ -789,8 +796,8 @@ const EodReports = () => {
             </h1>
             <p className="theme-text-secondary text-xs font-semibold mt-1 text-left">
               {selectedDate === getLocalDateString()
-                ? "Review and submit EOD reports for tasks due today."
-                : `Review and submit EOD reports for tasks due on ${safeFormatDate(selectedDate)}.`}
+                ? "Review and submit EOD reports for tasks assigned to you today."
+                : `Review and submit EOD reports for tasks assigned to you on ${safeFormatDate(selectedDate)}.`}
             </p>
           </div>
 
@@ -814,132 +821,111 @@ const EodReports = () => {
           </div>
           <h3 className="font-bold theme-text-primary mt-4 text-sm">
             {selectedDate === getLocalDateString()
-              ? "Today no task due"
-              : "No tasks due for this date"}
+              ? "Today no task assigned"
+              : "No tasks assigned for this date"}
           </h3>
           <p className="text-xs theme-text-secondary mt-1 max-w-xs">
             {selectedDate === getLocalDateString()
-              ? "You don't have any tasks due today. Go to Tasks board to check your schedule."
-              : `You didn't have any tasks due on ${safeFormatDate(selectedDate)}.`}
+              ? "You don't have any tasks assigned for today. Go to Tasks board to pick up new work."
+              : `You didn't have any tasks assigned on ${safeFormatDate(selectedDate)}.`}
           </p>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {tasksState.map((task) => {
-            const assignerUser = users.find((u) => u._id === task.reviewedBy);
-            const assignerName = assignerUser?.name || task.assignedByName || "Admin";
-            const assignerDept = assignerUser?.department || "Management";
-            const avatarUrl = assignerUser ? (
-              (typeof assignerUser.profile?.profileImage === "object"
-                ? assignerUser.profile?.profileImage?.url
-                : assignerUser.profile?.profileImage) ||
-              (typeof assignerUser.profileImage === "object"
-                ? assignerUser.profileImage?.url
-                : assignerUser.profileImage) ||
-              assignerUser.profilePic ||
-              assignerUser.profile?.profilePic ||
-              assignerUser.profile?.avatar
-            ) : "";
-
-            return (
-              <div
-                key={task.id}
-                className="theme-bg-card border border-slate-100 dark:border-slate-800/80 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 transition-all duration-300 text-left relative overflow-hidden"
-              >
-                {/* Task Top Meta info */}
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-sm theme-text-primary flex items-center gap-2 flex-wrap leading-relaxed">
-                      {task.code && (
-                        <span
-                          className={`px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border tracking-wider select-none ${getTaskCodeStyle(task.code).bg}`}
-                        >
-                          [{task.code}]
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1.5 ml-0.5">
-                        <FiFileText
-                          className="text-slate-400 dark:text-slate-500 shrink-0"
-                          size={14}
-                        />
-                        <span className="italic font-semibold text-slate-700 dark:text-slate-200">
-                          {task.title}
-                        </span>
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {tasksState.map((task) => (
+            <div
+              key={task.id}
+              className="theme-bg-card border theme-border rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 text-left hover:-translate-y-0.5 relative overflow-hidden"
+            >
+              {/* Task Top Meta info */}
+              <div className="flex justify-between items-start gap-4">
+                <div>
+                  <h3 className="font-bold text-sm theme-text-primary flex items-center gap-2 flex-wrap leading-relaxed">
+                    {task.code && (
+                      <span
+                        className={`px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border tracking-wider select-none ${getTaskCodeStyle(task.code).bg}`}
+                      >
+                        [{task.code}]
                       </span>
-                    </h3>
-
-                    <div className="flex flex-wrap gap-2 mt-2.5 items-center">
-                      <span className="bg-slate-50 text-slate-600 dark:bg-slate-900/40 dark:text-slate-400 border border-slate-200/50 dark:border-slate-800/60 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                        {task.client}
+                    )}
+                    <span className="flex items-center gap-1.5 ml-0.5">
+                      <FiFileText
+                        className="text-slate-400 dark:text-slate-500 shrink-0"
+                        size={14}
+                      />
+                      <span className="italic font-semibold text-slate-700 dark:text-slate-200">
+                        {task.title}
                       </span>
-                      {task.contentType && (
-                        <span className="bg-purple-50/50 text-purple-650 border border-purple-200/30 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                          {task.contentType}
-                        </span>
-                      )}
-                      {task.time && (
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50/50 text-blue-600 border border-blue-150/40 rounded-md text-[10px] font-bold dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
-                          <FiClock size={10} className="shrink-0" />
-                          <span>Time spent: {task.time}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    </span>
+                  </h3>
 
-                  <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                    <span
-                      className={`${getPriorityStyle(
-                        task.priority,
-                      )} text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider`}
-                    >
-                      {task.priority}
+                  <div className="flex flex-wrap gap-2 mt-2 items-center">
+                    <span className="bg-slate-100 text-slate-600 border border-slate-200/40 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      {task.client}
                     </span>
-                    <span className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mt-0.5">
-                      Rev. {task.revision || 0}
-                    </span>
+                    {task.contentType && (
+                      <span className="bg-purple-50 text-purple-650 border border-purple-200/30 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        {task.contentType}
+                      </span>
+                    )}
+                    {task.time && (
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-150 rounded-md text-[10px] font-bold dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
+                        <FiClock size={10} className="shrink-0" />
+                        <span>Time spent: {task.time}</span>
+                      </div>
+                    )}
+                    {task.createdAt && (
+                      <span className="bg-slate-50 text-slate-500 border border-slate-200/60 dark:bg-slate-900/10 dark:text-slate-400 dark:border-slate-800/60 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        Created: {safeFormatDateTime(task.createdAt)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Status & Assigned By Row Stack */}
-                <div className="mt-5 pt-4 border-t theme-border space-y-3">
-                  {/* Status Row */}
-                  <div className="flex items-center justify-between text-xs px-1">
-                    <span className="font-bold theme-text-secondary uppercase tracking-wider text-[10px]">status :</span>
-                    <span className={`font-black tracking-wide ${getStatusTextColor(task.statusAtEod)}`}>
-                      {task.statusAtEod || "Pending"}
-                    </span>
-                  </div>
+                <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                  <span
+                    className={`${getPriorityStyle(
+                      task.priority,
+                    )} text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider`}
+                  >
+                    {task.priority}
+                  </span>
+                  <span className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mt-0.5">
+                    Rev. {task.revision || 0}
+                  </span>
+                </div>
+              </div>
 
-                  {/* Assigned By Row */}
-                  <div className="flex items-center justify-between text-xs px-1 mt-6">
-                    <span className="font-bold theme-text-secondary uppercase tracking-wider text-[10px]">Assigned By :</span>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <span className="block font-bold theme-text-primary text-[11px] leading-tight">
-                          {assignerName}
-                        </span>
-                        <span className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
-                          {assignerDept}
-                        </span>
-                      </div>
-                      {avatarUrl ? (
-                        <img
-                          src={avatarUrl}
-                          alt={assignerName}
-                          className="w-6.5 h-6.5 rounded-full object-cover border border-slate-100 dark:border-slate-800 shadow-sm"
-                        />
-                      ) : (
-                        <div className="w-6.5 h-6.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-[9px] border border-indigo-100 dark:border-indigo-900/30">
-                          {assignerName.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
+              {/* Form Layout: Perfectly aligned fields inside EOD cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t theme-border">
+                {/* EOD Status */}
+                <div>
+                  <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
+                    Status
+                  </label>
+                  <div
+                    className={`w-full mt-1.5 border rounded-xl px-3 py-2.5 text-xs font-semibold select-none flex items-center justify-between transition-all duration-300 ${getStatusBadgeStyle(task.statusAtEod)}`}
+                  >
+                    <span>{task.statusAtEod || "Pending"}</span>
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-1">
+                    Derived from task status on Task board
+                  </p>
+                </div>
+
+                {/* Assigned By (Read-Only) */}
+                <div>
+                  <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
+                    Assigned By
+                  </label>
+                  <div className="w-full mt-1.5 bg-slate-50 border border-slate-200 dark:bg-[#0f172a] dark:border-white/5 rounded-xl px-3 py-2.5 text-xs theme-text-primary font-semibold select-none">
+                    {task.assignedByName || "Admin"}
                   </div>
                 </div>
 
                 {/* Dynamic field rows depending on the status */}
                 {task.statusAtEod !== "Completed" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-4 border-t theme-border">
+                  <>
                     <div>
                       <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
                         Reason for {task.statusAtEod}
@@ -947,7 +933,7 @@ const EodReports = () => {
                       <input
                         type="text"
                         placeholder={`Why is it ${task.statusAtEod.toLowerCase()}?`}
-                        className="w-full mt-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-900/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 dark:focus:ring-emerald-500/50 transition-all font-semibold"
+                        className="w-full mt-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold"
                         value={task.reason || ""}
                         onChange={(e) =>
                           updateTask(task.id, "reason", e.target.value)
@@ -963,7 +949,7 @@ const EodReports = () => {
                       <input
                         type="text"
                         placeholder="What is the next plan?"
-                        className="w-full mt-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-900/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 dark:focus:ring-emerald-500/50 transition-all font-semibold"
+                        className="w-full mt-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold"
                         value={task.nextAction || ""}
                         onChange={(e) =>
                           updateTask(task.id, "nextAction", e.target.value)
@@ -971,11 +957,11 @@ const EodReports = () => {
                         disabled={isSubmitted}
                       />
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
@@ -1040,6 +1026,7 @@ const EodReports = () => {
               </span>
             </div>
 
+
             {/* Total Logged Card */}
             <div className="bg-gradient-to-br from-slate-500/10 via-slate-500/5 to-transparent dark:from-slate-500/15 dark:via-slate-500/5 dark:to-transparent border border-slate-500/20 dark:border-slate-700/30 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-16 h-16 bg-slate-500/5 rounded-full -mr-6 -mt-6 blur-md group-hover:bg-slate-500/10 transition-all duration-300" />
@@ -1051,9 +1038,77 @@ const EodReports = () => {
               </span>
             </div>
           </div>
-        
+          {/* Dynamic Task Summary List */}
+          <div className="border-t theme-border  text-left">
+            {/* Completed Section */}
+            <div>
+              <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase">
+                Completed Tasks
+              </h3>
+              <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800/40">
+                {tasksState.filter((t) => t.statusAtEod === "Completed")
+                  .length === 0 ? (
+                  <p className="text-xs theme-text-secondary py-3 italic">
+                    No tasks completed.
+                  </p>
+                ) : (
+                  tasksState
+                    .filter((t) => t.statusAtEod === "Completed")
+                    .map((task) => (
+                      <div
+                        key={task.id}
+                        className="flex justify-between items-center py-3 text-xs"
+                      >
+                        <span className="font-semibold theme-text-primary text-left">
+                          {task.client}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="theme-text-secondary font-medium">
+                            {task.title} completed
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-650 border border-purple-100/30 text-[10px] font-semibold dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30">
+                            {task.revision}{" "}
+                            {task.revision === 1 ? "revision" : "revisions"}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
 
-        
+            {/* Pending / In Progress Section */}
+            <div className="mt-4 border-t theme-border ">
+              <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase">
+                Pending / In Progress
+              </h3>
+              <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800/40">
+                {tasksState.filter((t) => t.statusAtEod !== "Completed")
+                  .length === 0 ? (
+                  <p className="text-xs theme-text-secondary py-3 italic">
+                    No pending tasks.
+                  </p>
+                ) : (
+                  tasksState
+                    .filter((t) => t.statusAtEod !== "Completed")
+                    .map((task) => (
+                      <div
+                        key={task.id}
+                        className="flex justify-between items-center py-3 text-xs"
+                      >
+                        <span className="font-semibold theme-text-primary text-left">
+                          {task.client ? `${task.client} ` : ""}
+                          {task.title}
+                        </span>
+                        <span className="theme-text-secondary font-medium">
+                          Pending {task.reason ? `— ${task.reason}` : ""}
+                        </span>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
             <div>
               <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
@@ -1135,36 +1190,19 @@ const EodReports = () => {
             {/* Overall Status */}
             <div>
               <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
-                Overall Status
+                Overall Status <span className="text-rose-500">*</span>
               </label>
               <div className="relative mt-2">
-                <div
-                  className={`w-full border rounded-xl px-4 py-2.5 text-xs font-bold select-none flex items-center justify-between transition-all duration-300 ${
-                    overallStatus === "Completed"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30"
-                      : overallStatus === "On Track"
-                        ? "bg-blue-50 text-blue-700 border-blue-200/50 dark:bg-blue-950/25 dark:text-blue-400 dark:border-blue-900/30"
-                        : overallStatus === "Delayed"
-                          ? "bg-rose-50 text-rose-700 border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30"
-                          : "bg-slate-50 text-slate-655 border border-slate-200/60 dark:bg-slate-900/10 dark:text-slate-400 dark:border-slate-800/60"
-                  }`}
+                <select
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold"
+                  value={overallStatus}
+                  onChange={(e) => setOverallStatus(e.target.value)}
+                  disabled={isSubmitted}
                 >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        overallStatus === "Completed"
-                          ? "bg-emerald-500"
-                          : overallStatus === "On Track"
-                            ? "bg-blue-500"
-                            : overallStatus === "Delayed"
-                              ? "bg-rose-500"
-                              : "bg-slate-400"
-                      }`}
-                    />
-                    <span>{overallStatus}</span>
-                  </div>
-                  <span className="text-[9px] uppercase tracking-widest text-slate-400 dark:text-slate-500 font-extrabold">Auto</span>
-                </div>
+                  <option value="On Track">On Track</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Delayed">Delayed</option>
+                </select>
               </div>
             </div>
           </div>

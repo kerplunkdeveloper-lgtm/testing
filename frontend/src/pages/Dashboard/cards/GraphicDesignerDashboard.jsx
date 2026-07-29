@@ -1,9 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTheme } from "../../../context/ThemeContext";
-import { useGetTasksQuery, useUpdateTaskMutation } from "../../../features/api/apiSlice";
-import { createPortal } from "react-dom";
-import toast from "react-hot-toast";
+import { useGetTasksQuery } from "../../../features/api/apiSlice";
 import { getDesignerEodReports } from "../../../features/eodReports/designerEodReportSlice";
 import {
   format,
@@ -30,23 +28,7 @@ import {
   FiTrendingUp,
   FiXCircle,
   FiFileText,
-  FiPlay,
-  FiEye,
-  FiPauseCircle,
 } from "react-icons/fi";
-
-const getPriorityStyle = (priority) => {
-  const p = priority?.toLowerCase() || "";
-  if (p.includes("top high"))
-    return "bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/30";
-  if (p.includes("high"))
-    return "bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30";
-  if (p.includes("medium"))
-    return "bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30";
-  if (p.includes("low"))
-    return "bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30";
-  return "bg-slate-50 text-slate-500 border border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800";
-};
 
 const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const dispatch = useDispatch();
@@ -66,8 +48,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
   const [dateFilter, setDateFilter] = useState("Today");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [approvalModal, setApprovalModal] = useState({ open: false, designerId: null, designerName: "" });
-  const [updateTask] = useUpdateTaskMutation();
 
   useEffect(() => {
     const params = {};
@@ -159,27 +139,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
       // Check Date
       if (dateFilter === "All Time") return true;
+      if (!task.createdAt) return true; // fallback
 
-      const taskCreatedDate = task.createdAt ? parseISO(task.createdAt) : null;
-      const taskDueDate = task.dueDate ? parseISO(task.dueDate) : null;
-      const dateToCheck = taskDueDate || taskCreatedDate;
-
-      if (!dateToCheck) return false;
-
-      if (dateFilter === "Today") {
-        return isToday(dateToCheck);
-      }
-      if (dateFilter === "Yesterday") {
-        return isYesterday(dateToCheck);
-      }
-      if (dateFilter === "Last 7 Days") {
-        const sevenDaysAgo = subDays(new Date(), 7);
-        return isAfter(dateToCheck, sevenDaysAgo);
-      }
-      if (dateFilter === "This Month") {
-        const now = new Date();
-        return isSameMonth(dateToCheck, now);
-      }
+      const taskDate = parseISO(task.createdAt);
+      if (dateFilter === "Today") return isToday(taskDate);
+      if (dateFilter === "Yesterday") return isYesterday(taskDate);
+      if (dateFilter === "Last 7 Days")
+        return isAfter(taskDate, subDays(new Date(), 7));
+      if (dateFilter === "This Month") return isSameMonth(taskDate, new Date());
 
       return true;
     });
@@ -189,22 +156,20 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const metrics = useMemo(() => {
     let completed = 0;
     let pending = 0;
-    let inProgress = 0;
-    let onHold = 0;
-    let inReview = 0;
     let overdue = 0;
+    let inRevision = 0;
+    let clientApproval = 0;
     let rejected = 0;
     let totalRevisions = 0;
 
     designerTasks.forEach((task) => {
       const status = task.status?.toLowerCase() || "";
-      if (status === "completed" || status.includes("approve")) completed++;
+      if (status === "completed") completed++;
       else if (status.includes("reject")) rejected++;
-      else if (status.includes("hold")) onHold++;
-      else if (status.includes("progress")) inProgress++;
-      else if (status.includes("review") || status.includes("revision")) inReview++;
-      else if (status === "pending") pending++;
-      else pending++; // default fallback
+      else if (status.includes("revision")) inRevision++;
+      else if (status.includes("client") || status.includes("approval"))
+        clientApproval++;
+      else pending++;
 
       totalRevisions += task.revisions || 0;
 
@@ -222,10 +187,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       tasksAssigned: designerTasks.length,
       completed,
       pending,
-      inProgress,
-      onHold,
-      inReview,
       overdue,
+      inRevision,
+      clientApproval,
       rejected,
       totalRevisions,
     };
@@ -271,8 +235,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const boardColumns = [
     "Pending",
     "In Progress",
-    "On Hold",
-    "IN REVIEW",
+    "Revision Pending",
     "Rejected",
     "Completed",
   ];
@@ -280,9 +243,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     const status = task.status || "Pending";
     if (boardColumns.includes(status)) return status;
     if (status.toLowerCase().includes("progress")) return "In Progress";
-    if (status.toLowerCase().includes("hold")) return "On Hold";
-    if (status.toLowerCase().includes("review")) return "IN REVIEW";
-    if (status.toLowerCase().includes("revision")) return "IN REVIEW";
+    if (status.toLowerCase().includes("review")) return "Revision Pending";
+    if (status.toLowerCase().includes("revision")) return "Revision";
     if (status.toLowerCase().includes("reject")) return "Rejected";
     if (status.toLowerCase().includes("approve")) return "Completed";
     if (status.toLowerCase() === "completed") return "Completed";
@@ -312,29 +274,17 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
       let comp = 0;
       let pend = 0;
-      let prog = 0;
-      let hold = 0;
-      let rev = 0;
       let over = 0;
       let totalRevisions = 0;
       let totalLoggedMs = 0;
       let totalBlockerMs = 0;
-      let totalApprovalMs = 0;
-      let approvalCount = 0;
       const blockerTypesSet = new Set();
 
       myTasks.forEach((t) => {
         const s = t.status?.toLowerCase() || "";
-        const isCompleted = s === "completed" || s.includes("approve");
-        
-        if (isCompleted) comp++;
-        else if (s.includes("hold")) hold++;
-        else if (s.includes("progress")) prog++;
-        else if (s.includes("review") || s.includes("revision")) rev++;
-        else if (s === "pending") pend++;
-        else pend++; // default fallback
-
-        if (t.dueDate && isPast(parseISO(t.dueDate)) && !isCompleted)
+        if (s === "completed") comp++;
+        else pend++;
+        if (t.dueDate && isPast(parseISO(t.dueDate)) && s !== "completed")
           over++;
 
         totalRevisions += t.revisions || 0;
@@ -343,11 +293,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           const start = new Date(t.actualStartTime).getTime();
           const end = t.actualEndTime
             ? new Date(t.actualEndTime).getTime()
-            : t.pausedAt
-              ? new Date(t.pausedAt).getTime()
-              : Date.now();
-          const paused = t.totalPausedMs || 0;
-          totalLoggedMs += Math.max(0, end - start - paused);
+            : Date.now();
+          totalLoggedMs += Math.max(0, end - start);
         }
 
         // Collect blockers and compute blocker time
@@ -382,23 +329,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         }
       });
 
-      // Compute approval time: time from task completion/approval to now or approvedAt
-      myTasks.forEach((t) => {
-        const s = t.status?.toLowerCase() || "";
-        const isCompleted = s === "completed" || s.includes("approve");
-        if (isCompleted && t.actualEndTime) {
-          const endTime = new Date(t.actualEndTime).getTime();
-          const approvedAt = t.approvedAt ? new Date(t.approvedAt).getTime() : (t.updatedAt ? new Date(t.updatedAt).getTime() : endTime);
-          const diff = Math.max(0, approvedAt - endTime);
-          totalApprovalMs += diff;
-          approvalCount++;
-        }
-      });
-
       const avgRevisions =
         myTasks.length > 0 ? totalRevisions / myTasks.length : 0;
       const totalHours = totalLoggedMs / (1000 * 60 * 60);
-      const avgApprovalMs = approvalCount > 0 ? totalApprovalMs / approvalCount : 0;
 
       const getLocalDateString = (date = new Date()) => {
         const year = date.getFullYear();
@@ -475,17 +408,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         assigned: myTasks.length,
         completed: comp,
         pending: pend,
-        inProgress: prog,
-        onHold: hold,
-        inReview: rev,
-        inReviewTasks: myTasks.filter((t) => {
-          const s = t.status?.toLowerCase() || "";
-          return s.includes("review") || s.includes("revision");
-        }),
         overdue: over,
         avgRevisions,
         totalHours,
-        avgApprovalMs,
         blockers: blockerTypesSet.size > 0 ? Array.from(blockerTypesSet).join(", ") : "none",
         blockerTimeMs: totalBlockerMs,
         lastSubmitted: lastSubmittedStr,
@@ -642,7 +567,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       </div>
 
       {/* Premium Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-2 relative z-10">
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-3 lg:gap-2 relative z-10">
         {[
           {
             label:
@@ -672,6 +597,18 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             iconColor: "text-indigo-600 dark:text-indigo-400",
           },
           {
+            label: "Completed",
+            value: metrics.completed,
+            icon: FiCheckCircle,
+            glow: "hover:shadow-[0_4px_20px_rgba(16,185,129,0.15)]",
+            bg: "bg-gradient-to-br from-emerald-400 to-emerald-500 dark:from-emerald-700 dark:to-emerald-800 border border-emerald-200/50 dark:border-emerald-900/30",
+            labelColor: "text-white dark:text-white",
+            valueColor: "text-slate-100 dark:text-white",
+            iconBg:
+              "bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-500/20",
+            iconColor: "text-emerald-600 dark:text-emerald-400",
+          },
+          {
             label: "Pending",
             value: metrics.pending,
             icon: FiClock,
@@ -684,52 +621,16 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             iconColor: "text-amber-600 dark:text-amber-400",
           },
           {
-            label: "In Progress",
-            value: metrics.inProgress,
-            icon: FiPlay,
-            glow: "hover:shadow-[0_4px_20px_rgba(14,165,233,0.15)]",
-            bg: "bg-gradient-to-br from-sky-400 to-sky-600 dark:from-sky-850 dark:to-sky-950 border border-sky-200/50 dark:border-sky-900/30",
-            labelColor: "text-white dark:text-white",
-            valueColor: "text-slate-100 dark:text-white",
-            iconBg:
-              "bg-sky-100 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-500/20",
-            iconColor: "text-sky-600 dark:text-sky-400",
-          },
-          {
-            label: "On Hold",
-            value: metrics.onHold,
-            icon: FiPauseCircle,
-            glow: "hover:shadow-[0_4px_20px_rgba(217,70,239,0.15)]",
-            bg: "bg-gradient-to-br from-fuchsia-500 to-fuchsia-600 dark:from-fuchsia-800 dark:to-fuchsia-900 border border-fuchsia-200/50 dark:border-fuchsia-900/30",
-            labelColor: "text-white dark:text-white",
-            valueColor: "text-slate-100 dark:text-white",
-            iconBg:
-              "bg-fuchsia-100 dark:bg-fuchsia-950/60 border border-fuchsia-200 dark:border-fuchsia-500/20",
-            iconColor: "text-fuchsia-600 dark:text-fuchsia-400",
-          },
-          {
-            label: "In Review",
-            value: metrics.inReview,
-            icon: FiEye,
-            glow: "hover:shadow-[0_4px_20px_rgba(99,102,241,0.15)]",
-            bg: "bg-gradient-to-br from-indigo-400 to-indigo-500 dark:from-indigo-850 dark:to-indigo-950 border border-indigo-200/50 dark:border-indigo-900/30",
+            label: "Revision",
+            value: metrics.totalRevisions,
+            icon: FiTrendingUp,
+            glow: "hover:shadow-[0_4px_20px_rgba(139,92,246,0.15)]",
+            bg: "bg-gradient-to-br from-indigo-500 to-indigo-600 dark:from-indigo-800 dark:to-indigo-950 border border-indigo-200/50 dark:border-indigo-900/30",
             labelColor: "text-white dark:text-white",
             valueColor: "text-slate-100 dark:text-white",
             iconBg:
               "bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/20",
             iconColor: "text-indigo-600 dark:text-indigo-400",
-          },
-          {
-            label: "Completed",
-            value: metrics.completed,
-            icon: FiCheckCircle,
-            glow: "hover:shadow-[0_4px_20px_rgba(16,185,129,0.15)]",
-            bg: "bg-gradient-to-br from-emerald-400 to-emerald-500 dark:from-emerald-700 dark:to-emerald-800 border border-emerald-200/50 dark:border-emerald-900/30",
-            labelColor: "text-white dark:text-white",
-            valueColor: "text-slate-100 dark:text-white",
-            iconBg:
-              "bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-500/20",
-            iconColor: "text-emerald-600 dark:text-emerald-400",
           },
           {
             label: "Overdue",
@@ -841,14 +742,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             LIVE SYNC
           </span>
         </div>
-        <div className="flex xl:grid xl:grid-cols-6 overflow-x-auto gap-3 pb-6 snap-x hide-scrollbar">
+        <div className="flex xl:grid xl:grid-cols-5 overflow-x-auto gap-3 pb-6 snap-x hide-scrollbar">
           {boardColumns.map((col, i) => (
             <div
               key={i}
               className="min-w-[210px] xl:min-w-0 w-full flex-shrink-0 snap-start bg-slate-50 dark:bg-[#0f172a] backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-300/80 flex flex-col max-h-[450px] shadow-sm"
             >
               <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-800/80 rounded-t-2xl backdrop-blur-md">
-                <span className="text-[10px] font-black text-slate-800 dark:text-white tracking-widest uppercase truncate max-w-[80%]">
+                <span className="text-[10px] font-black text-slate-800 dark:text-black tracking-widest uppercase truncate max-w-[80%]">
                   {col}
                 </span>
                 <span className="text-[10px] font-black bg-slate-200 dark:bg-indigo-500/20 text-slate-700 dark:text-white px-2 py-0.5 rounded-md border border-slate-300 dark:border-indigo-500/30 shrink-0">
@@ -894,17 +795,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                             </span>
                           )}
                         </div>
-                        {/* Project and Priority Info */}
-                        <div className="flex items-center justify-between gap-2 mt-1 pl-1.5 mb-2">
-                          <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 truncate max-w-[65%]">
-                            {projName}
-                          </span>
-                          {task.priority && (
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${getPriorityStyle(task.priority)}`}>
-                              {task.priority}
-                            </span>
-                          )}
-                        </div>
                         {/* Assigned User */}
                         {(() => {
                           const aId = task.assignedTo
@@ -935,12 +825,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                             .join("")
                             .toUpperCase()
                             .slice(0, 2);
-                          const creatorInitials = (assignedByName || "")
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .toUpperCase()
-                            .slice(0, 2);
                           return (
                             <div className="mt-2 pl-1 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
                               {/* Assigned To — left */}
@@ -966,10 +850,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                               )}
                               {/* Assigned By — right */}
                               {assignedByName && (
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 flex items-center justify-center text-[8px] font-black ring-1 ring-amber-400/30 shrink-0">
-                                    {creatorInitials || "SM"}
-                                  </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <span className="text-[9px] font-black bg-yellow-500 p-2 rounded-full text-black  uppercase tracking-wider">
+                                    SM
+                                  </span>
                                   <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                                     {assignedByName}
                                   </span>
@@ -1006,23 +890,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                   <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     {targetDept}
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-slate-500 text-white dark:bg-slate-700 dark:text-white">
+                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Assigned
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-red-500 text-white dark:bg-red-650 dark:text-white">
-                    Pending
-                  </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-violet-500 text-white dark:bg-violet-600 dark:text-white">
-                    In Progress
-                  </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-fuchsia-500 text-white dark:bg-fuchsia-600 dark:text-white">
-                    On Hold
-                  </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-yellow-400 text-slate-950 dark:bg-yellow-500 dark:text-slate-950">
-                    In Review
-                  </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white">
+                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Completed
+                  </th>
+                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                    Pending
                   </th>
                   <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Revisions
@@ -1035,9 +910,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                   </th>
                   <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Total Hours
-                  </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
-                    Approval Time
                   </th>
                   <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Delay
@@ -1069,25 +941,16 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                         {tp.name}
                       </div>
                     </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black bg-slate-300 text-slate-900 dark:bg-slate-700/80 dark:text-white">
+                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-650 dark:text-slate-200">
                       {tp.assigned}
                     </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black bg-red-300 text-red-950 dark:bg-red-700 dark:text-white">
-                      {tp.pending}
-                    </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black bg-violet-300 text-violet-950 dark:bg-violet-700 dark:text-white">
-                      {tp.inProgress}
-                    </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black bg-fuchsia-200 text-fuchsia-950 dark:bg-fuchsia-700 dark:text-white">
-                      {tp.onHold}
-                    </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black bg-yellow-300 text-yellow-950 dark:bg-yellow-500 dark:text-slate-950">
-                      {tp.inReview}
-                    </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black bg-emerald-300 text-emerald-950 dark:bg-emerald-700 dark:text-white">
+                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-650 dark:text-slate-200">
                       {tp.completed}
                     </td>
                     <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-650 dark:text-slate-200">
+                      {tp.pending}
+                    </td>
+                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-600 dark:text-slate-200">
                       <div className="flex items-center gap-2.5 min-w-[110px]">
                         <div className="w-14 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                           <div
@@ -1140,30 +1003,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                     </td>
                     <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-600 dark:text-slate-200">
                       {tp.totalHours.toFixed(1)}h
-                    </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-600 dark:text-slate-200">
-                      <div className="flex items-center gap-2">
-                        {tp.avgApprovalMs > 0 ? (
-                          <span className="text-indigo-600 dark:text-indigo-400">
-                            {(() => {
-                              const totalMinutes = Math.floor(tp.avgApprovalMs / (1000 * 60));
-                              const h = Math.floor(totalMinutes / 60);
-                              const m = totalMinutes % 60;
-                              return h > 0 ? `${h}h ${m}m` : `${m}m`;
-                            })()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 font-medium">—</span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setApprovalModal({ open: true, designerId: tp.id, designerName: tp.name })}
-                          className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all cursor-pointer"
-                          title="View & Approve Tasks"
-                        >
-                          <FiClock size={14} />
-                        </button>
-                      </div>
                     </td>
                     <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black">
                       {tp.overdue > 0 ? (
@@ -1255,117 +1094,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           )}
         </div>
       </div>
-      {/* Approval Modal */}
-      {approvalModal.open && createPortal(
-        <div className="fixed inset-0 z-[999] flex items-center justify-center">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setApprovalModal({ open: false, designerId: null, designerName: "" })}
-          />
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative z-10 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col"
-          >
-            {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-wide">
-                  Approval — {approvalModal.designerName}
-                </h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5 uppercase tracking-widest">
-                  In Review Tasks
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setApprovalModal({ open: false, designerId: null, designerName: "" })}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all cursor-pointer"
-              >
-                <FiXCircle size={18} />
-              </button>
-            </div>
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {(() => {
-                const tp = teamPerformance.find((p) => p.id === approvalModal.designerId);
-                const reviewTasks = tp?.inReviewTasks || [];
-                if (reviewTasks.length === 0) {
-                  return (
-                    <div className="flex flex-col items-center justify-center py-10 text-slate-400 dark:text-slate-500">
-                      <FiCheckCircle size={32} className="mb-2 opacity-50" />
-                      <p className="text-xs font-black uppercase tracking-widest">No tasks in review</p>
-                    </div>
-                  );
-                }
-                return reviewTasks.map((task) => {
-                  let projName = "No Project";
-                  if (task.project) {
-                    const pId = typeof task.project === "object" ? task.project._id : task.project;
-                    const p = projects?.find((x) => x._id === pId);
-                    projName = p?.name || "Unknown";
-                  }
-                  return (
-                    <div
-                      key={task._id}
-                      className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 hover:border-indigo-300 dark:hover:border-indigo-500/30 transition-all group"
-                    >
-                      {/* Approve Checkbox */}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const now = new Date().toISOString();
-                          try {
-                            await updateTask({
-                              id: task._id,
-                              taskData: {
-                                status: "Completed",
-                                approvedAt: now,
-                                actualEndTime: task.actualEndTime || now,
-                              },
-                            }).unwrap();
-                            toast.success(`"${task.title}" approved!`);
-                          } catch (err) {
-                            toast.error("Failed to approve task");
-                          }
-                        }}
-                        className="mt-0.5 w-5 h-5 shrink-0 rounded-md border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500 dark:hover:border-emerald-400 flex items-center justify-center transition-all cursor-pointer group-hover:border-emerald-400 dark:group-hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
-                        title="Approve this task"
-                      >
-                        <FiCheckCircle size={12} className="text-transparent group-hover:text-emerald-500 transition-colors" />
-                      </button>
-                      {/* Task Details */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-700 dark:text-white leading-snug break-words">
-                          {task.title}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate">
-                            {projName}
-                          </span>
-                          <span className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-500/20">
-                            {task.status}
-                          </span>
-                          {task.dueDate && (
-                            <span className="flex items-center gap-0.5 text-[9px] font-bold text-slate-400 dark:text-slate-500">
-                              <FiClock size={9} />
-                              {format(parseISO(task.dueDate), "MMM dd")}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </motion.div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 };

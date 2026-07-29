@@ -37,7 +37,6 @@ import {
   FiEye,
   FiEyeOff,
   FiColumns,
-  FiFilter,
 } from "react-icons/fi";
 import axiosInstance from "../../services/axiosInstance";
 import toast from "react-hot-toast";
@@ -538,14 +537,13 @@ const AssigneeDropdown = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [coords, setCoords] = useState({ top: 0, bottom: null, left: 0, width: 0, isUpward: false });
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef(null);
 
   const updateCoords = () => {
     if (dropdownRef.current) {
       const rect = dropdownRef.current.getBoundingClientRect();
       const dropdownWidth = 224; // w-56 is 14rem = 224px
-      const dropdownHeight = 244; // estimated max height of dropdown
 
       // Check if left alignment would go off-screen
       let left = rect.left;
@@ -554,16 +552,10 @@ const AssigneeDropdown = ({
         left = Math.max(10, rect.right - dropdownWidth);
       }
 
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const isUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
-
       setCoords({
-        top: isUpward ? null : rect.bottom,
-        bottom: isUpward ? window.innerHeight - rect.top : null,
+        top: rect.bottom,
         left: left,
         width: rect.width,
-        isUpward: isUpward,
       });
     }
   };
@@ -828,14 +820,11 @@ const AssigneeDropdown = ({
           <div
             style={{
               position: "fixed",
-              top: coords.isUpward ? "auto" : `${coords.top}px`,
-              bottom: coords.isUpward ? `${coords.bottom}px` : "auto",
+              top: `${coords.top}px`,
               left: `${coords.left}px`,
               zIndex: 999999,
             }}
-            className={`assignee-dropdown-portal w-56 rounded-xl bg-white dark:bg-[#151518] border border-slate-200 dark:border-white/10 shadow-2xl py-1.5 max-h-60 overflow-y-auto ${
-              coords.isUpward ? "mb-1" : "mt-1"
-            }`}
+            className="assignee-dropdown-portal mt-1 w-56 rounded-xl bg-white dark:bg-[#151518] border border-slate-200 dark:border-white/10 shadow-2xl py-1.5 max-h-60 overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
             onWheel={(e) => e.stopPropagation()}
           >
@@ -933,30 +922,23 @@ const ClientDropdown = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [coords, setCoords] = useState({ top: 0, bottom: null, left: 0, width: 0, isUpward: false });
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef(null);
 
   const updateCoords = () => {
     if (dropdownRef.current) {
       const rect = dropdownRef.current.getBoundingClientRect();
       const dropdownWidth = 224; // w-56 is 14rem = 224px
-      const dropdownHeight = 244; // estimated max height of dropdown
 
       let left = rect.left;
       if (rect.left + dropdownWidth > window.innerWidth) {
         left = Math.max(10, rect.right - dropdownWidth);
       }
 
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const isUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
-
       setCoords({
-        top: isUpward ? null : rect.bottom,
-        bottom: isUpward ? window.innerHeight - rect.top : null,
+        top: rect.bottom,
         left: left,
         width: rect.width,
-        isUpward: isUpward,
       });
     }
   };
@@ -1036,16 +1018,14 @@ const ClientDropdown = ({
         <div
           onClick={() => isAdminOrManager && setIsOpen(!isOpen)}
           className={`group/assigned relative flex items-center gap-1.5 px-2 py-1 rounded-xl border transition-all ${
-            isAdminOrManager
-              ? "cursor-pointer hover:shadow-sm"
-              : "cursor-not-allowed"
+            isAdminOrManager ? "cursor-pointer hover:shadow-sm" : "cursor-not-allowed"
           } ${getClientBadgeStyle(selectedClientObj.companyName)} min-w-[100px] h-[30px] w-[140px]`}
         >
           {selectedClientObj.icon && (
-            <img
-              src={selectedClientObj.icon}
-              alt=""
-              className="w-4 h-4 rounded-sm object-contain bg-white shrink-0"
+            <img 
+              src={selectedClientObj.icon} 
+              alt="" 
+              className="w-4 h-4 rounded-sm object-contain bg-white shrink-0" 
             />
           )}
           <span className="text-[10px] font-bold truncate leading-tight flex-1">
@@ -1074,9 +1054,7 @@ const ClientDropdown = ({
         disabled={!isAdminOrManager}
         onClick={() => setIsOpen(!isOpen)}
         className={`group/assign relative flex items-center gap-1 px-2 py-1 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 transition-all ${
-          isAdminOrManager
-            ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-            : "cursor-not-allowed"
+          isAdminOrManager ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800" : "cursor-not-allowed"
         } h-[30px] w-[140px] text-left`}
       >
         <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate flex-1">
@@ -1096,14 +1074,11 @@ const ClientDropdown = ({
           <div
             style={{
               position: "fixed",
-              top: coords.isUpward ? "auto" : `${coords.top}px`,
-              bottom: coords.isUpward ? `${coords.bottom}px` : "auto",
+              top: `${coords.top}px`,
               left: `${coords.left}px`,
               zIndex: 999999,
             }}
-            className={`client-dropdown-portal w-56 rounded-xl bg-white dark:bg-[#151518] border border-slate-200 dark:border-white/10 shadow-2xl py-1.5 max-h-60 overflow-y-auto ${
-              coords.isUpward ? "mb-1" : "mt-1"
-            }`}
+            className="client-dropdown-portal mt-1 w-56 rounded-xl bg-white dark:bg-[#151518] border border-slate-200 dark:border-white/10 shadow-2xl py-1.5 max-h-60 overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
             onWheel={(e) => e.stopPropagation()}
           >
@@ -1133,9 +1108,7 @@ const ClientDropdown = ({
                 (c) =>
                   c &&
                   (!searchTerm ||
-                    c.companyName
-                      ?.toLowerCase()
-                      .includes(searchTerm.toLowerCase())),
+                    c.companyName?.toLowerCase().includes(searchTerm.toLowerCase())),
               )
               .map((c) => {
                 const isSelected = selectedClientObj?._id === c._id;
@@ -1384,8 +1357,7 @@ const ProjectTaskBoard = ({
 
   // Stable empty array to prevent infinite loops when data is undefined
   const EMPTY_TASKS = useRef([]).current;
-  const { data: tasks = EMPTY_TASKS, isLoading: tasksLoading } =
-    useGetTasksQuery();
+  const { data: tasks = EMPTY_TASKS, isLoading: tasksLoading } = useGetTasksQuery();
   const [createTaskMutation] = useCreateTaskMutation();
   const [updateTaskMutation] = useUpdateTaskMutation();
   const [deleteTaskMutation] = useDeleteTaskMutation();
@@ -1537,21 +1509,82 @@ const ProjectTaskBoard = ({
   const inlineTaskInputRef = useRef(null);
   const inlineSectionInputRef = useRef(null);
 
-  // Date Filter State
-  const [dateFilter, setDateFilter] = useState(() => {
-    try {
-      const saved = localStorage.getItem("ptb_date_filter");
-      return saved ? saved : "All Time";
-    } catch (e) {
-      return "All Time";
-    }
-  });
-  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
-  const dateFilterDropdownRef = useRef(null);
+  // Filter & Sort State
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterAssignee, setFilterAssignee] = useState("all"); // "all" | "unassigned" | userId
+  const [filterStatus, setFilterStatus] = useState("all"); // "all" | "Pending" | "In Progress" | "Completed" | "On Hold"
+  const [filterPriority, setFilterPriority] = useState("all"); // "all" | "Low" | "Medium" | "High" | "Top High"
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [sortBy, setSortBy] = useState("none"); // "none" | "name" | "startDate" | "dueDate" | "priority" | "status"
+  const [sortOrder, setSortOrder] = useState("asc"); // "asc" | "desc"
 
-  useEffect(() => {
-    localStorage.setItem("ptb_date_filter", dateFilter);
-  }, [dateFilter]);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+  const [datePreset, setDatePreset] = useState("all"); // "all" | "today" | "yesterday" | "thisWeek" | "thisMonth" | "lastMonth" | "custom"
+  const filterDropdownRef = useRef(null);
+  const sortDropdownRef = useRef(null);
+  const dateDropdownRef = useRef(null);
+
+  // Helper to apply date preset
+  const applyDatePreset = (preset) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const fmt = (d) => d.toISOString().split("T")[0];
+    if (preset === "today") {
+      setFilterStartDate(fmt(today));
+      setFilterEndDate(fmt(today));
+    } else if (preset === "yesterday") {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      setFilterStartDate(fmt(y));
+      setFilterEndDate(fmt(y));
+    } else if (preset === "thisWeek") {
+      const day = today.getDay();
+      const mon = new Date(today);
+      mon.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      setFilterStartDate(fmt(mon));
+      setFilterEndDate(fmt(sun));
+    } else if (preset === "lastWeek") {
+      const day = today.getDay();
+      const thisMonday = new Date(today);
+      thisMonday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+      const lastMon = new Date(thisMonday);
+      lastMon.setDate(thisMonday.getDate() - 7);
+      const lastSun = new Date(lastMon);
+      lastSun.setDate(lastMon.getDate() + 6);
+      setFilterStartDate(fmt(lastMon));
+      setFilterEndDate(fmt(lastSun));
+    } else if (preset === "thisMonth") {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setFilterStartDate(fmt(start));
+      setFilterEndDate(fmt(end));
+    } else if (preset === "lastMonth") {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0);
+      setFilterStartDate(fmt(start));
+      setFilterEndDate(fmt(end));
+    } else if (preset === "all") {
+      setFilterStartDate("");
+      setFilterEndDate("");
+    }
+    // For "custom" — don't auto-set dates, let user pick from filter panel
+  };
+
+  const DATE_PRESET_LABELS = {
+    all: "Date",
+    today: "Today",
+    yesterday: "Yesterday",
+    thisWeek: "This Week",
+    lastWeek: "Last Week",
+    thisMonth: "This Month",
+    lastMonth: "Last Month",
+    custom: "Custom",
+  };
 
   // Hidden Columns State
   const [hiddenColumns, setHiddenColumns] = useState(() => {
@@ -1577,16 +1610,28 @@ const ProjectTaskBoard = ({
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
+        filterDropdownRef.current &&
+        !filterDropdownRef.current.contains(event.target)
+      ) {
+        setIsFilterOpen(false);
+      }
+      if (
+        sortDropdownRef.current &&
+        !sortDropdownRef.current.contains(event.target)
+      ) {
+        setIsSortOpen(false);
+      }
+      if (
+        dateDropdownRef.current &&
+        !dateDropdownRef.current.contains(event.target)
+      ) {
+        setIsDateDropdownOpen(false);
+      }
+      if (
         colsDropdownRef.current &&
         !colsDropdownRef.current.contains(event.target)
       ) {
         setIsColsOpen(false);
-      }
-      if (
-        dateFilterDropdownRef.current &&
-        !dateFilterDropdownRef.current.contains(event.target)
-      ) {
-        setIsDateFilterOpen(false);
       }
       if (!event.target.closest(".col-header-menu")) {
         setOpenColMenu(null);
@@ -1723,31 +1768,74 @@ const ProjectTaskBoard = ({
     return String(projId) === String(activeProjectId);
   });
 
-  const filteredTasks = activeProjectTasks.filter((t) => {
-    if (dateFilter === "All Time") return true;
-    const taskDate = new Date(t.createdAt || new Date());
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (dateFilter === "Today") {
-      return taskDate >= today;
-    } else if (dateFilter === "Yesterday") {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return taskDate >= yesterday && taskDate < today;
-    } else if (dateFilter === "Last 7 Days") {
-      const last7Days = new Date(today);
-      last7Days.setDate(last7Days.getDate() - 7);
-      return taskDate >= last7Days;
-    } else if (dateFilter === "This Month") {
-      return (
-        taskDate.getMonth() === today.getMonth() &&
-        taskDate.getFullYear() === today.getFullYear()
-      );
+  const filteredTasks = activeProjectTasks.filter((task) => {
+    // 1. Search text (matches title)
+    if (
+      filterSearch &&
+      !task.title?.toLowerCase().includes(filterSearch.toLowerCase())
+    ) {
+      return false;
+    }
+    // 2. Assignee filter
+    if (filterAssignee !== "all") {
+      if (filterAssignee === "unassigned") {
+        if (task.assignedTo) return false;
+      } else {
+        const assignedId = task.assignedTo?._id || task.assignedTo;
+        if (assignedId !== filterAssignee) return false;
+      }
+    }
+    // 3. Status filter
+    if (filterStatus !== "all" && task.status !== filterStatus) {
+      return false;
+    }
+    // 4. Priority filter
+    if (filterPriority !== "all" && task.priority !== filterPriority) {
+      return false;
+    }
+    // 5. Date filter (Start Date & End Date range match)
+    if (filterStartDate) {
+      if (!task.startDate) return false;
+      const tStart = new Date(task.startDate).setHours(0, 0, 0, 0);
+      const fStart = new Date(filterStartDate).setHours(0, 0, 0, 0);
+      if (tStart < fStart) return false;
+    }
+    if (filterEndDate) {
+      if (!task.dueDate) return false;
+      const tDue = new Date(task.dueDate).setHours(0, 0, 0, 0);
+      const fEnd = new Date(filterEndDate).setHours(0, 0, 0, 0);
+      if (tDue > fEnd) return false;
     }
     return true;
   });
-  const sortedTasks = filteredTasks;
+
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (sortBy === "none") return 0;
+
+    let valA, valB;
+    if (sortBy === "name") {
+      valA = a.title?.toLowerCase() || "";
+      valB = b.title?.toLowerCase() || "";
+    } else if (sortBy === "startDate") {
+      valA = a.startDate ? new Date(a.startDate).getTime() : 0;
+      valB = b.startDate ? new Date(b.startDate).getTime() : 0;
+    } else if (sortBy === "dueDate") {
+      valA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+      valB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+    } else if (sortBy === "priority") {
+      const pMap = { Low: 1, Medium: 2, High: 3 };
+      valA = pMap[a.priority] || 0;
+      valB = pMap[b.priority] || 0;
+    } else if (sortBy === "status") {
+      const sMap = { Pending: 1, "In Progress": 2, "On Hold": 3, Completed: 4 };
+      valA = sMap[a.status] || 0;
+      valB = sMap[b.status] || 0;
+    }
+
+    if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+    if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
 
   const handleDragEnd = async (result) => {
     const { destination, source, draggableId, type } = result;
@@ -2678,16 +2766,9 @@ const ProjectTaskBoard = ({
                   {activeProject.name}
                 </h1>
                 {(() => {
-                  const clientId =
-                    activeProject?.client?._id || activeProject?.client;
+                  const clientId = activeProject?.client?._id || activeProject?.client;
                   const clientObj = clients?.find((c) => c._id === clientId);
-                  return clientObj ? (
-                    <ClientBadge
-                      client={clientObj}
-                      size="sm"
-                      className="ml-2"
-                    />
-                  ) : null;
+                  return clientObj ? <ClientBadge client={clientObj} size="sm" className="ml-2" /> : null;
                 })()}
               </div>
             </div>
@@ -2771,57 +2852,435 @@ const ProjectTaskBoard = ({
         <div className="flex items-center justify-between lg:justify-end gap-2 w-full lg:w-1/4 order-3 lg:order-none relative">
           {activeTab === "List" ? (
             <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
-              {/* Date Filter Dropdown */}
-              <div className="relative" ref={dateFilterDropdownRef}>
+              {/* Date Preset Dropdown */}
+              <div className="relative shrink-0" ref={dateDropdownRef}>
                 <button
-                  type="button"
-                  onClick={() => setIsDateFilterOpen(!isDateFilterOpen)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
-                    isDateFilterOpen || dateFilter !== "All Time"
-                      ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-transparent text-emerald-600 dark:text-emerald-400"
+                  onClick={() => {
+                    setIsDateDropdownOpen(!isDateDropdownOpen);
+                    setIsFilterOpen(false);
+                    setIsSortOpen(false);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                    datePreset !== "all"
+                      ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                       : "bg-white dark:bg-[#111] border-slate-200/80 dark:border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
                   }`}
                 >
-                  <FiFilter className="shrink-0" size={13} />
-                  <span>{dateFilter}</span>
-                  <FiChevronDown
-                    className="shrink-0 text-slate-400"
-                    size={13}
-                  />
+                  {/* Funnel Icon */}
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`shrink-0 ${datePreset !== "all" ? "text-emerald-500 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500"}`}
+                  >
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                  </svg>
+                  <span>{DATE_PRESET_LABELS[datePreset] || "Date"}</span>
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`shrink-0 transition-transform duration-200 ${isDateDropdownOpen ? "rotate-180" : ""}`}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
                 </button>
 
                 <AnimatePresence>
-                  {isDateFilterOpen && (
+                  {isDateDropdownOpen && (
                     <motion.div
                       initial={{ opacity: 0, y: 8, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-40 bg-white dark:bg-[#111] border border-slate-200/80 dark:border-transparent rounded-2xl shadow-2xl p-2 z-50 space-y-1 backdrop-blur-md"
+                      className="absolute right-0 mt-2 w-44 bg-white dark:bg-[#111] border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.35)] p-1.5 z-50 backdrop-blur-xl"
                     >
                       {[
-                        "Today",
-                        "Yesterday",
-                        "Last 7 Days",
-                        "This Month",
-                        "All Time",
-                      ].map((option) => (
+                        { id: "all", label: "All Dates", icon: "🗓️" },
+                        { id: "today", label: "Today", icon: "📅" },
+                        { id: "yesterday", label: "Yesterday", icon: "⏮️" },
+                        { id: "thisWeek", label: "This Week", icon: "📆" },
+                        { id: "lastWeek", label: "Last Week", icon: "◀️" },
+                        { id: "thisMonth", label: "This Month", icon: "🗃️" },
+                        { id: "lastMonth", label: "Last Month", icon: "📁" },
+                        { id: "custom", label: "Custom Range", icon: "✏️" },
+                      ].map((opt) => (
                         <button
-                          key={option}
-                          type="button"
+                          key={opt.id}
                           onClick={() => {
-                            setDateFilter(option);
-                            setIsDateFilterOpen(false);
+                            setDatePreset(opt.id);
+                            applyDatePreset(opt.id);
+                            if (opt.id === "custom") {
+                              setIsFilterOpen(true);
+                            }
+                            setIsDateDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                            dateFilter === option
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-semibold rounded-xl transition-all cursor-pointer text-left ${
+                            datePreset === opt.id
                               ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                              : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                              : "text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-white/5"
                           }`}
                         >
-                          {option}
+                          <span className="text-sm leading-none">
+                            {opt.icon}
+                          </span>
+                          {opt.label}
+                          {datePreset === opt.id && (
+                            <span className="ml-auto">
+                              <svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="text-emerald-500"
+                              >
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            </span>
+                          )}
                         </button>
                       ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Filter Trigger Button */}
+              <div className="relative" ref={filterDropdownRef}>
+                <button
+                  onClick={() => {
+                    setIsFilterOpen(!isFilterOpen);
+                    setIsSortOpen(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                    isFilterOpen ||
+                    filterSearch ||
+                    filterAssignee !== "all" ||
+                    filterStatus !== "all" ||
+                    filterPriority !== "all" ||
+                    filterStartDate ||
+                    filterEndDate
+                      ? "bg-blue-50 dark:bg-[#3b82f6]/10 border-blue-200 dark:border-transparent text-blue-600 dark:text-[#3b82f6]"
+                      : "bg-white dark:bg-[#111] border-slate-200/80 dark:border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                  }`}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0"
+                  >
+                    <line x1="4" y1="6" x2="20" y2="6" />
+                    <line x1="6" y1="12" x2="18" y2="12" />
+                    <line x1="9" y1="18" x2="15" y2="18" />
+                  </svg>
+                  <span>Filter</span>
+                  {(filterSearch ||
+                    filterAssignee !== "all" ||
+                    filterStatus !== "all" ||
+                    filterPriority !== "all" ||
+                    filterStartDate ||
+                    filterEndDate) && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-[#3b82f6]" />
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {isFilterOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      className="absolute left-0 md:left-auto md:right-0 mt-3 w-80 bg-white/95 dark:bg-[#121215]/95 border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.35)] p-5 z-50 space-y-4 backdrop-blur-xl max-h-[480px] overflow-y-auto custom-scrollbar select-none"
+                    >
+                      {/* Dropdown Header */}
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-3">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-md bg-blue-500/10 dark:bg-[#3b82f6]/10 flex items-center justify-center">
+                            <svg
+                              width="11"
+                              height="11"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              className="text-blue-600 dark:text-[#3b82f6]"
+                            >
+                              <line x1="4" y1="6" x2="20" y2="6" />
+                              <line x1="6" y1="12" x2="18" y2="12" />
+                              <line x1="9" y1="18" x2="15" y2="18" />
+                            </svg>
+                          </div>
+                          <span className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+                            Filters
+                          </span>
+                        </div>
+                        {(filterSearch ||
+                          filterAssignee !== "all" ||
+                          filterStatus !== "all" ||
+                          filterPriority !== "all" ||
+                          filterStartDate ||
+                          filterEndDate) && (
+                          <button
+                            onClick={() => {
+                              setFilterSearch("");
+                              setFilterAssignee("all");
+                              setFilterStatus("all");
+                              setFilterPriority("all");
+                              setFilterStartDate("");
+                              setFilterEndDate("");
+                            }}
+                            className="flex items-center gap-1 text-[10px] font-bold text-rose-500 hover:text-rose-600 transition-colors cursor-pointer bg-rose-50 dark:bg-rose-500/10 px-2 py-1 rounded-lg"
+                          >
+                            <svg
+                              width="10"
+                              height="10"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                            >
+                              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                            </svg>
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Search */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider">
+                          Search
+                        </label>
+                        <div className="relative">
+                         
+                          <input
+                            type="text"
+                            placeholder="Type to search tasks..."
+                            value={filterSearch}
+                            onChange={(e) => setFilterSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 text-xs font-semibold rounded-xl bg-slate-50/50 dark:bg-[#18181b]/50 border border-slate-200/60 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] text-slate-800 dark:text-slate-200 transition-all placeholder-slate-450 dark:placeholder-slate-550"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Status */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider">
+                          Status
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            {
+                              name: "all",
+                              label: "All",
+                              color: "bg-slate-400",
+                            },
+                            {
+                              name: "Pending",
+                              label: "Pending",
+                              color: "bg-amber-500",
+                            },
+                            {
+                              name: "In Progress",
+                              label: "In Progress",
+                              color: "bg-blue-500",
+                            },
+                            {
+                              name: "IN-REVIEW",
+                              label: "In Review",
+                              color: "bg-sky-500",
+                            },
+                            {
+                              name: "Completed",
+                              label: "Completed",
+                              color: "bg-emerald-500",
+                            },
+                            {
+                              name: "On Hold",
+                              label: "On Hold",
+                              color: "bg-rose-500",
+                            },
+                            {
+                              name: "Rejected",
+                              label: "Rejected",
+                              color: "bg-red-500",
+                            },
+                          ].map((status) => (
+                            <button
+                              key={status.name}
+                              onClick={() => setFilterStatus(status.name)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer border ${
+                                filterStatus === status.name
+                                  ? "bg-blue-600 border-blue-600 text-white dark:bg-[#3b82f6] dark:border-[#3b82f6] dark:text-black shadow-md shadow-blue-500/10 dark:shadow-[#3b82f6]/10"
+                                  : "bg-slate-50/50 border-slate-200/60 dark:bg-white/[0.02] dark:border-white/5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                              }`}
+                            >
+                              {status.name !== "all" && (
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${status.color} shrink-0`}
+                                />
+                              )}
+                              {status.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Priority */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider">
+                          Priority
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            {
+                              name: "all",
+                              label: "All",
+                              color: "bg-slate-400",
+                            },
+                            {
+                              name: "Low",
+                              label: "Low",
+                              color: "bg-slate-400",
+                            },
+                            {
+                              name: "Medium",
+                              label: "Medium",
+                              color: "bg-amber-500",
+                            },
+                            {
+                              name: "High",
+                              label: "High",
+                              color: "bg-rose-500",
+                            },
+                            {
+                              name: "Top High",
+                              label: "Top High",
+                              color: "bg-red-700",
+                            },
+                          ].map((priority) => (
+                            <button
+                              key={priority.name}
+                              onClick={() => setFilterPriority(priority.name)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer border ${
+                                filterPriority === priority.name
+                                  ? "bg-blue-600 border-blue-600 text-white dark:bg-[#3b82f6] dark:border-[#3b82f6] dark:text-black shadow-md shadow-blue-500/10 dark:shadow-[#3b82f6]/10"
+                                  : "bg-slate-50/50 border-slate-200/60 dark:bg-white/[0.02] dark:border-white/5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                              }`}
+                            >
+                              {priority.name !== "all" && (
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${priority.color} shrink-0`}
+                                />
+                              )}
+                              {priority.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Assignee */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-455 dark:text-slate-500 uppercase tracking-wider">
+                          Assignee
+                        </label>
+                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar pr-1">
+                          <button
+                            onClick={() => setFilterAssignee("all")}
+                            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer border ${
+                              filterAssignee === "all"
+                                ? "bg-blue-600 border-blue-600 text-white dark:bg-[#3b82f6] dark:border-[#3b82f6] dark:text-black shadow-md shadow-blue-500/10 dark:shadow-[#3b82f6]/10"
+                                : "bg-slate-50/50 border-slate-200/60 dark:bg-white/[0.02] dark:border-white/5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                            }`}
+                          >
+                            All
+                          </button>
+                          <button
+                            onClick={() => setFilterAssignee("unassigned")}
+                            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer border ${
+                              filterAssignee === "unassigned"
+                                ? "bg-blue-600 border-blue-600 text-white dark:bg-[#3b82f6] dark:border-[#3b82f6] dark:text-black shadow-md shadow-blue-500/10 dark:shadow-[#3b82f6]/10"
+                                : "bg-slate-50/50 border-slate-200/60 dark:bg-white/[0.02] dark:border-white/5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                            }`}
+                          >
+                            Unassigned
+                          </button>
+                          {users.map((u) => (
+                            <button
+                              key={u._id}
+                              onClick={() => setFilterAssignee(u._id)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer border ${
+                                filterAssignee === u._id
+                                  ? "bg-blue-600 border-blue-600 text-white dark:bg-[#3b82f6] dark:border-[#3b82f6] dark:text-black shadow-md shadow-blue-500/10 dark:shadow-[#3b82f6]/10"
+                                  : "bg-slate-50/50 border-slate-200/60 dark:bg-white/[0.02] dark:border-white/5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                              }`}
+                            >
+                              <span className="w-3.5 h-3.5 rounded-full bg-blue-500/20 text-blue-600 dark:bg-[#3b82f6]/20 dark:text-[#3b82f6] flex items-center justify-center text-[7px] font-extrabold shrink-0">
+                                {u.name.charAt(0).toUpperCase()}
+                              </span>
+                              <span>{u.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Date Range */}
+                      <div className="space-y-1.5 border-t border-slate-100 dark:border-white/5 pt-3">
+                        <label className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider">
+                          Date Range
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex items-center gap-1.5 bg-slate-50/50 dark:bg-[#18181b]/50 border border-slate-200/60 dark:border-white/10 rounded-xl px-2.5 py-1.5 text-slate-500 transition-all focus-within:border-blue-550 dark:focus-within:border-[#3b82f6]">
+                            <FiCalendar
+                              size={11}
+                              className="shrink-0 text-slate-400 dark:text-slate-550"
+                            />
+                            <input
+                              type="date"
+                              value={filterStartDate}
+                              onChange={(e) =>
+                                setFilterStartDate(e.target.value)
+                              }
+                              className="bg-transparent border-none p-0 text-[10px] font-semibold text-slate-700 dark:text-slate-300 outline-none cursor-pointer focus:ring-0 w-full"
+                              title="Start Date"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-slate-50/50 dark:bg-[#18181b]/50 border border-slate-200/60 dark:border-white/10 rounded-xl px-2.5 py-1.5 text-slate-500 transition-all focus-within:border-blue-550 dark:focus-within:border-[#3b82f6]">
+                            <FiCalendar
+                              size={11}
+                              className="shrink-0 text-slate-400 dark:text-slate-550"
+                            />
+                            <input
+                              type="date"
+                              value={filterEndDate}
+                              onChange={(e) => setFilterEndDate(e.target.value)}
+                              className="bg-transparent border-none p-0 text-[10px] font-semibold text-slate-700 dark:text-slate-300 outline-none cursor-pointer focus:ring-0 w-full"
+                              title="End Date"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -2833,6 +3292,8 @@ const ProjectTaskBoard = ({
                   type="button"
                   onClick={() => {
                     setIsColsOpen(!isColsOpen);
+                    setIsFilterOpen(false);
+                    setIsSortOpen(false);
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
                     isColsOpen || Object.values(hiddenColumns).some(Boolean)
@@ -3104,7 +3565,7 @@ const ProjectTaskBoard = ({
                       </div>
                     </td>
                     <td
-                      colSpan={11}
+                      colSpan={12}
                       className="px-3 py-1 border-b border-slate-300 dark:border-slate-700"
                       style={{ ...bBottom, ...bRight }}
                     />
@@ -3352,11 +3813,9 @@ const ProjectTaskBoard = ({
                                   </div>
                                 </th>
                               )}
-                              {!hiddenColumns.totalHours && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  Total Hours
-                                </th>
-                              )}
+                              <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
+                                Total Hours
+                              </th>
                               <th className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 text-center whitespace-nowrap min-w-[80px]">
                                 Actions
                               </th>
@@ -3920,7 +4379,7 @@ const ProjectTaskBoard = ({
                                           </td>
                                           {/* Empty Column Cells merged into one to remove vertical gridlines */}
                                           <td
-                                            colSpan={11}
+                                            colSpan={12}
                                             className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#16161b]"
                                             style={{
                                               borderRight: `2.5px solid ${sColor.hex}`,
@@ -4260,37 +4719,12 @@ const ProjectTaskBoard = ({
                                                       {/* Client Column */}
                                                       {!hiddenColumns.client && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 font-medium">
-                                                          <div
-                                                            onClick={(e) =>
-                                                              e.stopPropagation()
-                                                            }
-                                                          >
+                                                          <div onClick={(e) => e.stopPropagation()}>
                                                             {(() => {
-                                                              const clientId =
-                                                                activeProject
-                                                                  ?.client
-                                                                  ?._id ||
-                                                                activeProject?.client;
-                                                              const clientObj =
-                                                                clients?.find(
-                                                                  (c) =>
-                                                                    c._id ===
-                                                                    clientId,
-                                                                );
-                                                              if (!clientObj)
-                                                                return (
-                                                                  <span className="text-slate-400 text-[10px] italic">
-                                                                    No Client
-                                                                  </span>
-                                                                );
-                                                              return (
-                                                                <ClientBadge
-                                                                  client={
-                                                                    clientObj
-                                                                  }
-                                                                  size="sm"
-                                                                />
-                                                              );
+                                                              const clientId = activeProject?.client?._id || activeProject?.client;
+                                                              const clientObj = clients?.find((c) => c._id === clientId);
+                                                              if (!clientObj) return <span className="text-slate-400 text-[10px] italic">No Client</span>;
+                                                              return <ClientBadge client={clientObj} size="sm" />;
                                                             })()}
                                                           </div>
                                                         </td>
@@ -4645,17 +5079,16 @@ const ProjectTaskBoard = ({
                                                                   task.contentType ||
                                                                   ""
                                                                 }
-                                                                onChange={(e) => {
-                                                                  const val = e.target.value;
-                                                                  if (val === "__ADD_CUSTOM__") {
-                                                                    const customVal = prompt("Enter custom content type:");
-                                                                    if (customVal && customVal.trim() !== "") {
-                                                                      handleTaskFieldChange(task._id, { contentType: customVal.trim() });
-                                                                    }
-                                                                  } else {
-                                                                    handleTaskFieldChange(task._id, { contentType: val });
-                                                                  }
-                                                                }}
+                                                                onChange={(e) =>
+                                                                  handleTaskFieldChange(
+                                                                    task._id,
+                                                                    {
+                                                                      contentType:
+                                                                        e.target
+                                                                          .value,
+                                                                    },
+                                                                  )
+                                                                }
                                                                 className={`badge-select ${
                                                                   task.contentType ===
                                                                   "VIDEO"
@@ -4716,12 +5149,6 @@ const ProjectTaskBoard = ({
                                                                 </option>
                                                                 <option value="Video shoot">
                                                                   Video shoot
-                                                                </option>
-                                                                {task.contentType && !["VIDEO", "IMAGE", "CAROUSEL", "REEL", "POST", "STORY", "Website", "SEO", "Video shoot"].includes(task.contentType) && (
-                                                                  <option value={task.contentType}>{task.contentType}</option>
-                                                                )}
-                                                                <option value="__ADD_CUSTOM__">
-                                                                  ➕ Custom...
                                                                 </option>
                                                               </select>
                                                             ) : (
@@ -4966,25 +5393,23 @@ const ProjectTaskBoard = ({
                                                       )}
 
                                                       {/* Total Hours */}
-                                                      {!hiddenColumns.totalHours && (
-                                                        <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
-                                                          <TimeTracker
-                                                            startTime={
-                                                              task.actualStartTime
-                                                            }
-                                                            endTime={
-                                                              task.actualEndTime
-                                                            }
-                                                            pausedAt={
-                                                              task.pausedAt
-                                                            }
-                                                            savedPausedMs={
-                                                              task.totalPausedMs
-                                                            }
-                                                            status={task.status}
-                                                          />
-                                                        </td>
-                                                      )}
+                                                      <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
+                                                        <TimeTracker
+                                                          startTime={
+                                                            task.actualStartTime
+                                                          }
+                                                          endTime={
+                                                            task.actualEndTime
+                                                          }
+                                                          pausedAt={
+                                                            task.pausedAt
+                                                          }
+                                                          savedPausedMs={
+                                                            task.totalPausedMs
+                                                          }
+                                                          status={task.status}
+                                                        />
+                                                      </td>
 
                                                       {/* Action Controls */}
                                                       <td
@@ -5331,46 +5756,14 @@ const ProjectTaskBoard = ({
                                                               {/* 2. Client Column */}
                                                               {!hiddenColumns.client && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
-                                                                  <div
-                                                                    onClick={(
-                                                                      e,
-                                                                    ) =>
-                                                                      e.stopPropagation()
-                                                                    }
-                                                                  >
+                                                                  <div onClick={(e) => e.stopPropagation()}>
                                                                     <ClientDropdown
-                                                                      selectedClient={
-                                                                        sub
-                                                                          .client
-                                                                          ?._id ||
-                                                                        sub.client ||
-                                                                        task
-                                                                          .client
-                                                                          ?._id ||
-                                                                        task.client ||
-                                                                        activeProject
-                                                                          ?.client
-                                                                          ?._id ||
-                                                                        activeProject?.client
+                                                                      selectedClient={sub.client?._id || sub.client || task.client?._id || task.client || (activeProject?.client?._id || activeProject?.client)}
+                                                                      clients={clients}
+                                                                      onChange={(clientId) =>
+                                                                        handleSubtaskFieldChange(task, sub._id, { client: clientId })
                                                                       }
-                                                                      clients={
-                                                                        clients
-                                                                      }
-                                                                      onChange={(
-                                                                        clientId,
-                                                                      ) =>
-                                                                        handleSubtaskFieldChange(
-                                                                          task,
-                                                                          sub._id,
-                                                                          {
-                                                                            client:
-                                                                              clientId,
-                                                                          },
-                                                                        )
-                                                                      }
-                                                                      isAdminOrManager={
-                                                                        isAdminOrManager
-                                                                      }
+                                                                      isAdminOrManager={isAdminOrManager}
                                                                     />
                                                                   </div>
                                                                 </td>
@@ -5767,29 +6160,20 @@ const ProjectTaskBoard = ({
                                                                           sub.contentType ||
                                                                           ""
                                                                         }
-                                                                        onChange={(e) => {
-                                                                          const val = e.target.value;
-                                                                          if (val === "__ADD_CUSTOM__") {
-                                                                            const customVal = prompt("Enter custom content type:");
-                                                                            if (customVal && customVal.trim() !== "") {
-                                                                              handleSubtaskFieldChange(
-                                                                                task,
-                                                                                sub._id,
-                                                                                {
-                                                                                  contentType: customVal.trim(),
-                                                                                },
-                                                                              );
-                                                                            }
-                                                                          } else {
-                                                                            handleSubtaskFieldChange(
-                                                                              task,
-                                                                              sub._id,
-                                                                              {
-                                                                                contentType: val,
-                                                                              },
-                                                                            );
-                                                                          }
-                                                                        }}
+                                                                        onChange={(
+                                                                          e,
+                                                                        ) =>
+                                                                          handleSubtaskFieldChange(
+                                                                            task,
+                                                                            sub._id,
+                                                                            {
+                                                                              contentType:
+                                                                                e
+                                                                                  .target
+                                                                                  .value,
+                                                                            },
+                                                                          )
+                                                                        }
                                                                         className={`badge-select ${
                                                                           sub.contentType ===
                                                                           "VIDEO"
@@ -5849,13 +6233,8 @@ const ProjectTaskBoard = ({
                                                                           SEO
                                                                         </option>
                                                                         <option value="Video shoot">
-                                                                          Video shoot
-                                                                        </option>
-                                                                        {sub.contentType && !["VIDEO", "IMAGE", "CAROUSEL", "REEL", "POST", "STORY", "Website", "SEO", "Video shoot"].includes(sub.contentType) && (
-                                                                          <option value={sub.contentType}>{sub.contentType}</option>
-                                                                        )}
-                                                                        <option value="__ADD_CUSTOM__">
-                                                                          ➕ Custom...
+                                                                          Video
+                                                                          shoot
                                                                         </option>
                                                                       </select>
                                                                     ) : (
@@ -6094,20 +6473,13 @@ const ProjectTaskBoard = ({
                                                               {!hiddenColumns.revision && (
                                                                 <td
                                                                   className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700"
-                                                                  onClick={(
-                                                                    e,
-                                                                  ) =>
-                                                                    e.stopPropagation()
-                                                                  }
+                                                                  onClick={(e) => e.stopPropagation()}
                                                                 >
                                                                   <div className="flex justify-center items-center gap-1.5">
                                                                     <span className="font-extrabold text-xs text-slate-800 dark:text-yellow-50 text-center">
-                                                                      {sub.revisions ||
-                                                                        0}
+                                                                      {sub.revisions || 0}
                                                                     </span>
-                                                                    {(sub.revisions ||
-                                                                      0) >
-                                                                      3 && (
+                                                                    {(sub.revisions || 0) > 3 && (
                                                                       <span
                                                                         className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)] animate-pulse"
                                                                         title="More than 3 revisions"
@@ -6118,27 +6490,25 @@ const ProjectTaskBoard = ({
                                                               )}
 
                                                               {/* Total Hours Column */}
-                                                              {!hiddenColumns.totalHours && (
-                                                                <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
-                                                                  <TimeTracker
-                                                                    startTime={
-                                                                      sub.actualStartTime
-                                                                    }
-                                                                    endTime={
-                                                                      sub.actualEndTime
-                                                                    }
-                                                                    pausedAt={
-                                                                      sub.pausedAt
-                                                                    }
-                                                                    savedPausedMs={
-                                                                      sub.totalPausedMs
-                                                                    }
-                                                                    status={
-                                                                      sub.status
-                                                                    }
-                                                                  />
-                                                                </td>
-                                                              )}
+                                                              <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
+                                                                <TimeTracker
+                                                                  startTime={
+                                                                    sub.actualStartTime
+                                                                  }
+                                                                  endTime={
+                                                                    sub.actualEndTime
+                                                                  }
+                                                                  pausedAt={
+                                                                    sub.pausedAt
+                                                                  }
+                                                                  savedPausedMs={
+                                                                    sub.totalPausedMs
+                                                                  }
+                                                                  status={
+                                                                    sub.status
+                                                                  }
+                                                                />
+                                                              </td>
 
                                                               {/* 9. Actions Column */}
                                                               <td
@@ -6196,7 +6566,7 @@ const ProjectTaskBoard = ({
                                         <tr className=" pointer-events-none">
                                           <td
                                             colSpan={
-                                              showSelectionColumn ? 14 : 13
+                                              showSelectionColumn ? 15 : 14
                                             }
                                             className=" p-0 border-0 bg-transparent"
                                           />
