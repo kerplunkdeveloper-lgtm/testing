@@ -352,8 +352,15 @@ const ApprovalTimeDisplay = ({ reviewStartedAt, completedAt, approvalWaitingMs, 
         </div>
       )}
       {(totalWaitMs > 0) && (
-        <div className="text-purple-600 dark:text-purple-400 mt-1 bg-purple-50 dark:bg-purple-500/10 px-1 py-0.5 rounded inline-block w-fit">
-          <span className="font-semibold">Wait:</span> {formatBusinessDuration(totalWaitMs)}
+        <div className={`mt-1 px-1.5 py-0.5 rounded inline-flex items-center gap-1 w-fit ${
+          ["In Review", "IN-REVIEW", "IN-Review"].includes(status)
+            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30"
+            : "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400"
+        }`}>
+          {["In Review", "IN-REVIEW", "IN-Review"].includes(status) && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
+          )}
+          <span className="font-bold">{formatBusinessDuration(totalWaitMs)}</span>
         </div>
       )}
     </div>
