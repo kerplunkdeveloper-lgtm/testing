@@ -2,6 +2,7 @@ import React from "react";
 import AppRoutes from "./routes/AppRoutes";
 import ThemeSettingsPanel from "./components/common/ThemeSettingsPanel";
 import Preloader from "./components/common/Preloader";
+import InReviewNotificationPopup from "./components/common/InReviewNotificationPopup";
 
 const App = () => {
   return (
@@ -9,6 +10,7 @@ const App = () => {
       <Preloader />
       <AppRoutes />
       <ThemeSettingsPanel />
+      <InReviewNotificationPopup />
     </>
   );
 };

@@ -244,6 +244,7 @@ const ChatPage = () => {
   const [inputText, setInputText] = useState("");
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [showChatWindowMobile, setShowChatWindowMobile] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState([]); // Array of online userIds
 
   // New Reply, Forward & Share State
   const [replyingToMessage, setReplyingToMessage] = useState(null);
@@ -441,6 +442,11 @@ const ChatPage = () => {
 
     socketRef.current.on("chat_cleared", ({ otherUserId }) => {
       dispatch(clearChatLocal(otherUserId));
+    });
+
+    // Track online/offline users
+    socketRef.current.on("online_users_list", (userIds) => {
+      setOnlineUsers(userIds);
     });
 
     return () => {
@@ -1055,12 +1061,29 @@ const ChatPage = () => {
                       {u.name.charAt(0)}
                     </div>
                   )}
+                  {/* Online / Offline status dot */}
                   <span
-                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 shadow-sm ${activeChat === u._id ? "border-blue-500 dark:border-slate-900" : "border-white dark:border-slate-900"}`}
+                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 shadow-sm transition-colors duration-300 ${
+                      onlineUsers.includes(u._id)
+                        ? "bg-emerald-500"
+                        : "bg-slate-400 dark:bg-slate-600"
+                    } ${activeChat === u._id ? "border-blue-500 dark:border-slate-900" : "border-white dark:border-slate-900"}`}
+                    title={onlineUsers.includes(u._id) ? "Online" : "Offline"}
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="item-title truncate block">{u.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="item-title truncate">{u.name}</span>
+                    <span
+                      className={`shrink-0 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full leading-none ${
+                        onlineUsers.includes(u._id)
+                          ? "bg-gray-300 text-emerald-600 dark:bg-gray-100 dark:text-emerald-400"
+                          : "bg-slate-100 text-slate-400 dark:bg-black dark:text-slate-500"
+                      }`}
+                    >
+                      {onlineUsers.includes(u._id) ? "Online" : "Offline"}
+                    </span>
+                  </div>
                   <p className="item-subtitle truncate mt-0.5">
                     {lastMessages[u._id]
                       ? formatLastMessageText(lastMessages[u._id])
@@ -1155,30 +1178,47 @@ const ChatPage = () => {
               </>
             ) : activeChatUser ? (
               <>
-                {activeChatUser.profile?.profileImage?.url ? (
-                  <img
-                    src={activeChatUser.profile.profileImage.url}
-                    alt="profile"
-                    className="w-10 h-10 rounded-2xl object-cover border theme-border shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-                    onClick={() => setProfileModalUser(activeChatUser)}
+                <div className="relative shrink-0">
+                  {activeChatUser.profile?.profileImage?.url ? (
+                    <img
+                      src={activeChatUser.profile.profileImage.url}
+                      alt="profile"
+                      className="w-10 h-10 rounded-2xl object-cover border theme-border cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+                      onClick={() => setProfileModalUser(activeChatUser)}
+                    />
+                  ) : (
+                    <div
+                      className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/40 border border-indigo-100 dark:border-indigo-800/60 flex items-center justify-center font-black text-indigo-600 dark:text-indigo-400 text-xs cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+                      onClick={() => setProfileModalUser(activeChatUser)}
+                    >
+                      {activeChatUser.name.charAt(0)}
+                    </div>
+                  )}
+                  {/* Online / Offline dot on header */}
+                  <span
+                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 shadow-sm transition-colors duration-300 ${
+                      onlineUsers.includes(activeChatUser._id)
+                        ? "bg-emerald-500"
+                        : "bg-slate-400 dark:bg-slate-600"
+                    }`}
+                    title={onlineUsers.includes(activeChatUser._id) ? "Online" : "Offline"}
                   />
-                ) : (
-                  <div
-                    className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/40 border border-indigo-100 dark:border-indigo-800/60 flex items-center justify-center font-black text-indigo-600 dark:text-indigo-400 text-xs shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-                    onClick={() => setProfileModalUser(activeChatUser)}
-                  >
-                    {activeChatUser.name.charAt(0)}
-                  </div>
-                )}
+                </div>
                 <div className="min-w-0">
                   <h3 className="text-xs font-black theme-text-primary leading-tight truncate max-w-[120px] sm:max-w-xs">
                     {activeChatUser.name}
                   </h3>
-                  <p className="text-[9px] theme-text-secondary font-semibold capitalize mt-0.5 leading-none truncate max-w-[120px] sm:max-w-xs">
-                  
-                    {activeChatUser.department
-                      ? `${activeChatUser.department}`
-                      : ""}
+                  <p className={`text-[9px] font-bold capitalize mt-0.5 leading-none truncate max-w-[120px] sm:max-w-xs flex items-center gap-1 ${
+                    onlineUsers.includes(activeChatUser._id)
+                      ? "text-emerald-500"
+                      : "theme-text-secondary"
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${
+                      onlineUsers.includes(activeChatUser._id)
+                        ? "bg-emerald-500"
+                        : "bg-slate-400 dark:bg-slate-600"
+                    }`} />
+                    {onlineUsers.includes(activeChatUser._id) ? "Online" : "Offline"}
                   </p>
                 </div>
               </>

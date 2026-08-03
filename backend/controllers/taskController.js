@@ -3,6 +3,49 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Project = require("../models/Project");
 
+
+
+
+
+const hasActiveWork = async (userId, currentTaskId = null, currentSubtaskId = null) => {
+
+
+  // Parent Task Check
+  const activeTask = await Task.findOne({
+    assignedTo: userId,
+    status: { $in: ["In Progress", "In-Progress"] },
+    ...(currentTaskId && { _id: { $ne: currentTaskId } }),
+  }).select("_id").lean();
+
+
+  if (activeTask) return true;
+
+  // Subtask Check
+  const activeSubtask = await Task.findOne({
+    subtasks: {
+      $elemMatch: {
+        assignedTo: userId,
+        status: { $in: ["In Progress", "In-Progress"] },
+        ...(currentSubtaskId && { _id: { $ne: currentSubtaskId } }),
+      },
+    },
+  }).select("_id").lean();
+
+  return !!activeSubtask;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 // @desc    Get all tasks
 // @route   GET /api/tasks
 // @access  Private
@@ -138,7 +181,7 @@ exports.createTask = async (req, res) => {
 
       const io = req.app.get("io");
       if (io) {
-        const populatedNotification = await Notification.findById(notification._id).populate("sender", "name");
+        const populatedNotification = await Notification.findById(notification._id).populate({ path: "sender", select: "name profile", populate: { path: "profile", select: "profileImage" } });
         io.to(task.assignedTo.toString()).emit("notification", populatedNotification);
       }
     }
@@ -177,23 +220,25 @@ exports.updateTask = async (req, res) => {
    // .........................................Time tracking logic for parent task...........................................
 if (req.body.status && req.body.status !== previousStatus) {
 
-  if (req.body.status === "In Progress") {
-    const otherFilter = {
-      _id: { $ne: task._id },
-      status: { $in: ["In Progress", "In-Progress"] },
-    };
-    if (task.assignedTo) {
-      otherFilter.assignedTo = task.assignedTo;
-    } else if (task.project) {
-      otherFilter.project = task.project;
-    }
-    await Task.updateMany(otherFilter, {
-      $set: {
-        status: "On Hold",
-        pausedAt: Date.now(),
-      },
+   if (req.body.status === "In Progress") {
+
+  if (task.assignedTo) {
+  const hasActive = await hasActiveWork(
+    task.assignedTo,
+    task._id,
+    null
+  );
+
+  if (hasActive) {
+    return res.status(409).json({
+      success: false,
+      message: "You already have one active task or subtask.",
     });
   }
+}
+
+}
+
 
   switch (req.body.status) {
 
@@ -241,6 +286,44 @@ if (req.body.status && req.body.status !== previousStatus) {
 }
     // .........................................Time tracking logic for subtasks...........................................    
    // .........................................Time tracking logic for subtasks...........................................
+
+
+
+for (const sub of req.body.subtasks || []) {
+
+  const prevSub = previousSubtasks.find(
+    (p) => p._id?.toString() === sub._id?.toString()
+  );
+
+  if (
+    prevSub &&
+    sub.status === "In Progress" &&
+    prevSub.status !== "In Progress" &&
+    sub.assignedTo
+  ) {
+
+    const hasActive = await hasActiveWork(
+      sub.assignedTo,
+      null,
+      sub._id
+    );
+
+    if (hasActive) {
+      return res.status(409).json({
+        success: false,
+        message: "You already have one active task or subtask.",
+      });
+    }
+  }
+}
+
+
+
+
+
+
+
+
 if (req.body.subtasks) {
   req.body.subtasks = req.body.subtasks.map((sub) => {
 
@@ -391,7 +474,7 @@ if (req.body.subtasks) {
           });
 
           if (io) {
-            const populatedNotification = await Notification.findById(notification._id).populate("sender", "name");
+            const populatedNotification = await Notification.findById(notification._id).populate({ path: "sender", select: "name profile", populate: { path: "profile", select: "profileImage" } });
             io.to(recipientId).emit("notification", populatedNotification);
           }
         }
@@ -411,7 +494,7 @@ if (req.body.subtasks) {
 
       const io = req.app.get("io");
       if (io) {
-        const populatedNotification = await Notification.findById(notification._id).populate("sender", "name");
+        const populatedNotification = await Notification.findById(notification._id).populate({ path: "sender", select: "name profile", populate: { path: "profile", select: "profileImage" } });
         io.to(req.body.assignedTo.toString()).emit("notification", populatedNotification);
       }
     }
@@ -437,7 +520,7 @@ if (req.body.subtasks) {
             });
 
             if (io) {
-              const populatedNotification = await Notification.findById(notification._id).populate("sender", "name");
+              const populatedNotification = await Notification.findById(notification._id).populate({ path: "sender", select: "name profile", populate: { path: "profile", select: "profileImage" } });
               io.to(subAssignee.toString()).emit("notification", populatedNotification);
             }
           }
@@ -458,7 +541,7 @@ if (req.body.subtasks) {
             });
 
             if (io) {
-              const populatedNotification = await Notification.findById(notification._id).populate("sender", "name");
+              const populatedNotification = await Notification.findById(notification._id).populate({ path: "sender", select: "name profile", populate: { path: "profile", select: "profileImage" } });
               io.to(currSubAssignee.toString()).emit("notification", populatedNotification);
             }
           }

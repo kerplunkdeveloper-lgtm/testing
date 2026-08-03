@@ -27,8 +27,40 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const apiSlice = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Task", "Project", "Notification"],
+  tagTypes: ["Task", "Project", "Notification", "Goal"],
   endpoints: (builder) => ({
+    // ==========================================
+    // GOALS ENDPOINTS
+    // ==========================================
+    getGoals: builder.query({
+      query: () => "/goals",
+      providesTags: ["Goal"],
+      transformResponse: (response) => response.data,
+    }),
+    createGoal: builder.mutation({
+      query: (goalData) => ({
+        url: "/goals",
+        method: "POST",
+        body: goalData,
+      }),
+      invalidatesTags: ["Goal"],
+    }),
+    updateGoal: builder.mutation({
+      query: ({ id, goalData }) => ({
+        url: `/goals/${id}`,
+        method: "PUT",
+        body: goalData,
+      }),
+      invalidatesTags: ["Goal"],
+    }),
+    deleteGoal: builder.mutation({
+      query: (id) => ({
+        url: `/goals/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Goal"],
+    }),
+
     // ==========================================
     // TASKS ENDPOINTS
     // ==========================================
@@ -252,4 +284,11 @@ export const {
 
   // User hooks
   useUpdateUserMutation,
+
+  // Goal hooks
+  useGetGoalsQuery,
+  useCreateGoalMutation,
+  useUpdateGoalMutation,
+  useDeleteGoalMutation,
 } = apiSlice;
+

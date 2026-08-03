@@ -35,6 +35,7 @@ import {
 
 import { useDispatch, useSelector } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
+import {Link} from "react-router-dom";
 
 import {
   getClients,
@@ -408,39 +409,46 @@ const Clients = () => {
   }, [clients]);
 
   const filteredClients = useMemo(() => {
-    return (clients || []).filter((client) => {
-      const matchesSearch =
-        (client.companyName || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        (client.industry || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
+    return (clients || [])
+      .filter((client) => {
+        const matchesSearch =
+          (client.companyName || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (client.industry || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase());
 
-      const matchesService =
-        serviceFilter === "All"
-          ? true
-          : Array.isArray(client.service)
-            ? client.service.includes(serviceFilter)
-            : client.service === serviceFilter;
+        const matchesService =
+          serviceFilter === "All"
+            ? true
+            : Array.isArray(client.service)
+              ? client.service.includes(serviceFilter)
+              : client.service === serviceFilter;
 
-      const matchesClientName =
-        clientNameFilter === "All"
-          ? true
-          : client.companyName === clientNameFilter;
+        const matchesClientName =
+          clientNameFilter === "All"
+            ? true
+            : client.companyName === clientNameFilter;
 
-      const matchesMember =
-        memberFilter === "All"
-          ? true
-          : Array.isArray(client.assignedTo)
-            ? client.assignedTo.some((m) => (m._id || m) === memberFilter)
-            : client.assignedTo &&
-              (client.assignedTo._id || client.assignedTo) === memberFilter;
+        const matchesMember =
+          memberFilter === "All"
+            ? true
+            : Array.isArray(client.assignedTo)
+              ? client.assignedTo.some((m) => (m._id || m) === memberFilter)
+              : client.assignedTo &&
+                (client.assignedTo._id || client.assignedTo) === memberFilter;
 
-      return (
-        matchesSearch && matchesService && matchesClientName && matchesMember
+        return (
+          matchesSearch && matchesService && matchesClientName && matchesMember
+        );
+      })
+      // Sort A → Z by company name (ascending)
+      .sort((a, b) =>
+        (a.companyName || "").localeCompare(b.companyName || "", undefined, {
+          sensitivity: "base",
+        })
       );
-    });
   }, [clients, searchTerm, serviceFilter, clientNameFilter, memberFilter]);
 
   // Reset pagination to page 1 when search or filters change
@@ -682,18 +690,22 @@ const Clients = () => {
                       Client Name
                     </div>
                   </th>
-                  <th className="px-5 py-4 font-extrabold bg-transparent text-center border-r border-slate-200 dark:border-slate-700/60 w-28">
-                    No. of Projects
-                  </th>
+                  {(user?.role === "admin" || user?.role === "operationmanager") && (
+                    <th className="px-5 py-4 font-extrabold bg-transparent text-center border-r border-slate-200 dark:border-slate-700/60 w-28">
+                      No. of Projects
+                    </th>
+                  )}
                   <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[380px] border-r border-slate-200 dark:border-slate-700/60">
                     Service & Members
                   </th>
                   <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[280px] border-r border-slate-200 dark:border-slate-700/60">
                     Deliverables
                   </th>
-                  <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[140px] border-r border-slate-200 dark:border-slate-700/60">
-                    Financials
-                  </th>
+                  {(user?.role === "admin" || user?.role === "operationmanager") && (
+                    <th className="px-5 py-4 font-extrabold bg-transparent text-left w-[140px] border-r border-slate-200 dark:border-slate-700/60">
+                      Financials
+                    </th>
+                  )}
                   {user?.role === "team" && (
                     <th className="px-5 py-4 font-extrabold bg-transparent text-center border-r border-slate-200 dark:border-slate-700/60 last:border-r-0">
                       Assigned By
@@ -820,12 +832,14 @@ const Clients = () => {
                             </div>
                           </td>
 
-                          {/* No. of Projects */}
-                          <td className="px-5 py-4 bg-transparent transition-colors border-r border-slate-200 dark:border-slate-700/60 text-center w-28">
-                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold text-[11px] border border-blue-200/50 dark:border-blue-800/30">
-                              {projects?.filter(p => p.client?._id === client._id || p.client === client._id).length || 0}
-                            </span>
-                          </td>
+                           {/* No. of Projects */}
+                          {(user?.role === "admin" || user?.role === "operationmanager") && (
+                            <td className="px-5 py-4 bg-transparent transition-colors border-r border-slate-200 dark:border-slate-700/60 text-center w-28">
+                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold text-[11px] border border-blue-200/50 dark:border-blue-800/30">
+                                {projects?.filter(p => p.client?._id === client._id || p.client === client._id).length || 0}
+                              </span>
+                            </td>
+                          )}
 
 
 
@@ -1053,17 +1067,19 @@ const Clients = () => {
                             </div>
                           </td>
 
-                          {/* Financials (INR) */}
-                          <td className={cellClass}>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[13px] font-extrabold text-slate-800 dark:text-slate-100">
-                                ₹{(client.totalBudget || client.budget || 0).toLocaleString("en-IN")}
-                              </span>
-                              <span className="text-[10.5px] text-slate-400 dark:text-slate-500 font-bold">
-                                Base: ₹{(client.budget || 0).toLocaleString("en-IN")} • GST: {client.gst || 18}%
-                              </span>
-                            </div>
-                          </td>
+                           {/* Financials (INR) */}
+                          {(user?.role === "admin" || user?.role === "operationmanager") && (
+                            <td className={cellClass}>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[13px] font-extrabold text-slate-800 dark:text-slate-100">
+                                  ₹{(client.totalBudget || client.budget || 0).toLocaleString("en-IN")}
+                                </span>
+                                <span className="text-[10.5px] text-slate-400 dark:text-slate-500 font-bold">
+                                  Base: ₹{(client.budget || 0).toLocaleString("en-IN")} • GST: {client.gst || 18}%
+                                </span>
+                              </div>
+                            </td>
+                          )}
 
                           {/* Assigned By */}
                           {user?.role === "team" && (
@@ -1139,7 +1155,16 @@ const Clients = () => {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={5} className="px-5 py-24 text-center">
+                      <td
+                        colSpan={
+                          1 +
+                          (user?.role === "admin" || user?.role === "operationmanager" ? 2 : 0) +
+                          2 +
+                          (user?.role === "team" ? 1 : 0) +
+                          (user?.role === "admin" || user?.role === "operationmanager" ? 1 : 0)
+                        }
+                        className="px-5 py-24 text-center"
+                      >
                         <div className="flex flex-col items-center justify-center text-center">
                           <div className="w-14 h-14 rounded-full theme-bg-main flex items-center justify-center mb-3">
                             <FiUsers
@@ -2366,27 +2391,36 @@ const Clients = () => {
                             <h3 className="text-[15px] font-extrabold text-slate-800 dark:text-slate-100">
                               Projects ({clientProjects.length})
                             </h3>
-                            <button className="text-[13px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                            <Link to={`/${user.role}/projects`}>
+                             <button className="text-[13px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400">
                               View All
                             </button>
+                            </Link>
+                           
                           </div>
                           
                           <div className="space-y-3">
                             {clientProjects.slice(0, 5).map(project => (
-                              <div key={project._id} className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-800/30 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60">
-                                <div className="flex items-center gap-3.5">
-                                  <div 
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm"
-                                    style={{ background: project.color || "var(--accent-gradient)" }}
-                                  >
-                                    <FiBriefcase size={14} />
+                              <Link
+                                key={project._id}
+                                to={`/${user.role}/projects?id=${project._id}`}
+                                className="block"
+                              >
+                                <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-800/30 transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/20 hover:border-blue-200 dark:hover:border-blue-800/50 cursor-pointer group">
+                                  <div className="flex items-center gap-3.5">
+                                    <div 
+                                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm"
+                                      style={{ background: project.color || "var(--accent-gradient)" }}
+                                    >
+                                      <FiBriefcase size={14} />
+                                    </div>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 text-[13px] group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{project.name}</span>
                                   </div>
-                                  <span className="font-bold text-slate-800 dark:text-slate-200 text-[13px]">{project.name}</span>
+                                  <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+                                    {project.status || "Active"}
+                                  </span>
                                 </div>
-                                <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
-                                  {project.status || "Active"}
-                                </span>
-                              </div>
+                              </Link>
                             ))}
                             {clientProjects.length === 0 && (
                               <div className="flex flex-col items-center justify-center py-6 text-slate-400">

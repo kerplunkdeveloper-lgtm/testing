@@ -122,6 +122,8 @@ const projectRoutes = require("./routes/projectRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const portfolioRoutes = require("./routes/portfolioRoutes");
+const goalRoutes = require("./routes/goalRoutes");
+const stickyNoteRoutes = require("./routes/stickyNoteRoutes");
 
 app.get("/", (req, res) => {
   res.send("demo testing api da ithu :) ");
@@ -148,7 +150,6 @@ app.get("/api/health", (req, res) => {
 });
 
 
-
 // Mount routers
 app.use('/api/auth', auth);
 app.use('/api/users', users);
@@ -166,6 +167,8 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/portfolios', portfolioRoutes);
+app.use('/api/goals', goalRoutes);
+app.use('/api/stickynotes', stickyNoteRoutes);
 
 const PORT = process.env.PORT || 5001;
 
@@ -183,6 +186,10 @@ const io = require('socket.io')(server, {
 // Keep track of active calls in memory
 const activeCalls = {};
 
+// Keep track of online users
+const onlineUsers = {}; // userId -> Array of socketId
+const socketToUser = {}; // socketId -> userId
+
 // Socket.io connection logic
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -191,6 +198,18 @@ io.on('connection', (socket) => {
     socket.join(userId);
     socket.join("group_chat");
     console.log(`User ${userId} joined room & group_chat`);
+    
+    // Track online user
+    socketToUser[socket.id] = userId;
+    if (!onlineUsers[userId]) {
+      onlineUsers[userId] = [];
+    }
+    if (!onlineUsers[userId].includes(socket.id)) {
+      onlineUsers[userId].push(socket.id);
+    }
+    
+    // Broadcast the list of currently online userIds to everyone
+    io.emit('online_users_list', Object.keys(onlineUsers));
   });
 
   // WebRTC Signaling Events for Video/Audio Meetings
@@ -241,6 +260,21 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
+    
+    // Remove from online tracking
+    const userId = socketToUser[socket.id];
+    if (userId) {
+      delete socketToUser[socket.id];
+      if (onlineUsers[userId]) {
+        onlineUsers[userId] = onlineUsers[userId].filter(id => id !== socket.id);
+        if (onlineUsers[userId].length === 0) {
+          delete onlineUsers[userId];
+        }
+      }
+      // Broadcast updated online list
+      io.emit('online_users_list', Object.keys(onlineUsers));
+    }
+
     // Cleanup any active calls this socket was a part of
     for (const roomId in activeCalls) {
       const userIndex = activeCalls[roomId].findIndex(u => u.socketId === socket.id);

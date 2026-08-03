@@ -28,7 +28,7 @@ import UserModal from "./users/UserModel";
 import DeleteUserModal from "./users/DeleteUserModal";
 import PermissionsModal from "./users/PermissionsModal";
 
-const USERS_PER_PAGE = 6;
+const USERS_PER_PAGE = 7;
 
 const AdminUsers = () => {
 
@@ -200,8 +200,26 @@ const AdminUsers = () => {
       return matchesSearch && matchesDept;
     })
     .sort((a, b) => {
-      const roleOrder = { admin: 1, operationmanager: 2, team: 3 };
-      return roleOrder[a.role] - roleOrder[b.role];
+      if (a.role === 'admin' && b.role !== 'admin') return -1;
+      if (b.role === 'admin' && a.role !== 'admin') return 1;
+
+      if (a.role === 'operationmanager' && b.role !== 'operationmanager') return -1;
+      if (b.role === 'operationmanager' && a.role !== 'operationmanager') return 1;
+
+      const isASocial = a.department?.toLowerCase()?.includes('social media');
+      const isBSocial = b.department?.toLowerCase()?.includes('social media');
+      
+      if (isASocial && !isBSocial) return -1;
+      if (isBSocial && !isASocial) return 1;
+
+      const deptA = a.department || "ZZZ";
+      const deptB = b.department || "ZZZ";
+      
+      if (deptA !== deptB) {
+         return deptA.localeCompare(deptB);
+      }
+      
+      return a.name.localeCompare(b.name);
     });
 
   // PAGINATION
@@ -246,6 +264,30 @@ const AdminUsers = () => {
         setFilterDept={setFilterDept}
         isReadOnly={isReadOnly}
       />
+
+
+     <div className="flex flex-wrap items-center justify-between gap-4 p-1 mt-[-10px]">
+
+  <div className="flex flex-wrap items-center gap-3 text-sm">
+
+    <div className="px-3 py-1">
+      <span className="font-semibold">Department:</span>{" "}
+      <span className="font-medium  italic">
+        {filterDept || "All Departments"}
+      </span>
+    </div>
+
+    {searchTerm && (
+      <div className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+        🔍 <span className="italic">{searchTerm}</span>
+      </div>
+    )}
+
+  </div>
+
+  
+
+</div>
 
       <UserTable
         users={currentUsers}

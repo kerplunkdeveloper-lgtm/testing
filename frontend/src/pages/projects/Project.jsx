@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,6 +11,7 @@ import {
   FiChevronDown,
   FiBriefcase,
   FiLock,
+  FiSearch,
 } from "react-icons/fi";
 
 import {
@@ -19,7 +20,8 @@ import {
   updateProject,
   deleteProject,
 } from "../../features/projects/projectSlice";
-import { getClients } from "../../features/clients/clientslice";
+import { getClients, createClient } from "../../features/clients/clientslice";
+import toast from "react-hot-toast";
 import { getUsers } from "../../features/users/userSlice";
 import { getTasks } from "../../features/tasks/taskSlice";
 import { getPortfolios } from "../../features/portfolio/portfolioSlice";
@@ -44,14 +46,51 @@ const Project = () => {
   const { user: currentUser } = useSelector((state) => state.auth);
 
   // Local State
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [createdByFilter, setCreatedByFilter] = useState("All");
-  const [clientFilter, setClientFilter] = useState("All");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState(() => {
+    return localStorage.getItem("project_searchTerm") || "";
+  });
+  const [statusFilter, setStatusFilter] = useState(() => {
+    return localStorage.getItem("project_statusFilter") || "All";
+  });
+  const [createdByFilter, setCreatedByFilter] = useState(() => {
+    return localStorage.getItem("project_createdByFilter") || "All";
+  });
+  const [clientFilter, setClientFilter] = useState(() => {
+    return localStorage.getItem("project_clientFilter") || "All";
+  });
+  const [currentPage, setCurrentPage] = useState(() => {
+    const saved = localStorage.getItem("project_currentPage");
+    return saved ? parseInt(saved, 10) : 1;
+  });
   const itemsPerPage = 15;
 
+  const isFirstRender = useRef(true);
+
   useEffect(() => {
+    localStorage.setItem("project_searchTerm", searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    localStorage.setItem("project_statusFilter", statusFilter);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("project_createdByFilter", createdByFilter);
+  }, [createdByFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("project_clientFilter", clientFilter);
+  }, [clientFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("project_currentPage", currentPage.toString());
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setCurrentPage(1);
   }, [searchTerm, statusFilter, createdByFilter, clientFilter]);
 
@@ -70,6 +109,53 @@ const Project = () => {
   const [editClient, setEditClient] = useState("");
   const [editStatus, setEditStatus] = useState("Active");
   const [editAccess, setEditAccess] = useState("Private");
+
+  // States for custom client inline input option in selects
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [showCustomInputEdit, setShowCustomInputEdit] = useState(false);
+  const [customClientName, setCustomClientName] = useState("");
+  const [isSavingClient, setIsSavingClient] = useState(false);
+
+  const handleSaveCustomClient = async (isEditMode = false) => {
+    if (!customClientName.trim()) {
+      toast.error("Client name is required");
+      return;
+    }
+    setIsSavingClient(true);
+    try {
+      const response = await dispatch(
+        createClient({
+          companyName: customClientName.trim(),
+          industry: "Others",
+          phoneNumber: "N/A",
+          budget: 0,
+          gst: 18,
+          service: ["Others"],
+        })
+      ).unwrap();
+      const newClientId = response?._id || response?.id || response?.data?._id;
+      if (newClientId) {
+        if (isEditMode) {
+          setEditClient(newClientId);
+          setShowCustomInputEdit(false);
+        } else {
+          setClient(newClientId);
+          setShowCustomInput(false);
+        }
+        toast.success("Client added and selected!");
+      } else {
+        dispatch(getClients());
+        toast.success("Client created!");
+        if (isEditMode) setShowCustomInputEdit(false);
+        else setShowCustomInput(false);
+      }
+    } catch (err) {
+      const errMsg = typeof err === "string" ? err : err?.message || "Failed to create client";
+      toast.error(errMsg);
+    } finally {
+      setIsSavingClient(false);
+    }
+  };
 
   // Load Data
   useEffect(() => {
@@ -119,13 +205,15 @@ const Project = () => {
     setClient("");
     setStatus("Active");
     setAccess("Private");
+    setShowCustomInput(false);
+    setCustomClientName("");
     setShowCreateModal(true);
   };
 
   // Submit Create Project
   const handleCreateSubmit = (e) => {
     e.preventDefault();
-    if (!name) return;
+    if (!name || !client) return;
     dispatch(
       createProject({
         name,
@@ -145,6 +233,8 @@ const Project = () => {
     setEditClient(project.client?._id || project.client || "");
     setEditStatus(project.status);
     setEditAccess(project.access || "Private");
+    setShowCustomInputEdit(false);
+    setCustomClientName("");
     setShowEditModal(true);
   };
 
@@ -454,7 +544,8 @@ const Project = () => {
                         {(() => {
                           const createdUser = project.createdBy;
                           const avatarUrl =
-                            (typeof createdUser?.profile?.profileImage === "object"
+                            (typeof createdUser?.profile?.profileImage ===
+                            "object"
                               ? createdUser?.profile?.profileImage?.url
                               : createdUser?.profile?.profileImage) ||
                             (typeof createdUser?.profileImage === "object"
@@ -481,7 +572,7 @@ const Project = () => {
                             .join("")
                             .substring(0, 2)
                             .toUpperCase();
-                          
+
                           const AVATAR_COLORS = [
                             "from-violet-500 to-indigo-600",
                             "from-cyan-500 to-blue-600",
@@ -496,7 +587,9 @@ const Project = () => {
                             ];
 
                           return (
-                            <div className={`w-6 h-6 rounded-full bg-gradient-to-tr ${colorClass} flex items-center justify-center text-white text-[9px] font-black shadow-inner`}>
+                            <div
+                              className={`w-6 h-6 rounded-full bg-gradient-to-tr ${colorClass} flex items-center justify-center text-white text-[9px] font-black shadow-inner`}
+                            >
                               {initials}
                             </div>
                           );
@@ -699,31 +792,73 @@ const Project = () => {
                   {/* Client Select field */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-                      Client
+                      Client <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative">
-                      <select
-                        value={client}
-                        onChange={(e) => setClient(e.target.value)}
-                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
-                      >
-                        <option value="" className="dark:bg-[#111111]">
-                          Select a client
-                        </option>
-                        {clients?.map((c) => (
-                          <option
-                            key={c._id}
-                            value={c._id}
-                            className="dark:bg-[#111111]"
-                          >
-                            {c.companyName || c.name}
+                    {!showCustomInput ? (
+                      <div className="relative">
+                        <select
+                          value={client}
+                          onChange={(e) => {
+                            if (e.target.value === "ADD_CUSTOM") {
+                              setShowCustomInput(true);
+                              setCustomClientName("");
+                            } else {
+                              setClient(e.target.value);
+                            }
+                          }}
+                          required
+                          className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
+                        >
+                          <option value="" className="dark:bg-[#111111]">
+                            Select a client
                           </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <FiChevronDown size={16} />
+                          {clients?.map((c) => (
+                            <option
+                              key={c._id}
+                              value={c._id}
+                              className="dark:bg-[#111111]"
+                            >
+                              {c.companyName || c.name}
+                            </option>
+                          ))}
+                          <option value="ADD_CUSTOM" className="text-blue-600 font-extrabold dark:text-blue-400 dark:bg-[#111111]">
+                            + Add Custom Client...
+                          </option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                          <FiChevronDown size={16} />
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          type="text"
+                          required
+                          value={customClientName}
+                          onChange={(e) => setCustomClientName(e.target.value)}
+                          placeholder="Type custom client name..."
+                          className="flex-1 px-4 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-[#111111]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveCustomClient(false)}
+                          disabled={isSavingClient || !customClientName.trim()}
+                          className="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 dark:bg-[#3b82f6] dark:hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isSavingClient ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomInput(false);
+                            setClient("");
+                          }}
+                          className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-350 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Access Select field */}
@@ -870,29 +1005,70 @@ const Project = () => {
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                       Client
                     </label>
-                    <div className="relative">
-                      <select
-                        value={editClient}
-                        onChange={(e) => setEditClient(e.target.value)}
-                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
-                      >
-                        <option value="" className="dark:bg-[#111111]">
-                          Select a client (optional)
-                        </option>
-                        {clients?.map((c) => (
-                          <option
-                            key={c._id}
-                            value={c._id}
-                            className="dark:bg-[#111111]"
-                          >
-                            {c.companyName || c.name}
+                    {!showCustomInputEdit ? (
+                      <div className="relative">
+                        <select
+                          value={editClient}
+                          onChange={(e) => {
+                            if (e.target.value === "ADD_CUSTOM") {
+                              setShowCustomInputEdit(true);
+                              setCustomClientName("");
+                            } else {
+                              setEditClient(e.target.value);
+                            }
+                          }}
+                          className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
+                        >
+                          <option value="" className="dark:bg-[#111111]">
+                            Select a client (optional)
                           </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <FiChevronDown size={16} />
+                          {clients?.map((c) => (
+                            <option
+                              key={c._id}
+                              value={c._id}
+                              className="dark:bg-[#111111]"
+                            >
+                              {c.companyName || c.name}
+                            </option>
+                          ))}
+                          <option value="ADD_CUSTOM" className="text-blue-600 font-extrabold dark:text-blue-400 dark:bg-[#111111]">
+                            + Add Custom Client...
+                          </option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                          <FiChevronDown size={16} />
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          type="text"
+                          required
+                          value={customClientName}
+                          onChange={(e) => setCustomClientName(e.target.value)}
+                          placeholder="Type custom client name..."
+                          className="flex-1 px-4 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-[#111111]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveCustomClient(true)}
+                          disabled={isSavingClient || !customClientName.trim()}
+                          className="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 dark:bg-[#3b82f6] dark:hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isSavingClient ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomInputEdit(false);
+                            setEditClient("");
+                          }}
+                          className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-350 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Access Select field */}

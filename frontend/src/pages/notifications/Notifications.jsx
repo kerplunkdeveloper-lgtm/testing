@@ -256,27 +256,61 @@ const Notifications = () => {
                       : "bg-white border-slate-100 hover:bg-slate-50/50"
                   }`}
                 >
-                  {/* TYPE ICON */}
-                  <div
-                    className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 shadow-sm ${details.bgColor}`}
-                  >
-                    <Icon size={16} />
+                  {/* SENDER PROFILE AVATAR OR TYPE ICON */}
+                  <div className="relative shrink-0">
+                    {n.sender?.profile?.profileImage?.url ? (
+                      <img
+                        src={n.sender.profile.profileImage.url}
+                        alt={n.sender.name || "User"}
+                        className="w-11 h-11 rounded-full object-cover border-2 border-indigo-500/20 shadow-md"
+                      />
+                    ) : n.sender?.name ? (
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-black shadow-md">
+                        {n.sender.name.charAt(0).toUpperCase()}
+                      </div>
+                    ) : (
+                      <div
+                        className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 shadow-sm ${details.bgColor}`}
+                      >
+                        <Icon size={18} />
+                      </div>
+                    )}
+
+                    {/* Floating badge for notification type */}
+                    {(n.sender?.profile?.profileImage?.url || n.sender?.name) && (
+                      <div
+                        className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center text-white shadow-sm ${details.bgColor}`}
+                      >
+                        <Icon size={10} />
+                      </div>
+                    )}
                   </div>
 
                   {/* MESSAGE AND TIME */}
-                  <div className="flex-1 space-y-1 pr-6">
+                  <div className="flex-1 space-y-1.5 pr-6">
+                    {n.sender?.name && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-lg border border-indigo-200/50 dark:border-indigo-800/40">
+                          {n.sender.name}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          {n.type === "task_assigned" ? "Assigned task" : "Notification sent"}
+                        </span>
+                      </div>
+                    )}
+
                     <p
-                      className={`text-xs sm:text-sm font-semibold leading-relaxed ${
+                      className={`text-xs sm:text-sm leading-relaxed ${
                         !n.isRead
                           ? "text-slate-800 font-extrabold"
-                          : "text-slate-600"
+                          : "text-slate-600 font-medium"
                       }`}
                     >
                       {n.message}
                     </p>
 
-                    <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-                      <FiMail className="shrink-0 text-slate-350" size={11} />
+                    <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5 pt-0.5">
+                      <FiMail className="shrink-0 text-slate-400" size={11} />
                       {new Date(n.createdAt).toLocaleDateString([], {
                         month: "short",
                         day: "numeric",

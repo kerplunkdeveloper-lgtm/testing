@@ -1,7 +1,13 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../../context/ThemeContext";
-import { useGetTasksQuery } from "../../../features/api/apiSlice";
+import {
+  useGetTasksQuery,
+  useUpdateTaskMutation,
+} from "../../../features/api/apiSlice";
+import { createPortal } from "react-dom";
+import toast from "react-hot-toast";
 import { getDesignerEodReports } from "../../../features/eodReports/designerEodReportSlice";
 import {
   format,
@@ -10,6 +16,7 @@ import {
   parseISO,
   differenceInDays,
   isYesterday,
+  isTomorrow,
   isAfter,
   subDays,
   isSameMonth,
@@ -28,11 +35,42 @@ import {
   FiTrendingUp,
   FiXCircle,
   FiFileText,
+  FiPlay,
+  FiEye,
+  FiPauseCircle,
+  FiSearch,
 } from "react-icons/fi";
+
+const getPriorityStyle = (priority) => {
+  const p = priority?.toLowerCase() || "";
+  if (p.includes("top high"))
+    return "bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/30";
+  if (p.includes("high"))
+    return "bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30";
+  if (p.includes("medium"))
+    return "bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30";
+  if (p.includes("low"))
+    return "bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30";
+  return "bg-slate-50 text-slate-500 border border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800";
+};
 
 const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const dispatch = useDispatch();
   const { theme } = useTheme();
+  const performanceTableRef = useRef(null);
+  const navigate = useNavigate();
+
+  const handleMetricClick = (status) => {
+    let mappedFilter = "All";
+    if (dateFilter === "Today") mappedFilter = "Today";
+    else if (dateFilter === "Yesterday") mappedFilter = "Yesterday";
+    else if (dateFilter === "Last 7 Days") mappedFilter = "This Week";
+    else if (dateFilter === "This Month") mappedFilter = "This Month";
+    else if (dateFilter === "All Time") mappedFilter = "All";
+
+    localStorage.setItem("task_date_filter", mappedFilter);
+    navigate(`/${user?.role || "team"}/tasks?status=${status}`);
+  };
   const isDarkMode =
     theme === "dark" ||
     (theme === "system" &&
@@ -48,6 +86,23 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
   const [dateFilter, setDateFilter] = useState("Today");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [approvalModal, setApprovalModal] = useState({
+    open: false,
+    designerId: null,
+    designerName: "",
+  });
+  const [viewTasksModal, setViewTasksModal] = useState({
+    open: false,
+    designerId: null,
+    designerName: "",
+  });
+  const [taskTab, setTaskTab] = useState("all");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [bottleneckClient, setBottleneckClient] = useState("All Clients");
+  const [bottleneckCreator, setBottleneckCreator] = useState("All Creators");
+  const [bottleneckAssignee, setBottleneckAssignee] = useState("All Assignees");
+  const [bottleneckStatus, setBottleneckStatus] = useState("All Statuses");
+  const [updateTask] = useUpdateTaskMutation();
 
   useEffect(() => {
     const params = {};
@@ -98,11 +153,41 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             ? task.createdBy._id
             : task.createdBy;
         if (creatorId === currentUserId && task.assignedTo) {
-          const assigneeId =
-            typeof task.assignedTo === "object"
-              ? task.assignedTo._id
-              : task.assignedTo;
-          assignedDesignerIds.add(assigneeId);
+          // Filter by dateFilter so we only show designers who have tasks in the current view
+          let includeTask = true;
+          if (dateFilter !== "All Time") {
+            const taskCreatedDate = task.createdAt ? parseISO(task.createdAt) : null;
+            const taskDueDate = task.dueDate ? parseISO(task.dueDate) : null;
+            const dateToCheck = taskDueDate || taskCreatedDate;
+            
+            if (!dateToCheck) {
+              includeTask = false;
+            } else {
+              if (dateFilter === "Today") {
+                includeTask = isToday(dateToCheck);
+              } else if (dateFilter === "Yesterday") {
+                includeTask = isYesterday(dateToCheck);
+              } else if (dateFilter === "Last 7 Days") {
+                const sevenDaysAgo = subDays(new Date(), 7);
+                includeTask = isAfter(dateToCheck, sevenDaysAgo);
+              } else if (dateFilter === "This Month") {
+                const now = new Date();
+                includeTask = isSameMonth(dateToCheck, now);
+              }
+            }
+          }
+
+          // Also include tasks that are active (not completed) so they don't disappear if they were due yesterday
+          const status = task.status?.toLowerCase() || "";
+          const isActive = status !== "completed" && !status.includes("approve");
+
+          if (includeTask || isActive) {
+            const assigneeId =
+              typeof task.assignedTo === "object"
+                ? task.assignedTo._id
+                : task.assignedTo;
+            assignedDesignerIds.add(assigneeId);
+          }
         }
       });
 
@@ -110,7 +195,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     }
 
     return baseDesigners;
-  }, [users, allTasks, user, targetDept]);
+  }, [users, allTasks, user, targetDept, dateFilter]);
 
   const designerIds = useMemo(() => designers.map((d) => d._id), [designers]);
 
@@ -139,14 +224,27 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
       // Check Date
       if (dateFilter === "All Time") return true;
-      if (!task.createdAt) return true; // fallback
 
-      const taskDate = parseISO(task.createdAt);
-      if (dateFilter === "Today") return isToday(taskDate);
-      if (dateFilter === "Yesterday") return isYesterday(taskDate);
-      if (dateFilter === "Last 7 Days")
-        return isAfter(taskDate, subDays(new Date(), 7));
-      if (dateFilter === "This Month") return isSameMonth(taskDate, new Date());
+      const taskCreatedDate = task.createdAt ? parseISO(task.createdAt) : null;
+      const taskDueDate = task.dueDate ? parseISO(task.dueDate) : null;
+      const dateToCheck = taskDueDate || taskCreatedDate;
+
+      if (!dateToCheck) return false;
+
+      if (dateFilter === "Today") {
+        return isToday(dateToCheck);
+      }
+      if (dateFilter === "Yesterday") {
+        return isYesterday(dateToCheck);
+      }
+      if (dateFilter === "Last 7 Days") {
+        const sevenDaysAgo = subDays(new Date(), 7);
+        return isAfter(dateToCheck, sevenDaysAgo);
+      }
+      if (dateFilter === "This Month") {
+        const now = new Date();
+        return isSameMonth(dateToCheck, now);
+      }
 
       return true;
     });
@@ -156,20 +254,23 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const metrics = useMemo(() => {
     let completed = 0;
     let pending = 0;
+    let inProgress = 0;
+    let onHold = 0;
+    let inReview = 0;
     let overdue = 0;
-    let inRevision = 0;
-    let clientApproval = 0;
     let rejected = 0;
     let totalRevisions = 0;
 
     designerTasks.forEach((task) => {
       const status = task.status?.toLowerCase() || "";
-      if (status === "completed") completed++;
+      if (status === "completed" || status.includes("approve")) completed++;
       else if (status.includes("reject")) rejected++;
-      else if (status.includes("revision")) inRevision++;
-      else if (status.includes("client") || status.includes("approval"))
-        clientApproval++;
-      else pending++;
+      else if (status.includes("hold")) onHold++;
+      else if (status.includes("progress")) inProgress++;
+      else if (status.includes("review") || status.includes("revision"))
+        inReview++;
+      else if (status === "pending") pending++;
+      else pending++; // default fallback
 
       totalRevisions += task.revisions || 0;
 
@@ -187,9 +288,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       tasksAssigned: designerTasks.length,
       completed,
       pending,
+      inProgress,
+      onHold,
+      inReview,
       overdue,
-      inRevision,
-      clientApproval,
       rejected,
       totalRevisions,
     };
@@ -200,9 +302,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     const counts = {
       "Client Calls": 0,
       "Urgent Tasks": 0,
-      "Revisions": 0,
-      "Meetings": 0,
-      "Other": 0
+      Revisions: 0,
+      Meetings: 0,
+      Other: 0,
     };
 
     const processBlocker = (type) => {
@@ -221,7 +323,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
     designerTasks.forEach((task) => {
       if (task.blockerHistory && Array.isArray(task.blockerHistory)) {
-        task.blockerHistory.forEach(b => processBlocker(b.blockerType));
+        task.blockerHistory.forEach((b) => processBlocker(b.blockerType));
       }
       if (task.isBlocked) {
         processBlocker(task.blockerType);
@@ -235,7 +337,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const boardColumns = [
     "Pending",
     "In Progress",
-    "Revision Pending",
+    "On Hold",
+    "IN REVIEW",
     "Rejected",
     "Completed",
   ];
@@ -243,8 +346,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     const status = task.status || "Pending";
     if (boardColumns.includes(status)) return status;
     if (status.toLowerCase().includes("progress")) return "In Progress";
-    if (status.toLowerCase().includes("review")) return "Revision Pending";
-    if (status.toLowerCase().includes("revision")) return "Revision";
+    if (status.toLowerCase().includes("hold")) return "On Hold";
+    if (status.toLowerCase().includes("review")) return "IN REVIEW";
+    if (status.toLowerCase().includes("revision")) return "IN REVIEW";
     if (status.toLowerCase().includes("reject")) return "Rejected";
     if (status.toLowerCase().includes("approve")) return "Completed";
     if (status.toLowerCase() === "completed") return "Completed";
@@ -274,18 +378,30 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
       let comp = 0;
       let pend = 0;
+      let prog = 0;
+      let hold = 0;
+      let rev = 0;
       let over = 0;
       let totalRevisions = 0;
       let totalLoggedMs = 0;
+      let inProgressLoggedMs = 0;
       let totalBlockerMs = 0;
+      let totalApprovalMs = 0;
+      let approvalCount = 0;
       const blockerTypesSet = new Set();
 
       myTasks.forEach((t) => {
         const s = t.status?.toLowerCase() || "";
-        if (s === "completed") comp++;
-        else pend++;
-        if (t.dueDate && isPast(parseISO(t.dueDate)) && s !== "completed")
-          over++;
+        const isCompleted = s === "completed" || s.includes("approve");
+
+        if (isCompleted) comp++;
+        else if (s.includes("hold")) hold++;
+        else if (s.includes("progress")) prog++;
+        else if (s.includes("review") || s.includes("revision")) rev++;
+        else if (s === "pending") pend++;
+        else pend++; // default fallback
+
+        if (t.dueDate && isPast(parseISO(t.dueDate)) && !isCompleted) over++;
 
         totalRevisions += t.revisions || 0;
 
@@ -293,8 +409,15 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           const start = new Date(t.actualStartTime).getTime();
           const end = t.actualEndTime
             ? new Date(t.actualEndTime).getTime()
-            : Date.now();
-          totalLoggedMs += Math.max(0, end - start);
+            : t.pausedAt
+              ? new Date(t.pausedAt).getTime()
+              : Date.now();
+          const paused = t.totalPausedMs || 0;
+          const taskLoggedMs = Math.max(0, end - start - paused);
+          totalLoggedMs += taskLoggedMs;
+          if (s.includes("progress")) {
+            inProgressLoggedMs += taskLoggedMs;
+          }
         }
 
         // Collect blockers and compute blocker time
@@ -314,7 +437,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             }
           });
         }
-        
+
         if (t.isBlocked) {
           if (t.blockerType) {
             blockerTypesSet.add(t.blockerType);
@@ -329,9 +452,29 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         }
       });
 
+      // Compute approval time: time from task completion/approval to now or approvedAt
+      myTasks.forEach((t) => {
+        const s = t.status?.toLowerCase() || "";
+        const isCompleted = s === "completed" || s.includes("approve");
+        if (isCompleted && t.actualEndTime) {
+          const endTime = new Date(t.actualEndTime).getTime();
+          const approvedAt = t.approvedAt
+            ? new Date(t.approvedAt).getTime()
+            : t.updatedAt
+              ? new Date(t.updatedAt).getTime()
+              : endTime;
+          const diff = Math.max(0, approvedAt - endTime);
+          totalApprovalMs += diff;
+          approvalCount++;
+        }
+      });
+
       const avgRevisions =
         myTasks.length > 0 ? totalRevisions / myTasks.length : 0;
       const totalHours = totalLoggedMs / (1000 * 60 * 60);
+      const inProgressHours = inProgressLoggedMs / (1000 * 60 * 60);
+      const avgApprovalMs =
+        approvalCount > 0 ? totalApprovalMs / approvalCount : 0;
 
       const getLocalDateString = (date = new Date()) => {
         const year = date.getFullYear();
@@ -408,12 +551,26 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         assigned: myTasks.length,
         completed: comp,
         pending: pend,
+        inProgress: prog,
+        onHold: hold,
+        inReview: rev,
+        inReviewTasks: myTasks.filter((t) => {
+          const s = t.status?.toLowerCase() || "";
+          return s.includes("review") || s.includes("revision");
+        }),
         overdue: over,
         avgRevisions,
         totalHours,
-        blockers: blockerTypesSet.size > 0 ? Array.from(blockerTypesSet).join(", ") : "none",
+        inProgressHours,
+        inProgressLoggedMs,
+        avgApprovalMs,
+        blockers:
+          blockerTypesSet.size > 0
+            ? Array.from(blockerTypesSet).join(", ")
+            : "none",
         blockerTimeMs: totalBlockerMs,
         lastSubmitted: lastSubmittedStr,
+        tasks: myTasks,
       };
     });
   }, [designers, designerTasks, designerEodReports, dateFilter]);
@@ -462,24 +619,224 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     });
   }, [designerTasks, projects, clients]);
 
-  // 7. Delayed Projects/Tasks
-  const delayedTasks = useMemo(() => {
+  // 7. Delayed Projects/Tasks (Raw active bottlenecks)
+  const rawBottleneckTasks = useMemo(() => {
     return designerTasks
-      .filter(
-        (t) =>
-          t.dueDate &&
-          isPast(parseISO(t.dueDate)) &&
-          t.status?.toLowerCase() !== "completed",
-      )
+      .filter((t) => {
+        const s = t.status?.toLowerCase() || "";
+        const isActive = s !== "completed" && !s.includes("approve");
+        return isActive;
+      })
       .map((t) => {
-        let diff = differenceInDays(new Date(), parseISO(t.dueDate));
+        const s = t.status?.toLowerCase() || "";
+        let diff = t.dueDate
+          ? differenceInDays(new Date(), parseISO(t.dueDate))
+          : 0;
+        let delayText = "";
+        if (s.includes("hold")) {
+          delayText = "On Hold";
+        } else if (diff === 0) {
+          delayText = "Due Today";
+        } else if (diff < 0) {
+          delayText =
+            Math.abs(diff) +
+            (Math.abs(diff) === 1 ? " day" : " days") +
+            " left";
+        } else {
+          delayText = diff + (diff === 1 ? " day" : " days") + " delayed";
+        }
+
+        let projName = "No Project";
+        if (t.project) {
+          const pId = typeof t.project === "object" ? t.project._id : t.project;
+          const p = projects?.find((x) => x._id === pId);
+          projName = p?.name || "Unknown";
+        }
+
+        let clientId = t.client;
+        if (typeof clientId === "object" && clientId?._id)
+          clientId = clientId._id;
+        if (!clientId && t.project) {
+          const pId = typeof t.project === "object" ? t.project._id : t.project;
+          const p = projects?.find((x) => x._id === pId);
+          clientId = p?.client?._id || p?.client;
+        }
+        const cl = clients?.find((c) => c._id === clientId);
+        const clientName = cl?.name || cl?.companyName || "No Client";
+
+        const creatorObj =
+          t.createdBy && typeof t.createdBy === "object"
+            ? t.createdBy
+            : users?.find((u) => u._id === t.createdBy);
+        const creatorName = creatorObj?.name || "Unknown";
+        const creatorImage =
+          (typeof creatorObj?.profile?.profileImage === "object"
+            ? creatorObj?.profile?.profileImage?.url
+            : creatorObj?.profile?.profileImage) ||
+          (typeof creatorObj?.profileImage === "object"
+            ? creatorObj?.profileImage?.url
+            : creatorObj?.profileImage) ||
+          creatorObj?.profilePic ||
+          creatorObj?.avatar ||
+          creatorObj?.profile?.profilePic ||
+          creatorObj?.profile?.avatar ||
+          null;
+
+        const assigneeObj = t.assignedTo
+          ? typeof t.assignedTo === "object"
+            ? t.assignedTo
+            : designers.find((d) => d._id === t.assignedTo) ||
+              users?.find((u) => u._id === t.assignedTo)
+          : null;
+        const assigneeName = assigneeObj?.name || "Unassigned";
+        const assigneeImage =
+          (typeof assigneeObj?.profile?.profileImage === "object"
+            ? assigneeObj?.profile?.profileImage?.url
+            : assigneeObj?.profile?.profileImage) ||
+          (typeof assigneeObj?.profileImage === "object"
+            ? assigneeObj?.profileImage?.url
+            : assigneeObj?.profileImage) ||
+          assigneeObj?.profilePic ||
+          assigneeObj?.avatar ||
+          assigneeObj?.profile?.profilePic ||
+          assigneeObj?.profile?.avatar ||
+          null;
+
         return {
           ...t,
-          daysDelayed:
-            diff === 0 ? "Same day" : diff + (diff === 1 ? " day" : " days"),
+          projName,
+          clientName,
+          creatorName,
+          creatorImage,
+          assigneeName,
+          assigneeImage,
+          daysDelayed: delayText,
         };
       });
-  }, [designerTasks]);
+  }, [designerTasks, projects, clients, users, designers]);
+
+  const bottleneckClients = useMemo(() => {
+    return [
+      "All Clients",
+      ...new Set(rawBottleneckTasks.map((t) => t.clientName)),
+    ];
+  }, [rawBottleneckTasks]);
+
+  const bottleneckCreators = useMemo(() => {
+    return [
+      "All Creators",
+      ...new Set(rawBottleneckTasks.map((t) => t.creatorName)),
+    ];
+  }, [rawBottleneckTasks]);
+
+  const bottleneckAssignees = useMemo(() => {
+    return [
+      "All Assignees",
+      ...new Set(rawBottleneckTasks.map((t) => t.assigneeName)),
+    ];
+  }, [rawBottleneckTasks]);
+
+  const bottleneckStatuses = useMemo(() => {
+    return [
+      "All Statuses",
+      ...new Set(rawBottleneckTasks.map((t) => t.status)),
+    ].filter(Boolean);
+  }, [rawBottleneckTasks]);
+
+  const delayedTasks = useMemo(() => {
+    return rawBottleneckTasks.filter((t) => {
+      if (
+        bottleneckClient !== "All Clients" &&
+        t.clientName !== bottleneckClient
+      )
+        return false;
+      if (
+        bottleneckCreator !== "All Creators" &&
+        t.creatorName !== bottleneckCreator
+      )
+        return false;
+      if (
+        bottleneckAssignee !== "All Assignees" &&
+        t.assigneeName !== bottleneckAssignee
+      )
+        return false;
+      if (bottleneckStatus !== "All Statuses" && t.status !== bottleneckStatus)
+        return false;
+      return true;
+    });
+  }, [
+    rawBottleneckTasks,
+    bottleneckClient,
+    bottleneckCreator,
+    bottleneckAssignee,
+    bottleneckStatus,
+  ]);
+
+  const activeDesigner = useMemo(() => {
+    return viewTasksModal.open
+      ? teamPerformance.find((p) => p.id === viewTasksModal.designerId)
+      : null;
+  }, [viewTasksModal.open, viewTasksModal.designerId, teamPerformance]);
+
+  const designerTasksList = useMemo(() => {
+    return activeDesigner?.tasks || [];
+  }, [activeDesigner]);
+
+  const getTaskCategory = (status = "") => {
+    const s = status.toLowerCase();
+    if (s === "assigned") return "assigned";
+    if (s === "pending") return "pending";
+    if (s.includes("progress")) return "inprogress";
+    if (s.includes("hold")) return "onhold";
+    if (s.includes("review") || s.includes("revision")) return "inreview";
+    if (s === "completed" || s.includes("approve")) return "completed";
+    return "pending";
+  };
+
+  const filteredModalTasks = useMemo(() => {
+    return designerTasksList.filter((task) => {
+      if (taskTab !== "all") {
+        const cat = getTaskCategory(task.status);
+        if (cat !== taskTab) return false;
+      }
+      if (taskSearch.trim()) {
+        const q = taskSearch.toLowerCase();
+        const titleMatch = task.title?.toLowerCase().includes(q);
+
+        let projName = "";
+        if (task.project) {
+          const pId =
+            typeof task.project === "object" ? task.project._id : task.project;
+          const p = projects?.find((x) => x._id === pId);
+          projName = p?.name || "";
+        }
+        const projectMatch = projName.toLowerCase().includes(q);
+
+        return titleMatch || projectMatch;
+      }
+      return true;
+    });
+  }, [designerTasksList, taskTab, taskSearch, projects]);
+
+  const modalTabCounts = useMemo(() => {
+    const counts = {
+      all: 0,
+      assigned: 0,
+      pending: 0,
+      inprogress: 0,
+      onhold: 0,
+      inreview: 0,
+      completed: 0,
+    };
+    designerTasksList.forEach((task) => {
+      counts.all++;
+      const cat = getTaskCategory(task.status);
+      if (counts[cat] !== undefined) {
+        counts[cat]++;
+      }
+    });
+    return counts;
+  }, [designerTasksList]);
 
   if (isLoading) {
     return (
@@ -551,8 +908,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                         setShowDropdown(false);
                       }}
                       className={`w-full text-left px-4 py-3 text-sm font-black transition-colors ${
-                        dateFilter === option 
-                          ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
+                        dateFilter === option
+                          ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                           : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-slate-100"
                       }`}
                     >
@@ -565,14 +922,15 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           </AnimatePresence>
         </div>
       </div>
-
       {/* Premium Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-7 gap-3 lg:gap-2 relative z-10">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3 lg:gap-2 relative z-10">
         {[
           {
             label:
               user?.role === "admin" || user?.role === "operationmanager"
-                ? (targetDept.toLowerCase().endsWith("s") ? `Total ${targetDept}` : `Total ${targetDept}s`)
+                ? targetDept.toLowerCase().endsWith("s")
+                  ? `Total ${targetDept}`
+                  : `Total ${targetDept}s`
                 : `Assigned ${targetDept}`,
             value: metrics.designersWorking,
             icon: FiUsers,
@@ -583,6 +941,11 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             iconBg:
               "bg-blue-100 dark:bg-blue-950 border border-blue-200 dark:border-blue-500",
             iconColor: "text-blue-600 dark:text-blue-400",
+            onClick: () => {
+              performanceTableRef.current?.scrollIntoView({
+                behavior: "smooth",
+              });
+            },
           },
           {
             label: "Tasks Assigned",
@@ -595,6 +958,59 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             iconBg:
               "bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/20",
             iconColor: "text-indigo-600 dark:text-indigo-400",
+            onClick: () => handleMetricClick("All"),
+          },
+          {
+            label: "Pending",
+            value: metrics.pending,
+            icon: FiClock,
+            glow: "hover:shadow-[0_4px_20px_rgba(245,158,11,0.15)]",
+            bg: "bg-slate-300 dark:bg-slate-300 border border-amber-200/50 dark:border-amber-900/30",
+            labelColor: "text-white dark:text-white",
+            valueColor: "text-slate-100 dark:text-white",
+            iconBg:
+              "bg-white dark:bg-amber-950/60 border border-amber-200 dark:border-amber-500/20",
+            iconColor: "text-black dark:text-amber-400",
+            onClick: () => handleMetricClick("Pending"),
+          },
+          {
+            label: "In Progress",
+            value: metrics.inProgress,
+            icon: FiPlay,
+            glow: "hover:shadow-[0_4px_20px_rgba(14,165,233,0.15)]",
+            bg: "bg-gradient-to-br from-sky-400 to-sky-600 dark:from-sky-850 dark:to-sky-950 border border-sky-200/50 dark:border-sky-900/30",
+            labelColor: "text-white dark:text-white",
+            valueColor: "text-slate-100 dark:text-white",
+            iconBg:
+              "bg-sky-100 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-500/20",
+            iconColor: "text-sky-600 dark:text-sky-400",
+            onClick: () => handleMetricClick("In Progress"),
+          },
+          {
+            label: "On Hold",
+            value: metrics.onHold,
+            icon: FiPauseCircle,
+            glow: "hover:shadow-[0_4px_20px_rgba(217,70,239,0.15)]",
+            bg: "bg-gradient-to-br from-fuchsia-500 to-fuchsia-600 dark:from-fuchsia-800 dark:to-fuchsia-900 border border-fuchsia-200/50 dark:border-fuchsia-900/30",
+            labelColor: "text-white dark:text-white",
+            valueColor: "text-slate-100 dark:text-white",
+            iconBg:
+              "bg-fuchsia-100 dark:bg-fuchsia-950/60 border border-fuchsia-200 dark:border-fuchsia-500/20",
+            iconColor: "text-fuchsia-600 dark:text-fuchsia-400",
+            onClick: () => handleMetricClick("On Hold"),
+          },
+          {
+            label: "In Review",
+            value: metrics.inReview,
+            icon: FiEye,
+            glow: "hover:shadow-[0_4px_20px_rgba(99,102,241,0.15)]",
+            bg: "bg-yellow-400 dark:from-indigo-850 dark:to-indigo-950 border border-indigo-200/50 dark:border-indigo-900/30",
+            labelColor: "text-white dark:text-white",
+            valueColor: "text-slate-100 dark:text-white",
+            iconBg:
+              "bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/20",
+            iconColor: "text-indigo-600 dark:text-indigo-400",
+            onClick: () => handleMetricClick("IN-REVIEW"),
           },
           {
             label: "Completed",
@@ -607,42 +1023,20 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             iconBg:
               "bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-500/20",
             iconColor: "text-emerald-600 dark:text-emerald-400",
-          },
-          {
-            label: "Pending",
-            value: metrics.pending,
-            icon: FiClock,
-            glow: "hover:shadow-[0_4px_20px_rgba(245,158,11,0.15)]",
-            bg: "bg-gradient-to-br from-amber-500 to-amber-600 dark:from-amber-800 dark:to-amber-900 border border-amber-200/50 dark:border-amber-900/30",
-            labelColor: "text-white dark:text-white",
-            valueColor: "text-slate-100 dark:text-white",
-            iconBg:
-              "bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-500/20",
-            iconColor: "text-amber-600 dark:text-amber-400",
-          },
-          {
-            label: "Revision",
-            value: metrics.totalRevisions,
-            icon: FiTrendingUp,
-            glow: "hover:shadow-[0_4px_20px_rgba(139,92,246,0.15)]",
-            bg: "bg-gradient-to-br from-indigo-500 to-indigo-600 dark:from-indigo-800 dark:to-indigo-950 border border-indigo-200/50 dark:border-indigo-900/30",
-            labelColor: "text-white dark:text-white",
-            valueColor: "text-slate-100 dark:text-white",
-            iconBg:
-              "bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/20",
-            iconColor: "text-indigo-600 dark:text-indigo-400",
+            onClick: () => handleMetricClick("Completed"),
           },
           {
             label: "Overdue",
             value: metrics.overdue,
             icon: FiAlertCircle,
             glow: "hover:shadow-[0_4px_20px_rgba(244,63,94,0.15)]",
-            bg: "bg-gradient-to-br from-rose-500 to-rose-600 dark:from-rose-600 dark:to-rose-800 border border-rose-200/50 dark:border-rose-900/30",
+            bg: "bg-gradient-to-br from-rose-400 to-rose-400 dark:from-rose-600 dark:to-rose-800 border border-rose-200/50 dark:border-rose-900/30",
             labelColor: "text-white dark:text-white",
             valueColor: "text-slate-100 dark:text-white",
             iconBg:
               "bg-rose-100 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-500/20",
             iconColor: "text-rose-600 dark:text-rose-400",
+            onClick: () => handleMetricClick("Overdue"),
           },
           {
             label: "Rejected",
@@ -655,6 +1049,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             iconBg:
               "bg-red-100 dark:bg-red-950/60 border border-red-200 dark:border-red-500/20",
             iconColor: "text-red-600 dark:text-red-400",
+            onClick: () => handleMetricClick("Rejected"),
           },
         ].map((m, i) => {
           const IconComponent = m.icon;
@@ -664,7 +1059,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
               key={i}
-              className={`flex flex-col text-left p-3 rounded-2xl ${m.bg} ${m.glow} relative overflow-hidden group hover:scale-[1.03] transition-all duration-300 backdrop-blur-md shadow-sm`}
+              onClick={m.onClick}
+              className={`flex flex-col text-left p-3 rounded-2xl ${m.bg} ${m.glow} relative overflow-hidden group hover:scale-[1.03] transition-all duration-300 backdrop-blur-md shadow-sm ${m.onClick ? "cursor-pointer" : ""}`}
             >
               {/* Decorative light reflection overlay */}
               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/10 to-transparent rounded-full -mr-6 -mt-6 blur-md pointer-events-none" />
@@ -691,7 +1087,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           );
         })}
       </div>
-
       {/* Today's Interruptions */}
       <div className="mb-8 relative z-10">
         <div className="bg-slate-50 dark:bg-slate-100 p-5 rounded-3xl backdrop-blur-md shadow-lg">
@@ -708,29 +1103,44 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                 Total Blockers Today
               </span>
             </div>
-            
+
             <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-white dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:border-blue-400 transition-colors group">
-                <span className="text-2xl font-black text-blue-600 dark:text-blue-400 block group-hover:scale-105 transition-transform origin-left">{interruptions.counts["Client Calls"]}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">Client Calls</span>
+                <span className="text-2xl font-black text-blue-600 dark:text-blue-400 block group-hover:scale-105 transition-transform origin-left">
+                  {interruptions.counts["Client Calls"]}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
+                  Client Calls
+                </span>
               </div>
               <div className="bg-white dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:border-rose-400 transition-colors group">
-                <span className="text-2xl font-black text-rose-600 dark:text-rose-400 block group-hover:scale-105 transition-transform origin-left">{interruptions.counts["Urgent Tasks"]}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">Urgent Tasks</span>
+                <span className="text-2xl font-black text-rose-600 dark:text-rose-400 block group-hover:scale-105 transition-transform origin-left">
+                  {interruptions.counts["Urgent Tasks"]}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
+                  Urgent Tasks
+                </span>
               </div>
               <div className="bg-white dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:border-purple-400 transition-colors group">
-                <span className="text-2xl font-black text-purple-600 dark:text-purple-400 block group-hover:scale-105 transition-transform origin-left">{interruptions.counts["Revisions"]}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">Revisions</span>
+                <span className="text-2xl font-black text-purple-600 dark:text-purple-400 block group-hover:scale-105 transition-transform origin-left">
+                  {interruptions.counts["Revisions"]}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
+                  Revisions
+                </span>
               </div>
               <div className="bg-white dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:border-emerald-400 transition-colors group">
-                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 block group-hover:scale-105 transition-transform origin-left">{interruptions.counts["Meetings"]}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">Meetings</span>
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 block group-hover:scale-105 transition-transform origin-left">
+                  {interruptions.counts["Meetings"]}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
+                  Meetings
+                </span>
               </div>
             </div>
           </div>
         </div>
       </div>
-
       {/* Live Task Board */}
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-4 px-1">
@@ -742,137 +1152,242 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             LIVE SYNC
           </span>
         </div>
-        <div className="flex xl:grid xl:grid-cols-5 overflow-x-auto gap-3 pb-6 snap-x hide-scrollbar">
-          {boardColumns.map((col, i) => (
-            <div
-              key={i}
-              className="min-w-[210px] xl:min-w-0 w-full flex-shrink-0 snap-start bg-slate-50 dark:bg-[#0f172a] backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-300/80 flex flex-col max-h-[450px] shadow-sm"
-            >
-              <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-800/80 rounded-t-2xl backdrop-blur-md">
-                <span className="text-[10px] font-black text-slate-800 dark:text-black tracking-widest uppercase truncate max-w-[80%]">
-                  {col}
-                </span>
-                <span className="text-[10px] font-black bg-slate-200 dark:bg-indigo-500/20 text-slate-700 dark:text-white px-2 py-0.5 rounded-md border border-slate-300 dark:border-indigo-500/30 shrink-0">
-                  {tasksByColumn[col].length}
-                </span>
-              </div>
-              <div className="p-2.5 overflow-y-auto space-y-2.5 flex-1 custom-scrollbar">
-                <AnimatePresence>
-                  {tasksByColumn[col].map((task) => {
-                    let projName = "No Project";
-                    if (task.project) {
-                      const pId =
-                        typeof task.project === "object"
-                          ? task.project._id
-                          : task.project;
-                      const p = projects?.find((x) => x._id === pId);
-                      projName = p?.name || "Unknown";
-                    }
+        <div className="flex flex-col lg:flex-row gap-3 pb-6">
+          {boardColumns.map((col, i) => {
+            let colBg = "bg-slate-50 dark:bg-slate-800/80";
+            let boardBg = "bg-slate-50/50 dark:bg-[#0f172a]";
+            let colBorder = "border-slate-200 dark:border-slate-700";
+            let textCol = "text-slate-800 dark:text-white";
+            let countBg = "bg-slate-200 dark:bg-slate-700";
+            let countText = "text-slate-700 dark:text-slate-300";
 
-                    return (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        key={task._id}
-                        className="bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-400 transition-all shadow-sm hover:shadow-md relative group backdrop-blur-sm"
-                      >
-                        <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-indigo-500 to-purple-500 rounded-l-xl opacity-100" />
-                        {/* Title row: icon + name on left, date on right */}
-                        <div className="flex items-start justify-between gap-2 pl-1.5 mb-2">
-                          <div className="flex items-start gap-1.5 min-w-0">
-                            <FiFileText size={12} className="text-indigo-400 dark:text-indigo-400 shrink-0 mt-0.5" />
-                            <p className="text-xs font-bold text-slate-700 dark:text-white leading-snug break-words">
-                              {task.title}
-                            </p>
-                          </div>
-                          {task.dueDate && (
-                            <span
-                              className={`shrink-0 flex items-center gap-1 text-[9px] font-bold whitespace-nowrap ${isPast(parseISO(task.dueDate)) && task.status !== "Completed" ? "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded" : "text-slate-400 dark:text-slate-500"}`}
-                            >
-                              <FiClock size={9} />
-                              {format(parseISO(task.dueDate), "MMM dd")}
-                            </span>
-                          )}
-                        </div>
-                        {/* Assigned User */}
-                        {(() => {
-                          const aId = task.assignedTo
-                            ? typeof task.assignedTo === "object"
-                              ? task.assignedTo._id
-                              : task.assignedTo
-                            : null;
-                          const assignedUser = aId
-                            ? designers.find((d) => d._id === aId) ||
-                              (task.assignedTo &&
-                              typeof task.assignedTo === "object"
-                                ? task.assignedTo
-                                : null)
-                            : null;
-                          const assignedByName = task.createdBy
-                            ? typeof task.createdBy === "object"
-                              ? task.createdBy.name
-                              : null
-                            : null;
-                          if (!assignedUser && !assignedByName) return null;
-                          const profileImg =
-                            assignedUser?.profile?.profileImage?.url ||
-                            assignedUser?.profileImage?.url ||
-                            null;
-                          const initials = (assignedUser?.name || "")
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .toUpperCase()
-                            .slice(0, 2);
-                          return (
-                            <div className="mt-2 pl-1 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
-                              {/* Assigned To — left */}
-                              {assignedUser ? (
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  {profileImg ? (
-                                    <img
-                                      src={profileImg}
-                                      alt={assignedUser.name}
-                                      className="w-5 h-5 rounded-full object-cover ring-1 ring-indigo-400/40 shrink-0"
-                                    />
-                                  ) : (
-                                    <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[8px] font-black ring-1 ring-indigo-400/30 shrink-0">
-                                      {initials}
-                                    </div>
-                                  )}
-                                  <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 truncate">
-                                    {assignedUser.name}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div />
-                              )}
-                              {/* Assigned By — right */}
-                              {assignedByName && (
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <span className="text-[9px] font-black bg-yellow-500 p-2 rounded-full text-black  uppercase tracking-wider">
-                                    SM
-                                  </span>
-                                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                                    {assignedByName}
-                                  </span>
-                                </div>
-                              )}
+            const lowerCol = col.toLowerCase();
+            if (lowerCol === "pending") {
+              colBg = "bg-slate-300 dark:bg-slate-300";
+              boardBg = "bg-slate-50/50 dark:bg-[#0f172a]";
+              textCol = "text-white dark:text-slate-900";
+              colBorder = "border-slate-300 dark:border-slate-600";
+              countBg = "bg-slate-200 dark:bg-slate-700";
+              countText = "text-slate-800 dark:text-slate-100";
+            } else if (lowerCol === "in progress") {
+              colBg = "bg-blue-500 dark:bg-blue-500";
+              boardBg = "bg-blue-50/30 dark:bg-[#0f172a]";
+              textCol = "text-white dark:text-white";
+              colBorder = "border-blue-200 dark:border-blue-800/50";
+              countBg = "bg-blue-100 dark:bg-blue-800/50";
+              countText = "text-blue-800 dark:text-blue-300";
+            } else if (lowerCol === "on hold") {
+              colBg = "bg-[#da1cf1] dark:bg-[#da1cf1]";
+              boardBg = "bg-amber-50/30 dark:bg-[#0f172a]";
+              textCol = "text-white dark:text-white";
+              colBorder = "border-amber-200 dark:border-amber-800/50";
+              countBg = "bg-amber-100 dark:bg-amber-800/50";
+              countText = "text-amber-800 dark:text-amber-300";
+            } else if (lowerCol === "in review") {
+              colBg = "bg-yellow-300 dark:bg-yellow-300";
+              boardBg = "bg-indigo-50/30 dark:bg-[#0f172a]";
+              textCol = "text-white dark:text-white";
+              colBorder = "border-indigo-200 dark:border-indigo-800/50";
+              countBg = "bg-indigo-100 dark:bg-indigo-800/50";
+              countText = "text-indigo-800 dark:text-indigo-300";
+            } else if (lowerCol === "completed") {
+              colBg = "bg-green-500 dark:bg-green-500";
+              boardBg = "bg-emerald-50/30 dark:bg-[#0f172a]";
+              textCol = "text-white dark:text-white";
+              colBorder = "border-emerald-200 dark:border-emerald-800/50";
+              countBg = "bg-emerald-100 dark:bg-emerald-800/50";
+              countText = "text-emerald-800 dark:text-emerald-300";
+            } else if (lowerCol === "rejected") {
+              colBg = "bg-rose-500 dark:bg-rose-500";
+              boardBg = "bg-rose-50/30 dark:bg-[#0f172a]";
+              textCol = "text-white dark:text-white";
+              colBorder = "border-rose-200 dark:border-rose-800/50";
+              countBg = "bg-rose-100 dark:bg-rose-800/50";
+              countText = "text-rose-800 dark:text-rose-300";
+            }
+
+            return (
+              <div
+                key={i}
+                className={`flex-1 min-w-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[550px] shadow-sm`}
+              >
+                <div
+                  className={`p-3 border-b flex items-center justify-between rounded-t-2xl backdrop-blur-md ${colBg} ${colBorder}`}
+                >
+                  <span
+                    className={`text-[10px] font-black tracking-widest uppercase truncate max-w-[80%] ${textCol}`}
+                  >
+                    {col}
+                  </span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${countBg} ${countText}`}
+                  >
+                    {tasksByColumn[col].length}
+                  </span>
+                </div>
+                <div className="p-2.5 overflow-y-auto space-y-2.5 flex-1 custom-scrollbar">
+                  <AnimatePresence>
+                    {tasksByColumn[col].map((task) => {
+                      let clientName = "No Client";
+                      if (task.client) {
+                        const cId =
+                          typeof task.client === "object"
+                            ? task.client._id
+                            : task.client;
+                        const c = clients?.find((x) => x._id === cId);
+                        clientName =
+                          c?.companyName ||
+                          c?.name ||
+                          (typeof task.client === "object"
+                            ? task.client.companyName || task.client.name
+                            : "Unknown Client");
+                      } else if (task.project) {
+                        const pId =
+                          typeof task.project === "object"
+                            ? task.project._id
+                            : task.project;
+                        const p = projects?.find((x) => x._id === pId);
+                        if (p) {
+                          const cId =
+                            typeof p.client === "object"
+                              ? p.client?._id
+                              : p.client;
+                          const c = clients?.find((x) => x._id === cId);
+                          clientName =
+                            c?.companyName ||
+                            c?.name ||
+                            (typeof p.client === "object"
+                              ? p.client.companyName || p.client.name
+                              : "Unknown Client");
+                        }
+                      }
+
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          key={task._id}
+                          className="bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-400 transition-all shadow-sm hover:shadow-md relative group backdrop-blur-sm"
+                        >
+                          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-indigo-500 to-purple-500 rounded-l-xl opacity-100" />
+                          {/* Title row: icon + name on left, date on right */}
+                          <div className="flex items-start justify-between gap-2 pl-1.5 mb-2">
+                            <div className="flex items-start gap-1.5 min-w-0">
+                              <FiFileText
+                                size={12}
+                                className="text-indigo-400 dark:text-indigo-400 shrink-0 mt-0.5"
+                              />
+                              <p className="text-[9px] font-bold text-slate-700 dark:text-white leading-snug break-words">
+                                {task.title}
+                              </p>
                             </div>
-                          );
-                        })()}
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
+                            {task.dueDate && (
+                              <span
+                                className={`shrink-0 flex items-center gap-1 text-[9px] font-bold whitespace-nowrap ${isPast(parseISO(task.dueDate)) && task.status !== "Completed" ? "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded" : "text-slate-400 dark:text-slate-500"}`}
+                              >
+                                <FiClock size={9} />
+                                {format(parseISO(task.dueDate), "MMM dd")}
+                              </span>
+                            )}
+                          </div>
+                          {/* Project and Priority Info */}
+                          <div className="flex items-center justify-between gap-2 mt-1 pl-1.5 mb-2">
+                            <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 truncate max-w-[65%]">
+                              {clientName}
+                            </span>
+                            {task.priority && (
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${getPriorityStyle(task.priority)}`}
+                              >
+                                {task.priority}
+                              </span>
+                            )}
+                          </div>
+                          {/* Assigned User */}
+                          {(() => {
+                            const aId = task.assignedTo
+                              ? typeof task.assignedTo === "object"
+                                ? task.assignedTo._id
+                                : task.assignedTo
+                              : null;
+                            const assignedUser = aId
+                              ? designers.find((d) => d._id === aId) ||
+                                (task.assignedTo &&
+                                typeof task.assignedTo === "object"
+                                  ? task.assignedTo
+                                  : null)
+                              : null;
+                            const assignedByName = task.createdBy
+                              ? typeof task.createdBy === "object"
+                                ? task.createdBy.name
+                                : null
+                              : null;
+                            if (!assignedUser && !assignedByName) return null;
+                            const profileImg =
+                              assignedUser?.profile?.profileImage?.url ||
+                              assignedUser?.profileImage?.url ||
+                              null;
+                            const initials = (assignedUser?.name || "")
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2);
+                            const creatorInitials = (assignedByName || "")
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2);
+                            return (
+                              <div className="mt-2 pl-1 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
+                                {/* Assigned To — left */}
+                                {assignedUser ? (
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    {profileImg ? (
+                                      <img
+                                        src={profileImg}
+                                        alt={assignedUser.name}
+                                        className="w-5 h-5 rounded-full object-cover ring-1 ring-indigo-400/40 shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[8px] font-black ring-1 ring-indigo-400/30 shrink-0">
+                                        {initials}
+                                      </div>
+                                    )}
+                                    <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 truncate">
+                                      {assignedUser.name}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div />
+                                )}
+                                {/* Assigned By — right */}
+                                {assignedByName && (
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 flex items-center justify-center text-[8px] font-black ring-1 ring-amber-400/30 shrink-0">
+                                      {creatorInitials || "SM"}
+                                    </div>
+                                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                      {assignedByName}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
-
-      <div className="relative z-10">
+      <div className="relative z-10 scroll-mt-6" ref={performanceTableRef}>
         {/* Team Performance */}
         <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm dark:shadow-2xl">
           <div className="p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-transparent flex justify-between items-center">
@@ -887,72 +1402,94 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 dark:bg-slate-800/60">
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     {targetDept}
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-slate-500 text-white dark:bg-slate-700 dark:text-white">
                     Assigned
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
-                    Completed
-                  </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-red-500 text-white dark:bg-red-650 dark:text-white">
                     Pending
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-violet-500 text-white dark:bg-violet-600 dark:text-white">
+                    In Progress
+                  </th>
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-fuchsia-500 text-white dark:bg-fuchsia-600 dark:text-white">
+                    On Hold
+                  </th>
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-yellow-400 text-slate-950 dark:bg-yellow-500 dark:text-slate-950">
+                    In Review
+                  </th>
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest uppercase bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white">
+                    Completed
+                  </th>
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Revisions
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Blockers
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Blocker Time
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
-                    Total Hours
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                    Productivity
                   </th>
-                  <th className="p-4 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Delay
                   </th>
-                  <th className="p-4 border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Last Submitted
+                  </th>
+                  <th className="py-2.5 px-3 border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                    Action
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80">
-                {teamPerformance.map((tp) => (
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80 text-xs">
+                {teamPerformance.map((tp, idx) => (
                   <tr
                     key={tp.id}
                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
                   >
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-bold text-slate-700 dark:text-white">
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-semibold text-slate-750 dark:text-slate-200">
                       <div className="flex items-center gap-2">
                         {tp.profileImage ? (
                           <img
                             src={tp.profileImage}
                             alt={tp.name}
-                            className="w-6 h-6 rounded-full object-cover border border-slate-400"
+                            className="w-5 h-5 rounded-full object-cover border border-slate-300"
                           />
                         ) : (
-                          <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[9px] font-extrabold tracking-wider">
+                          <div className="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[8px] font-extrabold tracking-wider">
                             {getInitials(tp.name)}
                           </div>
                         )}
                         {tp.name}
                       </div>
                     </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-650 dark:text-slate-200">
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-semibold text-slate-700 dark:text-slate-200">
                       {tp.assigned}
                     </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-650 dark:text-slate-200">
-                      {tp.completed}
-                    </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-650 dark:text-slate-200">
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-extrabold bg-red-100 text-red-850 dark:bg-red-950/40 dark:text-red-400">
                       {tp.pending}
                     </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-600 dark:text-slate-200">
-                      <div className="flex items-center gap-2.5 min-w-[110px]">
-                        <div className="w-14 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-extrabold bg-violet-100 text-violet-850 dark:bg-violet-950/40 dark:text-violet-400">
+                      {tp.inProgress}
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-extrabold bg-fuchsia-100 text-fuchsia-850 dark:bg-fuchsia-950/40 dark:text-fuchsia-400">
+                      {tp.onHold}
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-extrabold bg-yellow-100 text-yellow-850 dark:bg-yellow-950/40 dark:text-yellow-450">
+                      {tp.inReview}
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-extrabold bg-emerald-100 text-emerald-850 dark:bg-emerald-950/40 dark:text-emerald-400">
+                      {tp.completed}
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs text-slate-650 dark:text-slate-200">
+                      <div className="flex items-center gap-2 min-w-[95px]">
+                        <div className="w-10 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden shrink-0">
                           <div
                             className={`h-full rounded-full ${
                               tp.avgRevisions <= 1.5
@@ -966,20 +1503,22 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                             }}
                           />
                         </div>
-                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-300">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
                           {tp.avgRevisions.toFixed(1)} avg
                         </span>
                       </div>
                     </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm text-slate-600 dark:text-slate-200">
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-200">
                       {tp.blockers === "none" ? (
-                        <span className="text-slate-400 dark:text-slate-500 font-bold italic">none</span>
+                        <span className="text-slate-400 dark:text-slate-500 font-bold italic text-[10px]">
+                          none
+                        </span>
                       ) : (
-                        <div className="flex flex-wrap gap-1 max-w-[180px]">
+                        <div className="flex flex-wrap gap-1 max-w-[150px]">
                           {tp.blockers.split(", ").map((b, idx) => (
                             <span
                               key={idx}
-                              className="px-2 py-0.5 text-[10px] font-bold rounded bg-orange-50 dark:bg-orange-500/10 text-orange-650 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20"
+                              className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-orange-50 dark:bg-orange-500/10 text-orange-650 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20"
                             >
                               {b}
                             </span>
@@ -987,50 +1526,94 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                         </div>
                       )}
                     </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-600 dark:text-slate-200">
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-semibold text-slate-600 dark:text-slate-350">
                       {tp.blockerTimeMs > 0 ? (
                         <span className="text-orange-600 dark:text-orange-400">
                           {(() => {
-                            const totalMinutes = Math.floor(tp.blockerTimeMs / (1000 * 60));
+                            const totalMinutes = Math.floor(
+                              tp.blockerTimeMs / (1000 * 60),
+                            );
                             const h = Math.floor(totalMinutes / 60);
                             const m = totalMinutes % 60;
                             return h > 0 ? `${h}h ${m}m` : `${m}m`;
                           })()}
                         </span>
                       ) : (
-                        <span className="text-slate-400 dark:text-slate-500 font-medium">0m</span>
+                        <span className="text-slate-400 dark:text-slate-500 font-medium">
+                          0m
+                        </span>
                       )}
                     </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black text-slate-600 dark:text-slate-200">
-                      {tp.totalHours.toFixed(1)}h
-                    </td>
-                    <td className="p-4 border-r border-b border-slate-100 dark:border-slate-700/60 text-sm font-black">
-                      {tp.overdue > 0 ? (
-                        <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-extrabold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                          <span>{tp.overdue} overdue</span>
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs text-center">
+                      {tp.inProgressLoggedMs > 0 ? (
+                        <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-blue-50/80 border border-blue-200 text-blue-700 font-black text-[11px] tracking-wide dark:bg-blue-900/30 dark:border-blue-700/50 dark:text-blue-400 shadow-sm">
+                          {(() => {
+                            const totalSecs = Math.floor(
+                              tp.inProgressLoggedMs / 1000,
+                            );
+                            const h = Math.floor(totalSecs / 3600);
+                            const m = Math.floor((totalSecs % 3600) / 60);
+                            const s = totalSecs % 60;
+                            if (h > 0) return `${h}h ${m}m ${s}s`;
+                            return `${m}m ${s}s`;
+                          })()}
                         </div>
                       ) : (
-                        <span className="text-slate-400 dark:text-slate-500 font-medium">0</span>
+                        <span className="text-slate-400 dark:text-slate-500 font-bold">
+                          —
+                        </span>
                       )}
                     </td>
-                    <td className="p-4 border-b border-slate-100 dark:border-slate-700/60 text-xs font-bold">
+
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-semibold">
+                      {tp.overdue > 0 ? (
+                        <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-extrabold">
+                          <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                          <span className="text-[10px]">
+                            {tp.overdue} overdue
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 dark:text-slate-500 font-medium text-[10px]">
+                          0
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold">
                       {tp.lastSubmitted === "Not submitted" ? (
-                        <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 font-semibold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+                        <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 font-semibold">
+                          <span className="w-1 h-1 rounded-full bg-slate-350 dark:bg-slate-700" />
                           <span>Not submitted</span>
                         </div>
                       ) : tp.lastSubmitted === "Draft" ? (
-                        <div className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400 font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        <div className="flex items-center gap-1 text-amber-500 dark:text-amber-400 font-bold">
+                          <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
                           <span>Draft</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-extrabold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                          <span className="w-1 h-1 rounded-full bg-emerald-500" />
                           <span>{tp.lastSubmitted}</span>
                         </div>
                       )}
+                    </td>
+                    <td className="py-2.5 px-3 border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewTasksModal({
+                            open: true,
+                            designerId: tp.id,
+                            designerName: tp.name,
+                          });
+                          setTaskTab("all");
+                          setTaskSearch("");
+                        }}
+                        className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-650 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50 transition-all cursor-pointer flex items-center justify-center mx-auto"
+                        title="View Performance Tasks"
+                      >
+                        <FiEye size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1038,28 +1621,85 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             </table>
           </div>
         </div>
-      </div>
-
+      </div>{" "}
       {/* Delayed Projects & Bottlenecks */}
       <div className="bg-white dark:bg-[#0f172a]/90 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-700/80 overflow-hidden shadow-sm dark:shadow-xl relative z-10">
-        <div className="p-5 border-b border-slate-200 dark:border-slate-700/80 flex items-center gap-3 bg-slate-50 dark:bg-transparent">
-          <div className="p-2 bg-rose-100 dark:bg-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400">
-            <FiAlertCircle className="text-lg" />
+        <div className="p-5 border-b border-slate-200 dark:border-slate-700/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50 dark:bg-transparent">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-rose-100 dark:bg-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400">
+              <FiAlertCircle className="text-lg" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white tracking-widest">
+              Delayed Projects & Bottlenecks
+            </h3>
           </div>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-white tracking-widest">
-            Delayed Projects & Bottlenecks
-          </h3>
+
+          {/* Filters Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full lg:w-auto">
+            {/* Client Filter */}
+            <select
+              value={bottleneckClient}
+              onChange={(e) => setBottleneckClient(e.target.value)}
+              className="px-2.5 py-1.5 text-[10px] font-bold bg-white dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700/80 rounded-lg text-slate-700 dark:text-slate-250 focus:outline-none focus:border-rose-500 transition-all shadow-sm"
+            >
+              {bottleneckClients.map((client) => (
+                <option key={client} value={client}>
+                  {client}
+                </option>
+              ))}
+            </select>
+
+            {/* Creator Filter */}
+            <select
+              value={bottleneckCreator}
+              onChange={(e) => setBottleneckCreator(e.target.value)}
+              className="px-2.5 py-1.5 text-[10px] font-bold bg-white dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700/80 rounded-lg text-slate-700 dark:text-slate-250 focus:outline-none focus:border-rose-500 transition-all shadow-sm"
+            >
+              {bottleneckCreators.map((creator) => (
+                <option key={creator} value={creator}>
+                  {creator}
+                </option>
+              ))}
+            </select>
+
+            {/* Assignee Filter */}
+            <select
+              value={bottleneckAssignee}
+              onChange={(e) => setBottleneckAssignee(e.target.value)}
+              className="px-2.5 py-1.5 text-[10px] font-bold bg-white dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700/80 rounded-lg text-slate-700 dark:text-slate-250 focus:outline-none focus:border-rose-500 transition-all shadow-sm"
+            >
+              {bottleneckAssignees.map((assignee) => (
+                <option key={assignee} value={assignee}>
+                  {assignee}
+                </option>
+              ))}
+            </select>
+
+            {/* Status Filter */}
+            <select
+              value={bottleneckStatus}
+              onChange={(e) => setBottleneckStatus(e.target.value)}
+              className="px-2.5 py-1.5 text-[10px] font-bold bg-white dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700/80 rounded-lg text-slate-700 dark:text-slate-250 focus:outline-none focus:border-rose-500 transition-all shadow-sm"
+            >
+              {bottleneckStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="p-5 space-y-4">
+
+        <div className="p-5 space-y-4 max-h-[420px] overflow-y-auto custom-scrollbar">
           {delayedTasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-emerald-500 dark:text-emerald-400">
               <FiCheckCircle className="text-4xl mb-3 opacity-50" />
               <p className="text-sm font-black tracking-widest uppercase">
-                Zero Delays!
+                Zero Bottlenecks!
               </p>
             </div>
           ) : (
-            delayedTasks.slice(0, 5).map((task) => {
+            delayedTasks.map((task) => {
               let projName = "No Project";
               if (task.project) {
                 const pId =
@@ -1069,24 +1709,145 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                 const p = projects?.find((x) => x._id === pId);
                 projName = p?.name || "Unknown";
               }
+
+              const s = task.status?.toLowerCase() || "";
+              let cardStyle = "border-rose-500 bg-rose-50 dark:bg-rose-500/10";
+              let badgeStyle =
+                "bg-rose-100 text-rose-700 border-rose-205 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/30";
+              let timeBadgeStyle =
+                "text-rose-600 dark:text-rose-300 bg-white dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30";
+
+              if (s.includes("hold")) {
+                cardStyle =
+                  "border-fuchsia-500 bg-fuchsia-50/50 dark:bg-fuchsia-500/10";
+                badgeStyle =
+                  "bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200 dark:bg-fuchsia-950/40 dark:text-fuchsia-400 dark:border-fuchsia-900/30";
+                timeBadgeStyle =
+                  "text-fuchsia-600 dark:text-fuchsia-300 bg-white dark:bg-fuchsia-500/20 border border-fuchsia-200 dark:border-fuchsia-500/30";
+              } else if (s.includes("progress")) {
+                cardStyle = "border-blue-500 bg-blue-50/50 dark:bg-blue-500/10";
+                badgeStyle =
+                  "bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900/30";
+                timeBadgeStyle =
+                  "text-blue-600 dark:text-blue-300 bg-white dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30";
+              } else if (s.includes("review") || s.includes("revision")) {
+                cardStyle =
+                  "border-yellow-500 bg-yellow-50/50 dark:bg-yellow-500/10";
+                badgeStyle =
+                  "bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-450 dark:border-yellow-900/30";
+                timeBadgeStyle =
+                  "text-yellow-600 dark:text-yellow-450 bg-white dark:bg-yellow-500/20 border border-yellow-250 dark:border-yellow-500/30";
+              } else if (s.includes("pending") || s.includes("assigned")) {
+                cardStyle =
+                  "border-orange-500 bg-orange-50/50 dark:bg-orange-500/10";
+                badgeStyle =
+                  "bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-900/30";
+                timeBadgeStyle =
+                  "text-orange-655 dark:text-orange-400 bg-white dark:bg-orange-500/20 border border-orange-200 dark:border-orange-500/30";
+              }
+
+              // Hash function to get unique soft badge style per client
+              const getClientBadgeStyle = (name) => {
+                const hash = name
+                  .split("")
+                  .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                const colors = [
+                  "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30",
+                  "bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900/30",
+                  "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30",
+                  "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30",
+                  "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/30",
+                  "bg-pink-50 text-pink-600 border-pink-200 dark:bg-pink-950/30 dark:text-pink-400 dark:border-pink-900/30",
+                  "bg-cyan-50 text-cyan-600 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-900/30",
+                ];
+                return colors[hash % colors.length];
+              };
+
+              const clientBadgeColor = getClientBadgeStyle(task.clientName);
+
               return (
                 <div
                   key={task._id}
-                  className="flex items-center justify-between p-4 rounded-xl border-l-4 border-rose-500 bg-rose-50 dark:bg-rose-500/10 shadow-sm dark:shadow-none transition-transform hover:-translate-y-0.5"
+                  className={`flex flex-col md:flex-row md:items-center md:justify-between p-3.5 rounded-xl border-l-4 ${cardStyle} shadow-sm dark:shadow-none transition-all hover:scale-[1.01] hover:shadow-md gap-4`}
                 >
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                      {projName} —{" "}
-                      <span className="text-slate-500 dark:text-slate-400">
-                        {task.title}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <span
+                        className={`px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded-md border ${clientBadgeColor}`}
+                      >
+                        {task.clientName}
                       </span>
+                      <span className="text-[10px] text-slate-300 dark:text-slate-700">
+                        •
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                        {projName}
+                      </span>
+                    </div>
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
+                      {task.title}
                     </h4>
-                    <p className="text-[11px] text-slate-500 font-bold mt-1 uppercase tracking-widest">
-                      {task.status}
-                    </p>
+
+                    <div className="flex items-center gap-6 mt-3 flex-wrap">
+                      {/* Creator */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">
+                          Creator:
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {task.creatorImage ? (
+                            <img
+                              src={task.creatorImage}
+                              alt={task.creatorName}
+                              className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center text-[8px] font-black ring-1 ring-slate-300 shrink-0">
+                              {getInitials(task.creatorName)}
+                            </div>
+                          )}
+                          <span className="text-[11px] font-bold text-slate-750 dark:text-slate-300">
+                            {task.creatorName}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Assignee */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">
+                          Assignee:
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {task.assigneeImage ? (
+                            <img
+                              src={task.assigneeImage}
+                              alt={task.assigneeName}
+                              className="w-5 h-5 rounded-full object-cover ring-1 ring-indigo-400/40 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[8px] font-black ring-1 ring-indigo-400/30 shrink-0">
+                              {getInitials(task.assigneeName)}
+                            </div>
+                          )}
+                          <span className="text-[11px] font-bold text-slate-755 dark:text-slate-300">
+                            {task.assigneeName}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs font-black text-rose-600 dark:text-rose-300 bg-white dark:bg-rose-500/20 px-4 py-1.5 rounded-lg border border-rose-200 dark:border-rose-500/30 shadow-sm">
-                    {task.daysDelayed}
+
+                  <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                    <span
+                      className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded border ${badgeStyle}`}
+                    >
+                      {task.status}
+                    </span>
+                    <div
+                      className={`text-[10px] font-black px-2.5 py-1 rounded-lg border shadow-sm ${timeBadgeStyle}`}
+                    >
+                      {task.daysDelayed}
+                    </div>
                   </div>
                 </div>
               );
@@ -1094,6 +1855,715 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           )}
         </div>
       </div>
+      {/* Approval Modal */}
+      {approvalModal.open &&
+        createPortal(
+          <div className="fixed inset-0 z-[999] flex items-center justify-center">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() =>
+                setApprovalModal({
+                  open: false,
+                  designerId: null,
+                  designerName: "",
+                })
+              }
+            />
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative z-10 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-wide">
+                    Approval — {approvalModal.designerName}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5 uppercase tracking-widest">
+                    In Review Tasks
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setApprovalModal({
+                      open: false,
+                      designerId: null,
+                      designerName: "",
+                    })
+                  }
+                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all cursor-pointer"
+                >
+                  <FiXCircle size={18} />
+                </button>
+              </div>
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {(() => {
+                  const tp = teamPerformance.find(
+                    (p) => p.id === approvalModal.designerId,
+                  );
+                  const reviewTasks = tp?.inReviewTasks || [];
+                  if (reviewTasks.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-10 text-slate-400 dark:text-slate-500">
+                        <FiCheckCircle size={32} className="mb-2 opacity-50" />
+                        <p className="text-xs font-black uppercase tracking-widest">
+                          No tasks in review
+                        </p>
+                      </div>
+                    );
+                  }
+                  return reviewTasks.map((task) => {
+                    let projName = "No Project";
+                    if (task.project) {
+                      const pId =
+                        typeof task.project === "object"
+                          ? task.project._id
+                          : task.project;
+                      const p = projects?.find((x) => x._id === pId);
+                      projName = p?.name || "Unknown";
+                    }
+                    return (
+                      <div
+                        key={task._id}
+                        className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 hover:border-indigo-300 dark:hover:border-indigo-500/30 transition-all group"
+                      >
+                        {/* Approve Checkbox */}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const now = new Date().toISOString();
+                            try {
+                              await updateTask({
+                                id: task._id,
+                                taskData: {
+                                  status: "Completed",
+                                  approvedAt: now,
+                                  actualEndTime: task.actualEndTime || now,
+                                },
+                              }).unwrap();
+                              toast.success(`"${task.title}" approved!`);
+                            } catch (err) {
+                              toast.error("Failed to approve task");
+                            }
+                          }}
+                          className="mt-0.5 w-5 h-5 shrink-0 rounded-md border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500 dark:hover:border-emerald-400 flex items-center justify-center transition-all cursor-pointer group-hover:border-emerald-400 dark:group-hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                          title="Approve this task"
+                        >
+                          <FiCheckCircle
+                            size={12}
+                            className="text-transparent group-hover:text-emerald-500 transition-colors"
+                          />
+                        </button>
+                        {/* Task Details */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-700 dark:text-white leading-snug break-words">
+                            {task.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                              {projName}
+                            </span>
+                            <span className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-500/20">
+                              {task.status}
+                            </span>
+                            {task.dueDate && (
+                              <span className="flex items-center gap-0.5 text-[9px] font-bold text-slate-400 dark:text-slate-500">
+                                <FiClock size={9} />
+                                {format(parseISO(task.dueDate), "MMM dd")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </motion.div>
+          </div>,
+          document.body,
+        )}
+      {/* View Tasks Modal */}
+      {viewTasksModal.open &&
+        createPortal(
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() =>
+                setViewTasksModal({
+                  open: false,
+                  designerId: null,
+                  designerName: "",
+                })
+              }
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative z-10 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-6xl h-[85vh] overflow-hidden flex flex-col"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between shrink-0">
+                <div className="flex items-center justify-between gap-3">
+                  {activeDesigner?.profileImage ? (
+                    <img
+                      src={activeDesigner.profileImage}
+                      alt={activeDesigner.name}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-indigo-500/20"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-extrabold">
+                      {getInitials(activeDesigner?.name)}
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="text-base font-black text-slate-800 dark:text-white tracking-wide">
+                      {activeDesigner?.name}'s Performance Details
+                    </h3>
+                    <p className="text-[12px] text-red-500 dark:text-red-500 font-bold uppercase tracking-widest mt-0.5">
+                      Today No.of Task Assigned : {activeDesigner?.assigned}
+                    </p>
+                  </div>
+                </div>
+
+                {/* status filter venum */}
+                <div className="flex items-center gap-4">
+                  <span>status filter:</span>
+                  <select
+                    value={taskTab}
+                    onChange={(e) => setTaskTab(e.target.value)}
+                    className="px-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl text-slate-700 dark:text-white placeholder-slate-450 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 transition-all shadow-inner"
+                  >
+                    <option value="all">All</option>
+                    <option value="pending">Pending</option>
+                    <option value="inprogress">In Progress</option>
+                    <option value="onhold">On Hold</option>
+                    <option value="inreview">In Review</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+
+                {/* overdue details */}
+                <div className="flex items-center gap-4">
+                  <span
+                    className={`px-1.5 py-0.5 text-[17px] font-black uppercase rounded-md border ${
+                      (activeDesigner?.overdue || 0) > 0
+                        ? "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400 border-red-300 dark:border-red-900/30 animate-pulse shadow-sm shadow-red-500/20"
+                        : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-900/30"
+                    }`}
+                  >
+                    OverDue : {activeDesigner?.overdue || 0}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewTasksModal({
+                      open: false,
+                      designerId: null,
+                      designerName: "",
+                    })
+                  }
+                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-850 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 transition-all cursor-pointer"
+                >
+                  <FiXCircle size={22} />
+                </button>
+              </div>
+
+              {/* Modal Body Container */}
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                {/* Top Side: Card Metrics list in grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 p-6 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50/30 dark:bg-slate-900/10 shrink-0 select-none">
+                  {[
+                    {
+                      id: "all",
+                      label: "Assigned",
+                      count: modalTabCounts.all,
+                      colorClass: "text-blue-600 dark:text-blue-400",
+                      dotBg: "bg-blue-500",
+                      activeClass:
+                        "ring-2 ring-blue-500 bg-blue-500 text-white border-transparent",
+                    },
+                    {
+                      id: "pending",
+                      label: "Pending",
+                      count: modalTabCounts.pending,
+                      colorClass: "text-rose-650 dark:text-rose-400",
+                      dotBg: "bg-rose-500",
+                      activeClass:
+                        "ring-2 ring-rose-500 bg-rose-500 text-white border-transparent",
+                    },
+                    {
+                      id: "inprogress",
+                      label: "In Progress",
+                      count: modalTabCounts.inprogress,
+                      colorClass: "text-violet-650 dark:text-violet-400",
+                      dotBg: "bg-violet-500",
+                      activeClass:
+                        "ring-2 ring-violet-500 bg-violet-500 text-white border-transparent",
+                    },
+                    {
+                      id: "onhold",
+                      label: "On Hold",
+                      count: modalTabCounts.onhold,
+                      colorClass: "text-fuchsia-650 dark:text-fuchsia-400",
+                      dotBg: "bg-fuchsia-500",
+                      activeClass:
+                        "ring-2 ring-fuchsia-500 bg-fuchsia-500 text-white border-transparent",
+                    },
+                    {
+                      id: "inreview",
+                      label: "In Review",
+                      count: modalTabCounts.inreview,
+                      colorClass: "text-amber-600 dark:text-amber-400",
+                      dotBg: "bg-amber-500",
+                      activeClass:
+                        "ring-2 ring-amber-500 bg-amber-500 text-white border-transparent",
+                    },
+                    {
+                      id: "completed",
+                      label: "Completed",
+                      count: modalTabCounts.completed,
+                      colorClass: "text-emerald-650 dark:text-emerald-400",
+                      dotBg: "bg-emerald-500",
+                      activeClass:
+                        "ring-2 ring-emerald-500 bg-emerald-500 text-white border-transparent",
+                    },
+                  ].map((card) => {
+                    const isActive = taskTab === card.id;
+                    return (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => setTaskTab(card.id)}
+                        className={`p-4 rounded-xl border text-left transition-all hover:scale-[1.03] flex flex-col justify-between h-24 relative overflow-hidden shadow-sm duration-200 cursor-pointer ${
+                          isActive
+                            ? card.activeClass
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span
+                            className={`text-[10px] font-black uppercase tracking-widest ${isActive ? "text-white/85" : "text-slate-400 dark:text-slate-500"}`}
+                          >
+                            {card.label}
+                          </span>
+                          <span
+                            className={`w-2 h-2 rounded-full ${isActive ? "bg-white" : card.dotBg}`}
+                          />
+                        </div>
+                        <div className="mt-2 flex items-baseline gap-1">
+                          <span
+                            className={`text-2xl font-black ${isActive ? "text-white" : "text-slate-800 dark:text-white"}`}
+                          >
+                            {card.count}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold ${isActive ? "text-white/77" : "text-slate-400"}`}
+                          >
+                            tasks
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Bottom Side: Task details table */}
+                <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-[#0f172a] p-6 overflow-hidden">
+                  {/* Table Content */}
+                  <div
+                    className="flex-1 overflow-y-auto min-h-0 scroll-smooth custom-scrollbar"
+                    style={{
+                      scrollBehavior: "smooth",
+                      WebkitOverflowScrolling: "touch",
+                    }}
+                  >
+                    {filteredModalTasks.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-slate-900/10 rounded-2xl border border-dashed border-slate-200 dark:border-slate-850">
+                        <FiLayers
+                          size={36}
+                          className="mb-3 opacity-40 text-slate-400"
+                        />
+                        <p className="text-sm font-black uppercase tracking-widest text-slate-500">
+                          No tasks found
+                        </p>
+                        <p className="text-xs text-slate-400 dark:text-slate-550 mt-1 font-semibold">
+                          Try modifying your search or status filter
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="border border-slate-200 dark:border-slate-850 rounded-2xl overflow-hidden shadow-sm bg-white dark:bg-slate-900/20">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-850">
+                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                                Task Title
+                              </th>
+                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                                Client
+                              </th>
+                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                                Created By
+                              </th>
+                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                                Priority
+                              </th>
+                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                                {taskTab === "assigned"
+                                  ? "Assigned Date"
+                                  : taskTab === "pending"
+                                    ? "Pending Since"
+                                    : taskTab === "inprogress"
+                                      ? "Started At"
+                                      : taskTab === "onhold"
+                                        ? "Paused At"
+                                        : taskTab === "inreview"
+                                          ? "Submitted At"
+                                          : taskTab === "completed"
+                                            ? "Completed At"
+                                            : "Due Date"}
+                              </th>
+                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                                Status
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 dark:divide-slate-850">
+                            {filteredModalTasks.map((task) => {
+                              let clientName = "No Client";
+                              if (task.client) {
+                                const cId =
+                                  typeof task.client === "object"
+                                    ? task.client._id
+                                    : task.client;
+                                const c = clients?.find((x) => x._id === cId);
+                                clientName =
+                                  c?.companyName ||
+                                  c?.name ||
+                                  (typeof task.client === "object"
+                                    ? task.client.companyName ||
+                                      task.client.name
+                                    : "Unknown Client");
+                              } else if (task.project) {
+                                const pId =
+                                  typeof task.project === "object"
+                                    ? task.project._id
+                                    : task.project;
+                                const p = projects?.find((x) => x._id === pId);
+                                if (p) {
+                                  const cId =
+                                    typeof p.client === "object"
+                                      ? p.client?._id
+                                      : p.client;
+                                  const c = clients?.find((x) => x._id === cId);
+                                  clientName =
+                                    c?.companyName ||
+                                    c?.name ||
+                                    (typeof p.client === "object"
+                                      ? p.client?.companyName || p.client?.name
+                                      : "Unknown Client");
+                                }
+                              }
+
+                              const getStatusBadgeStyle = (status = "") => {
+                                const s = status.toLowerCase();
+                                if (
+                                  s === "completed" ||
+                                  s.includes("approve")
+                                ) {
+                                  return "bg-emerald-50 text-emerald-650 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-455 dark:border-emerald-900/30";
+                                }
+                                if (s.includes("hold")) {
+                                  return "bg-fuchsia-50 text-fuchsia-655 border border-fuchsia-200 dark:bg-fuchsia-950/30 dark:text-fuchsia-450 dark:border-fuchsia-900/30";
+                                }
+                                if (s.includes("progress")) {
+                                  return "bg-sky-50 text-sky-655 border border-sky-205 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-900/30";
+                                }
+                                if (
+                                  s.includes("review") ||
+                                  s.includes("revision")
+                                ) {
+                                  return "bg-amber-50 text-amber-655 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30";
+                                }
+                                if (s === "assigned") {
+                                  return "bg-blue-50 text-blue-655 border border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30";
+                                }
+                                return "bg-rose-50 text-rose-655 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-455 dark:border-rose-900/30";
+                              };
+
+                              return (
+                                <tr
+                                  key={task._id}
+                                  className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors"
+                                >
+                                  <td className="py-2.5 px-4 text-xs font-bold text-slate-800 dark:text-white max-w-xs break-words">
+                                    {task.title}
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${(() => {
+                                        const colors = [
+                                          "bg-indigo-50 text-indigo-750 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900/30",
+                                          "bg-emerald-50 text-emerald-750 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30",
+                                          "bg-blue-50 text-blue-750 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30",
+                                          "bg-purple-50 text-purple-755 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/30",
+                                          "bg-amber-50 text-amber-755 border-amber-250 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/30",
+                                          "bg-rose-50 text-rose-755 border-rose-200 dark:bg-rose-950/30 dark:text-rose-450 dark:border-rose-900/30",
+                                          "bg-sky-50 text-sky-755 border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-900/30",
+                                          "bg-teal-50 text-teal-755 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-900/30",
+                                        ];
+                                        let hash = 0;
+                                        for (
+                                          let i = 0;
+                                          i < clientName.length;
+                                          i++
+                                        ) {
+                                          hash =
+                                            clientName.charCodeAt(i) +
+                                            ((hash << 5) - hash);
+                                        }
+                                        const index =
+                                          Math.abs(hash) % colors.length;
+                                        return colors[index];
+                                      })()}`}
+                                    >
+                                      <FiBriefcase
+                                        size={10}
+                                        className="opacity-80"
+                                      />
+                                      {clientName}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    {(() => {
+                                      const creatorObj =
+                                        task.createdBy &&
+                                        typeof task.createdBy === "object"
+                                          ? task.createdBy
+                                          : users?.find(
+                                              (u) => u._id === task.createdBy,
+                                            );
+                                      const creatorName =
+                                        creatorObj?.name || "Unknown";
+                                      const creatorImage =
+                                        (typeof creatorObj?.profile
+                                          ?.profileImage === "object"
+                                          ? creatorObj?.profile?.profileImage
+                                              ?.url
+                                          : creatorObj?.profile
+                                              ?.profileImage) ||
+                                        (typeof creatorObj?.profileImage ===
+                                        "object"
+                                          ? creatorObj?.profileImage?.url
+                                          : creatorObj?.profileImage) ||
+                                        creatorObj?.profilePic ||
+                                        creatorObj?.avatar ||
+                                        creatorObj?.profile?.profilePic ||
+                                        creatorObj?.profile?.avatar ||
+                                        null;
+
+                                      return (
+                                        <div className="flex items-center gap-1.5">
+                                          {creatorImage ? (
+                                            <img
+                                              src={creatorImage}
+                                              alt={creatorName}
+                                              className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                                            />
+                                          ) : (
+                                            <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-750 dark:text-slate-300 flex items-center justify-center text-[8px] font-black ring-1 ring-slate-300 shrink-0">
+                                              {getInitials(creatorName)}
+                                            </div>
+                                          )}
+                                          <span className="text-xs font-bold text-slate-700 dark:text-slate-350">
+                                            {creatorName}
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    {task.priority && (
+                                      <span
+                                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${getPriorityStyle(task.priority)}`}
+                                      >
+                                        {task.priority}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-4 text-xs text-slate-500 dark:text-slate-400">
+                                    {(() => {
+                                      let targetDate = null;
+                                      if (taskTab === "assigned")
+                                        targetDate = task.createdAt;
+                                      else if (taskTab === "pending")
+                                        targetDate = task.createdAt;
+                                      else if (taskTab === "inprogress")
+                                        targetDate =
+                                          task.actualStartTime ||
+                                          task.updatedAt;
+                                      else if (taskTab === "onhold")
+                                        targetDate =
+                                          task.pausedAt ||
+                                          task.blockerPausedAt ||
+                                          task.updatedAt;
+                                      else if (taskTab === "inreview")
+                                        targetDate =
+                                          task.actualEndTime || task.updatedAt;
+                                      else if (taskTab === "completed")
+                                        targetDate =
+                                          task.approvedAt ||
+                                          task.actualEndTime ||
+                                          task.updatedAt;
+                                      else
+                                        targetDate =
+                                          task.dueDate || task.createdAt;
+
+                                      if (!targetDate)
+                                        return (
+                                          <span className="text-slate-400 font-medium italic text-[11.5px]">
+                                            -
+                                          </span>
+                                        );
+                                      try {
+                                        const dateObj = parseISO(targetDate);
+                                        const isDueToday = isToday(dateObj);
+                                        if (isDueToday) {
+                                          return (
+                                            <div className="relative w-fit">
+                                              <style>{`
+                                                @keyframes brightBlink {
+                                                  0%, 100% {
+                                                    opacity: 1;
+                                                    filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.9));
+                                                    transform: scale(1.02);
+                                                  }
+                                                  50% {
+                                                    opacity: 0.4;
+                                                    filter: drop-shadow(0 0 1px rgba(239, 68, 68, 0.1));
+                                                    transform: scale(0.98);
+                                                  }
+                                                }
+                                                .bright-warning-blink {
+                                                  animation: brightBlink 1s infinite ease-in-out;
+                                                }
+                                              `}</style>
+                                              <div className="relative p-[1.5px] overflow-hidden rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-500 flex items-center justify-center w-fit shadow-md bright-warning-blink">
+                                                <div
+                                                  className="absolute inset-0 bg-gradient-to-r from-red-500 via-rose-500 to-red-500 animate-spin"
+                                                  style={{
+                                                    animationDuration: "2s",
+                                                  }}
+                                                />
+                                                <div className="relative bg-red-500 px-2 py-0.5 rounded-[11px] flex items-center gap-1.5 z-10 text-white font-extrabold text-[10px] tracking-wide border-transparent">
+                                                  <FiClock
+                                                    size={11}
+                                                    className="text-white animate-bounce"
+                                                  />
+                                                  <span>
+                                                    Today -{" "}
+                                                    {format(
+                                                      dateObj,
+                                                      "MMM dd, yyyy h:mm a",
+                                                    )}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+
+                                        const getRelativeBadge = () => {
+                                          if (isYesterday(dateObj)) {
+                                            return (
+                                              <span className="px-1.5 py-0.5 text-[9.5px] font-black uppercase bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded-md border border-rose-200 dark:border-rose-900/30">
+                                                Yesterday
+                                              </span>
+                                            );
+                                          }
+                                          if (isTomorrow(dateObj)) {
+                                            return (
+                                              <span className="px-1.5 py-0.5 text-[9.5px] font-black uppercase bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 rounded-md border border-sky-200 dark:border-sky-900/30">
+                                                Tomorrow
+                                              </span>
+                                            );
+                                          }
+                                          return null;
+                                        };
+
+                                        return (
+                                          <span className="flex items-center gap-1 flex-wrap text-xs">
+                                            <span className="flex items-center gap-1">
+                                              <FiClock
+                                                size={11}
+                                                className="text-slate-400"
+                                              />
+                                              {format(
+                                                dateObj,
+                                                "MMM dd, yyyy h:mm a",
+                                              )}
+                                            </span>
+                                            {getRelativeBadge()}
+                                          </span>
+                                        );
+                                      } catch (err) {
+                                        return (
+                                          <span className="text-slate-400 font-medium italic text-xs">
+                                            -
+                                          </span>
+                                        );
+                                      }
+                                    })()}
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-md text-[12px] font-black uppercase tracking-widest ${getStatusBadgeStyle(task.status)}`}
+                                    >
+                                      {task.status || "Pending"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewTasksModal({
+                      open: false,
+                      designerId: null,
+                      designerName: "",
+                    })
+                  }
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-xs font-black text-slate-650 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                >
+                  Close View
+                </button>
+              </div>
+            </motion.div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

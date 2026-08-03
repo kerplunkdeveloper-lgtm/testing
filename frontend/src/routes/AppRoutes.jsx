@@ -47,6 +47,7 @@ const Task = lazyWithRetry(() => import("../pages/tasks/Task.jsx"));
 const ChatPage = lazyWithRetry(() => import("../pages/chat/ChatPage.jsx"));
 const Portfolio = lazyWithRetry(() => import("../pages/admin/portfolio/Portfolio.jsx"));
 const Workload = lazyWithRetry(() => import("../pages/workload/Workload.jsx"));
+const Stickynotes = lazyWithRetry(() => import("../pages/admin/Stickynotes.jsx"));
 
 // Elegant, premium animated page loader
 const PageLoader = () => (
@@ -148,6 +149,11 @@ const AppRoutes = () => {
           path="notifications"
           element={<Notifications />}
         />
+
+        <Route
+          path="stickynotes"
+          element={<Stickynotes />}
+        />
         
         <Route
           path="chat"
@@ -174,6 +180,11 @@ const AppRoutes = () => {
         <Route
           index
           element={<Dashboardmain/>}
+        />
+
+        <Route
+          path="stickynotes"
+          element={<Stickynotes />}
         />
 
          <Route
@@ -259,6 +270,11 @@ const AppRoutes = () => {
         <Route
           index
           element={<Dashboardmain />}
+        />
+
+        <Route
+          path="stickynotes"
+          element={<Stickynotes />}
         />
 
         <Route

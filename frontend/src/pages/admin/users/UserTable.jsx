@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import io from "socket.io-client";
 import {
   FiEdit2,
   FiTrash2,
@@ -52,6 +53,34 @@ const DEPT_KEYWORDS = [
   {
     key: "design",
     cls: "bg-pink-100 text-pink-700 border border-pink-200 dark:bg-pink-500/15 dark:text-pink-300 dark:border-transparent",
+  },
+  {
+    key: "graphic",
+    cls: "bg-pink-100 text-pink-700 border border-pink-200 dark:bg-pink-500/15 dark:text-pink-300 dark:border-transparent",
+  },
+  {
+    key: "video",
+    cls: "bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-transparent",
+  },
+  {
+    key: "editor",
+    cls: "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:border-transparent",
+  },
+  {
+    key: "web",
+    cls: "bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/15 dark:text-cyan-300 dark:border-transparent",
+  },
+  {
+    key: "social",
+    cls: "bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200 dark:bg-fuchsia-500/15 dark:text-fuchsia-300 dark:border-transparent",
+  },
+  {
+    key: "seo",
+    cls: "bg-lime-100 text-lime-700 border border-lime-200 dark:bg-lime-500/15 dark:text-lime-300 dark:border-transparent",
+  },
+  {
+    key: "performance",
+    cls: "bg-teal-100 text-teal-700 border border-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:border-transparent",
   },
   {
     key: "hr",
@@ -113,6 +142,30 @@ const UserTable = ({
 }) => {
   const { user: currentUser } = useSelector((state) => state.auth);
   const [copiedId, setCopiedId] = useState(null);
+  const [onlineUserIds, setOnlineUserIds] = useState([]);
+
+  useEffect(() => {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL;
+    const socketUrl = baseUrl ? baseUrl : (typeof window !== 'undefined' ? window.location.origin : "http://localhost:5001");
+    
+    const socket = io(socketUrl, {
+      transports: ["polling", "websocket"],
+      withCredentials: true
+    });
+
+    const userId = currentUser?._id || currentUser?.id;
+    if (userId) {
+      socket.emit("join", userId);
+    }
+
+    socket.on("online_users_list", (usersList) => {
+      setOnlineUserIds(usersList);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [currentUser]);
 
   const handleEdit = (u) => { setEditUser(u); setOpenModal(true); };
   const handlePermissions = (u) => { setPermissionsUser(u); setOpenPermissionsModal(true); };
@@ -128,7 +181,7 @@ const UserTable = ({
   const rolesPerms = currentUser?.permissions?.["manage_roles"];
   const canManageRoles = currentUser?.role === "admin" || rolesPerms === true || rolesPerms?.update;
 
-  const colSpan = isReadOnly ? 4 : 5;
+  const colSpan = isReadOnly ? 5 : 6;
 
   return (
     /* ── Container ─────────────────────────────────────────────── */
@@ -139,12 +192,12 @@ const UserTable = ({
           {/* ── HEADER ─────────────────────────────────────────── */}
           <thead>
             <tr className="bg-slate-50 dark:bg-[#0d1117] border-b border-slate-100 dark:border-white/5">
-              {["User", "Email Address", "Role", "Department", !isReadOnly && "Actions"]
+              {["User", "Email Address", "Role", "Department", "Status", !isReadOnly && "Actions"]
                 .filter(Boolean)
                 .map((h) => (
                   <th
                     key={h}
-                    className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500"
+                    className="px-5 py-4 text-left text-[12px] font-bold text-slate-400 dark:text-slate-500"
                   >
                     {h}
                   </th>
@@ -184,12 +237,12 @@ const UserTable = ({
                   >
 
                     {/* ── USER ─────────────────────────────────── */}
-                    <td className="px-5 py-3.5 align-middle">
+                    <td className="px-2 py-0 align-middle">
                       <div className="flex items-center gap-3">
                         {/* Avatar */}
                         <div className="relative shrink-0">
                           <div
-                            className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${avatarGrad(user.name)} flex items-center justify-center text-white font-bold text-sm overflow-hidden shadow-md group-hover:scale-105 transition-transform duration-200`}
+                            className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarGrad(user.name)} flex items-center justify-center text-white font-bold text-sm overflow-hidden shadow-md group-hover:scale-105 transition-transform duration-200`}
                           >
                             {user?.profile?.profileImage?.url ? (
                               <img
@@ -202,7 +255,7 @@ const UserTable = ({
                             )}
                           </div>
                           {/* Online dot */}
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" />
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 transition-colors duration-300 ${onlineUserIds.includes(user._id) ? "bg-emerald-500" : "bg-slate-400"}`} />
                         </div>
 
                         {/* Name + ID */}
@@ -259,6 +312,21 @@ const UserTable = ({
                         </span>
                       ) : (
                         <span className="text-slate-300 dark:text-slate-600 text-sm font-semibold">—</span>
+                      )}
+                    </td>
+
+                    {/* ── STATUS ───────────────────────────────── */}
+                    <td className="px-5 py-3.5 align-middle">
+                      {onlineUserIds.includes(user._id) ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10.5px] font-black border bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-transparent">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Online
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10.5px] font-black border bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                          Offline
+                        </span>
                       )}
                     </td>
 

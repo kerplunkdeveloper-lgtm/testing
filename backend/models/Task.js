@@ -81,6 +81,19 @@ const TaskSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    feedbacks: [
+      {
+        text: String,
+        addedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        addedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      }
+    ],
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
@@ -102,7 +115,7 @@ const TaskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Pending", "In Progress", "Completed", "On Hold", "Approval", "Rejected"],
+      enum: ["Pending", "In Progress", "Completed", "On Hold", "IN-REVIEW", "In Review", "IN-Review", "Rejected"],
       default: "Pending",
     },
     priority: {

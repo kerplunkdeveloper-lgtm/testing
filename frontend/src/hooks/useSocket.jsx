@@ -264,16 +264,40 @@ const useSocket = () => {
                   }
                 }}
               >
+                {/* Sender Avatar or Icon */}
                 <div className="flex-shrink-0 relative">
-                  <div className="h-8 w-8 rounded-lg bg-indigo-50 dark:bg-slate-800 flex items-center justify-center text-indigo-600 dark:text-white shadow-sm relative z-10">
-                    <FiBell size={14} />
-                  </div>
+                  {notification.sender?.profile?.profileImage?.url ? (
+                    <img
+                      src={notification.sender.profile.profileImage.url}
+                      alt={notification.sender.name || "User"}
+                      className="h-9 w-9 rounded-full object-cover border-2 border-indigo-500/20 shadow-sm"
+                    />
+                  ) : notification.sender?.name ? (
+                    <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white text-xs font-black shadow-sm">
+                      {notification.sender.name.charAt(0).toUpperCase()}
+                    </div>
+                  ) : (
+                    <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-slate-800 flex items-center justify-center text-indigo-600 dark:text-white shadow-sm">
+                      <FiBell size={14} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="ml-3 flex-1 min-w-0">
-                  <p className="text-[9px] font-bold text-slate-400 dark:text-slate-550 tracking-wider uppercase">
-                    System Alert
-                  </p>
+                  {notification.sender?.name ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 truncate">
+                        {notification.sender.name}
+                      </span>
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                        • {notification.type === "task_assigned" ? "Assigned task" : "Alert"}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-550 tracking-wider uppercase">
+                      System Alert
+                    </p>
+                  )}
                   <p className="mt-0.5 text-[11px] font-bold text-slate-800 dark:text-slate-100 leading-normal">
                     {notification.message}
                   </p>
