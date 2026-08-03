@@ -33,6 +33,7 @@ import axiosInstance from "../../services/axiosInstance";
 import toast from "react-hot-toast";
 import ClientBadge from "../../components/common/ClientBadge";
 import { getClientIconComponent } from "../../utils/clientHelpers";
+import { calculateBusinessMs } from "../../utils/businessHours";
 
 const TimeTracker = ({
   startTime,
@@ -288,6 +289,74 @@ const SingleTimeDisplay = ({
     <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-orange-50 dark:bg-orange-500/10 border border-orange-200/50 dark:border-orange-500/20 text-orange-700 dark:text-orange-400 font-bold text-[10px]">
       {formatTime(blockedMs)}
     </span>
+  );
+};
+
+const formatBusinessDuration = (ms) => {
+  if (!ms) return "0m 0s";
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+};
+
+const ApprovalTimeDisplay = ({ reviewStartedAt, completedAt, approvalWaitingMs, status }) => {
+  const [liveElapsed, setLiveElapsed] = useState(0);
+
+  useEffect(() => {
+    // Only tick if status is In Review and we have a start time
+    if (!reviewStartedAt || !["In Review", "IN-REVIEW", "IN-Review"].includes(status)) {
+      setLiveElapsed(0);
+      return;
+    }
+
+    const updateTime = () => {
+      // Calculate elapsed business MS since reviewStartedAt
+      const elapsed = calculateBusinessMs(reviewStartedAt, Date.now());
+      setLiveElapsed(elapsed);
+    };
+
+    updateTime(); // Initial call
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [reviewStartedAt, status]);
+
+  if (!reviewStartedAt && !approvalWaitingMs) {
+    return <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">—</span>;
+  }
+  
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    const datePart = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return `${datePart} ${timePart}`;
+  };
+
+  const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
+
+  return (
+    <div className="flex flex-col gap-1 text-[10px] text-left">
+      {reviewStartedAt && (
+        <div className="text-blue-600 dark:text-blue-400">
+          <span className="font-semibold text-slate-500 dark:text-slate-400">Rev Start:</span><br/>
+          {formatDate(reviewStartedAt)}
+        </div>
+      )}
+      {completedAt && (
+        <div className="text-emerald-600 dark:text-emerald-400">
+          <span className="font-semibold text-slate-500 dark:text-slate-400">Completed:</span><br/>
+          {formatDate(completedAt)}
+        </div>
+      )}
+      {(totalWaitMs > 0) && (
+        <div className="text-purple-600 dark:text-purple-400 mt-1 bg-purple-50 dark:bg-purple-500/10 px-1 py-0.5 rounded inline-block w-fit">
+          <span className="font-semibold">Wait:</span> {formatBusinessDuration(totalWaitMs)}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -1886,10 +1955,10 @@ const MyTasksTab = ({
                     />
                     <ResizableHeader
                       id="approvalTime"
-                      label="Approval time"
+                      label="Approval Info"
                       colWidths={colWidths}
                       handleMouseDown={handleMouseDown}
-                      defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
+                      defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-44 whitespace-nowrap"
                     />
                     <ResizableHeader
                       id="blockerTime"
@@ -2324,10 +2393,15 @@ const MyTasksTab = ({
 
                             {/* Approval Time Column */}
                             <td
-                              className="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap text-center text-xs font-bold text-slate-700 dark:text-slate-300"
+                              className="px-3 py-2 border border-slate-200/70 dark:border-transparent w-44 whitespace-nowrap align-top"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {task.approvalTime ? formatDateTime(task.approvalTime) : "—"}
+                              <ApprovalTimeDisplay 
+                                reviewStartedAt={task.reviewStartedAt} 
+                                completedAt={task.completedAt} 
+                                approvalWaitingMs={task.approvalWaitingMs} 
+                                status={task.status}
+                              />
                             </td>
 
                             {/* Blocker Time Column */}

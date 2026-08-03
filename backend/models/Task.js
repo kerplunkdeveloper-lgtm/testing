@@ -54,9 +54,32 @@ const SubtaskSchema = new mongoose.Schema({
     ref: "Client",
   },
   totalPausedMs: {
-  type: Number,
-  default: 0,
-},
+    type: Number,
+    default: 0,
+  },
+  businessTotalPausedMs: {
+    type: Number,
+    default: 0,
+  },
+  reviewStartedAt: {
+    type: Date,
+    default: null,
+  },
+  completedAt: {
+    type: Date,
+    default: null,
+  },
+  approvalWaitingMs: {
+    type: Number,
+    default: 0,
+  },
+  reviewCycles: [
+    {
+      startedAt: Date,
+      completedAt: Date,
+      durationMs: Number,
+    }
+  ],
 
 
   rejectionHistory: [
@@ -147,9 +170,32 @@ const TaskSchema = new mongoose.Schema(
       default: null,
     },
     totalPausedMs: {
-  type: Number,
-  default: 0,
-},
+      type: Number,
+      default: 0,
+    },
+    businessTotalPausedMs: {
+      type: Number,
+      default: 0,
+    },
+    reviewStartedAt: {
+      type: Date,
+      default: null,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    approvalWaitingMs: {
+      type: Number,
+      default: 0,
+    },
+    reviewCycles: [
+      {
+        startedAt: Date,
+        completedAt: Date,
+        durationMs: Number,
+      }
+    ],
 
     isBlocked: {
       type: Boolean,

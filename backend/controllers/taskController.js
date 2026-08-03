@@ -2,7 +2,7 @@ const Task = require("../models/Task");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Project = require("../models/Project");
-
+const { calculateBusinessMs } = require("../utils/businessHours");
 
 
 
@@ -217,28 +217,42 @@ exports.updateTask = async (req, res) => {
     const previousSubtasks = task.subtasks ? JSON.parse(JSON.stringify(task.subtasks)) : [];
 
    
-   // .........................................Time tracking logic for parent task...........................................
+// .........................................Time tracking logic for parent task...........................................
 if (req.body.status && req.body.status !== previousStatus) {
 
    if (req.body.status === "In Progress") {
+      if (task.assignedTo) {
+        const hasActive = await hasActiveWork(
+          task.assignedTo,
+          task._id,
+          null
+        );
 
-  if (task.assignedTo) {
-  const hasActive = await hasActiveWork(
-    task.assignedTo,
-    task._id,
-    null
-  );
+        if (hasActive) {
+          return res.status(409).json({
+            success: false,
+            message: "You already have one active task or subtask.",
+          });
+        }
+      }
+   }
 
-  if (hasActive) {
-    return res.status(409).json({
-      success: false,
-      message: "You already have one active task or subtask.",
-    });
+  // Handle leaving 'In Review' state
+  const wasInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(previousStatus);
+  const isNowInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(req.body.status);
+  
+  if (wasInReview && !isNowInReview) {
+     const reviewStart = task.reviewStartedAt || Date.now();
+     const durationMs = calculateBusinessMs(reviewStart, Date.now());
+     req.body.approvalWaitingMs = (task.approvalWaitingMs || 0) + durationMs;
+     
+     const newCycle = {
+       startedAt: reviewStart,
+       completedAt: Date.now(),
+       durationMs
+     };
+     req.body.reviewCycles = [...(task.reviewCycles || []), newCycle];
   }
-}
-
-}
-
 
   switch (req.body.status) {
 
@@ -248,34 +262,46 @@ if (req.body.status && req.body.status !== previousStatus) {
       req.body.pausedAt = null;
       break;
 
- case "In Progress":
-  if (!task.actualStartTime) {
-    req.body.actualStartTime = Date.now();
-  }
+    case "In Progress":
+      if (!task.actualStartTime) {
+        req.body.actualStartTime = Date.now();
+      }
 
-  if (task.pausedAt) {
-    req.body.totalPausedMs =
-      (task.totalPausedMs || 0) +
-      (Date.now() - new Date(task.pausedAt).getTime());
-  }
+      if (task.pausedAt) {
+        req.body.totalPausedMs =
+          (task.totalPausedMs || 0) +
+          (Date.now() - new Date(task.pausedAt).getTime());
+        req.body.businessTotalPausedMs =
+          (task.businessTotalPausedMs || 0) +
+          calculateBusinessMs(task.pausedAt, Date.now());
+      }
 
-  req.body.pausedAt = null;
-  break;
+      req.body.pausedAt = null;
+      break;
 
     case "Completed":
       if (!task.actualEndTime) {
         req.body.actualEndTime = Date.now();
       }
+      req.body.completedAt = Date.now();
       req.body.pausedAt = null;
       break;
 
     case "On Hold":
-    case "In Review":
-    case "IN-REVIEW":
-    case "IN-Review":
     case "Rejected":
       if (!task.pausedAt) {
         req.body.pausedAt = Date.now();
+      }
+      break;
+
+    case "In Review":
+    case "IN-REVIEW":
+    case "IN-Review":
+      if (!task.pausedAt) {
+        req.body.pausedAt = Date.now();
+      }
+      if (!task.reviewStartedAt || !wasInReview) {
+        req.body.reviewStartedAt = Date.now();
       }
       break;
   }
@@ -333,6 +359,23 @@ if (req.body.subtasks) {
 
     if (prevSub && sub.status && sub.status !== prevSub.status) {
 
+      // Handle leaving 'In Review' state for subtask
+      const wasSubInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(prevSub.status);
+      const isSubNowInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(sub.status);
+      
+      if (wasSubInReview && !isSubNowInReview) {
+         const reviewStart = prevSub.reviewStartedAt || Date.now();
+         const durationMs = calculateBusinessMs(reviewStart, Date.now());
+         sub.approvalWaitingMs = (prevSub.approvalWaitingMs || 0) + durationMs;
+         
+         const newCycle = {
+           startedAt: reviewStart,
+           completedAt: Date.now(),
+           durationMs
+         };
+         sub.reviewCycles = [...(prevSub.reviewCycles || []), newCycle];
+      }
+
       switch (sub.status) {
 
         case "Pending":
@@ -342,34 +385,45 @@ if (req.body.subtasks) {
           break;
 
        case "In Progress":
-  if (!prevSub.actualStartTime && !sub.actualStartTime) {
-    sub.actualStartTime = Date.now();
-  }
+          if (!prevSub.actualStartTime && !sub.actualStartTime) {
+            sub.actualStartTime = Date.now();
+          }
 
-  if (prevSub.pausedAt) {
-    sub.totalPausedMs =
-      (prevSub.totalPausedMs || 0) +
-      (Date.now() - new Date(prevSub.pausedAt).getTime());
-  }
+          if (prevSub.pausedAt) {
+            sub.totalPausedMs =
+              (prevSub.totalPausedMs || 0) +
+              (Date.now() - new Date(prevSub.pausedAt).getTime());
+            sub.businessTotalPausedMs =
+              (prevSub.businessTotalPausedMs || 0) +
+              calculateBusinessMs(prevSub.pausedAt, Date.now());
+          }
 
-  sub.pausedAt = null;
-  break;
+          sub.pausedAt = null;
+          break;
 
         case "Completed":
           if (!prevSub.actualEndTime && !sub.actualEndTime) {
             sub.actualEndTime = Date.now();
           }
+          sub.completedAt = Date.now();
           sub.pausedAt = null;
           break;
 
         case "On Hold":
-        case "In Review":
-        case "IN-REVIEW":
-        case "IN-Review":
-        case "In Review":
         case "Rejected":
           if (!prevSub.pausedAt) {
             sub.pausedAt = Date.now();
+          }
+          break;
+
+        case "In Review":
+        case "IN-REVIEW":
+        case "IN-Review":
+          if (!prevSub.pausedAt) {
+            sub.pausedAt = Date.now();
+          }
+          if (!prevSub.reviewStartedAt || !wasSubInReview) {
+            sub.reviewStartedAt = Date.now();
           }
           break;
       }
