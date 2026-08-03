@@ -126,12 +126,44 @@ const formatElapsed = (
   const seconds = elapsed % 60;
 
   if (hours > 0) {
-    return `${hours}h ${minutes}m`;
+    return `${hours}h ${minutes}m ${seconds}s`;
   }
   if (minutes > 0) {
-    return `${minutes}m`;
+    return `${minutes}m ${seconds}s`;
   }
   return `${seconds}s`;
+};
+
+const LiveTimeTracker = ({ task, allTasks, isSubmitted }) => {
+  const [elapsedStr, setElapsedStr] = React.useState(task.time || "");
+
+  React.useEffect(() => {
+    if (isSubmitted) {
+      setElapsedStr(task.time || "");
+      return;
+    }
+
+    const originalTask = allTasks.find((t) => t._id === (task.taskId || task.id));
+    if (!originalTask || !originalTask.actualStartTime || originalTask.actualEndTime || originalTask.pausedAt) {
+      setElapsedStr(task.time || "");
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setElapsedStr(
+        formatElapsed(
+          originalTask.actualStartTime,
+          originalTask.actualEndTime,
+          originalTask.pausedAt,
+          originalTask.totalPausedMs
+        )
+      );
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [task, allTasks, isSubmitted]);
+
+  return <span>Time spent: {elapsedStr}</span>;
 };
 
 // Helper: map task board status to EOD status enum
@@ -887,7 +919,7 @@ const EodReports = () => {
                       {task.time && (
                         <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50/50 text-blue-600 border border-blue-150/40 rounded-md text-[10px] font-bold dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
                           <FiClock size={10} className="shrink-0" />
-                          <span>Time spent: {task.time}</span>
+                          <LiveTimeTracker task={task} allTasks={allTasks} isSubmitted={isSubmitted} />
                         </div>
                       )}
                     </div>
@@ -908,21 +940,16 @@ const EodReports = () => {
                 </div>
 
                 {/* Status & Assigned By Row Stack */}
-                <div className="mt-5 pt-4 border-t theme-border space-y-3">
+                <div className="flex justify-between items-center  mt-6 border-t theme-border space-y-3">
                   {/* Status Row */}
                   <div className="flex items-center justify-between text-xs px-1">
                     <span className="font-bold theme-text-secondary uppercase tracking-wider text-[10px]">
-                      status :
-                    </span>
-                    <span
-                      className={`font-black tracking-wide ${getStatusTextColor(task.statusAtEod)}`}
-                    >
-                      {task.statusAtEod || "Pending"}
+                      status : <span className={`font-black tracking-wide ${getStatusTextColor(task.statusAtEod)}`}>{task.statusAtEod || "Pending"}</span>
                     </span>
                   </div>
 
                   {/* Assigned By Row */}
-                  <div className="flex items-center justify-between text-xs px-1 mt-6">
+                  <div className=" text-xs px-1 ">
                     <span className="font-bold theme-text-secondary uppercase tracking-wider text-[10px]">
                       Assigned By :
                     </span>
@@ -931,21 +958,8 @@ const EodReports = () => {
                         <span className="block font-bold theme-text-primary text-[11px] leading-tight">
                           {assignerName}
                         </span>
-                        <span className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
-                          {assignerDept}
-                        </span>
                       </div>
-                      {avatarUrl ? (
-                        <img
-                          src={avatarUrl}
-                          alt={assignerName}
-                          className="w-6.5 h-6.5 rounded-full object-cover border border-slate-100 dark:border-slate-800 shadow-sm"
-                        />
-                      ) : (
-                        <div className="w-6.5 h-6.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-[9px] border border-indigo-100 dark:border-indigo-900/30">
-                          {assignerName.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                    
                     </div>
                   </div>
                 </div>

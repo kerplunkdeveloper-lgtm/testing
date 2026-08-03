@@ -2960,7 +2960,8 @@ const ProjectTaskBoard = ({
                           { id: "priority", label: "Priority" },
                           { id: "status", label: "Status" },
                           { id: "revision", label: "Revision" },
-                          { id: "totalHours", label: "Total Hours" },
+                          { id: "totalHours", label: "Total productivity" },
+                          { id: "approveTime", label: "Approve time" },
                         ].map((col) => {
                           const isHidden = !!hiddenColumns[col.id];
                           return (
@@ -3426,7 +3427,12 @@ const ProjectTaskBoard = ({
                               )}
                               {!hiddenColumns.totalHours && (
                                 <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  Total Hours
+                                  Total productivity
+                                </th>
+                              )}
+                              {!hiddenColumns.approveTime && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
+                                  Approve time
                                 </th>
                               )}
                               <th className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 text-center whitespace-nowrap min-w-[80px]">
@@ -5040,7 +5046,7 @@ const ProjectTaskBoard = ({
                                                         </td>
                                                       )}
 
-                                                      {/* Total Hours */}
+                                                      {/* Total productivity */}
                                                       {!hiddenColumns.totalHours && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
                                                           <TimeTracker
@@ -5058,6 +5064,13 @@ const ProjectTaskBoard = ({
                                                             }
                                                             status={task.status}
                                                           />
+                                                        </td>
+                                                      )}
+
+                                                      {/* Approve Time */}
+                                                      {!hiddenColumns.approveTime && (
+                                                        <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 text-center whitespace-nowrap">
+                                                          {task.approveTime || "-"}
                                                         </td>
                                                       )}
 
@@ -6181,7 +6194,7 @@ const ProjectTaskBoard = ({
                                                                 </td>
                                                               )}
 
-                                                              {/* Total Hours Column */}
+                                                              {/* Total productivity Column */}
                                                               {!hiddenColumns.totalHours && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
                                                                   <TimeTracker
@@ -6201,6 +6214,13 @@ const ProjectTaskBoard = ({
                                                                       sub.status
                                                                     }
                                                                   />
+                                                                </td>
+                                                              )}
+
+                                                              {/* Approve Time Column */}
+                                                              {!hiddenColumns.approveTime && (
+                                                                <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 text-center whitespace-nowrap">
+                                                                  {sub.approveTime || "-"}
                                                                 </td>
                                                               )}
 
@@ -7194,7 +7214,7 @@ const ProjectTaskBoard = ({
                     </div>
                   </div>
 
-                  {/* Total Hours Card */}
+                  {/* Total productivity Card */}
                   <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-900/20 border border-emerald-100/50 dark:border-emerald-500/10 rounded-2xl p-5 group transition-all hover:shadow-lg hover:shadow-emerald-500/5">
                     <div className="absolute -right-4 -top-4 w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500 blur-xl" />
                     <div className="flex items-center gap-3 mb-2">

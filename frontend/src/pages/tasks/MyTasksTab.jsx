@@ -1885,6 +1885,13 @@ const MyTasksTab = ({
                       defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
                     />
                     <ResizableHeader
+                      id="approvalTime"
+                      label="Approval time"
+                      colWidths={colWidths}
+                      handleMouseDown={handleMouseDown}
+                      defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
+                    />
+                    <ResizableHeader
                       id="blockerTime"
                       label="Blocker time"
                       colWidths={colWidths}
@@ -2313,6 +2320,14 @@ const MyTasksTab = ({
                                 blockerPausedAt={task.blockerPausedAt}
                                 blockerHistory={task.blockerHistory}
                               />
+                            </td>
+
+                            {/* Approval Time Column */}
+                            <td
+                              className="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap text-center text-xs font-bold text-slate-700 dark:text-slate-300"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {task.approvalTime ? formatDateTime(task.approvalTime) : "—"}
                             </td>
 
                             {/* Blocker Time Column */}
