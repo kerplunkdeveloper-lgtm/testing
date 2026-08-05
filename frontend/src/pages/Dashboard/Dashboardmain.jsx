@@ -2107,7 +2107,10 @@ const Dashboardmain = () => {
       {/* end................................................................................................... */}
 
       {/* Task status shortcut widget for non-admin team members */}
-      {user && user?.role !== "admin" && user?.role !== "operationmanager" && (
+      {user &&
+        user?.role !== "admin" &&
+        user?.role !== "operationmanager" &&
+        user?.department?.toLowerCase() !== "social media manager" && (
         <div className="w-full mt-4">
           <GraphicDesignerDeadlines user={user} />
         </div>

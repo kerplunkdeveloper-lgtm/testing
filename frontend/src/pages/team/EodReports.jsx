@@ -300,16 +300,48 @@ const EodReports = () => {
       const isAssignedToMe = assigneeId === (user?._id || user?.id);
       if (!isAssignedToMe) return false;
 
-      // Filter strictly by selectedDate (using dueDate instead of createdAt)
-      if (!task.dueDate) return false;
+      const taskCreatedDate = task.createdAt ? new Date(task.createdAt) : null;
+      const taskDueDate = task.dueDate ? new Date(task.dueDate) : null;
+      const taskStartDate = task.startDate ? new Date(task.startDate) : null;
 
-      const taskDate = new Date(task.dueDate);
-      const year = taskDate.getFullYear();
-      const month = String(taskDate.getMonth() + 1).padStart(2, "0");
-      const day = String(taskDate.getDate()).padStart(2, "0");
-      const taskDateStr = `${year}-${month}-${day}`;
+      const getLocalDateStr = (date) => {
+        if (!date) return null;
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      };
 
-      return taskDateStr === selectedDate;
+      const createdDateStr = getLocalDateStr(taskCreatedDate);
+      const dueDateStr = getLocalDateStr(taskDueDate);
+      const startDateStr = getLocalDateStr(taskStartDate);
+
+      const statusLower = task.status?.toLowerCase() || "";
+      const isCompleted = statusLower === "completed" || statusLower.includes("approve");
+
+      // Helper to check if a date string is on or before selectedDate (YYYY-MM-DD comparison)
+      const isOnOrBeforeSelectedDate = (dateStr) => {
+        if (!dateStr) return false;
+        return dateStr <= selectedDate;
+      };
+
+      // 1. If it's not completed: show it if the selectedDate is on or after its start/creation date
+      if (!isCompleted) {
+        const startCheckDateStr = startDateStr || createdDateStr;
+        if (startCheckDateStr && isOnOrBeforeSelectedDate(startCheckDateStr)) {
+          return true;
+        }
+      }
+
+      // 2. If it is completed: ONLY show it strictly on the day it was completed
+      if (isCompleted) {
+        const completedDate = task.completedAt ? new Date(task.completedAt) : (task.updatedAt ? new Date(task.updatedAt) : null);
+        const completedDateStr = getLocalDateStr(completedDate);
+        return completedDateStr ? completedDateStr === selectedDate : false;
+      }
+
+      // Fallback for active tasks: show if its due date matches selectedDate
+      return dueDateStr === selectedDate;
     });
   }, [allTasks, user, selectedDate]);
 

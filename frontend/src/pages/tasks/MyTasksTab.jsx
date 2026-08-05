@@ -310,8 +310,21 @@ const SingleTimeDisplay = ({
   };
 
   if (mode === "active") {
+    const colorClasses =
+      status === "In Progress"
+        ? "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-[#3b82f6]/30 text-blue-600 dark:text-[#3b82f6]"
+        : status === "In Review" || status === "IN-Review" || status === "InReview"
+          ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400"
+          : status === "IN-REVIEW" || status === "in-review"
+            ? "bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400"
+            : status === "On Hold"
+              ? "bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/30 text-violet-600 dark:text-violet-400"
+              : status === "Completed"
+                ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/50 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+                : "bg-slate-50 dark:bg-slate-500/5 border-slate-200 dark:border-slate-500/20 text-slate-500 dark:text-slate-400";
+
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/50 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold text-[10px]">
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded border font-bold text-[10px] ${colorClasses}`}>
         {formatTime(elapsed)}
       </span>
     );

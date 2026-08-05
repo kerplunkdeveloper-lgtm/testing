@@ -399,7 +399,15 @@ const TimeTracker = ({
       className={`inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold tracking-wider w-full ${
         status === "In Progress" && !endTime
           ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30 shadow-sm"
-          : "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+          : status === "In Review" || status === "IN-Review" || status === "InReview"
+            ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30 shadow-sm"
+            : status === "IN-REVIEW" || status === "in-review"
+              ? "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30 shadow-sm"
+              : status === "On Hold"
+                ? "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/30 shadow-sm"
+                : status === "Completed"
+                  ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 shadow-sm"
+                  : "bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-500/5 dark:text-slate-400 dark:border-slate-500/20 shadow-xs"
       }`}
     >
       {status === "In Progress" && !endTime ? (
@@ -2042,8 +2050,41 @@ const ProjectTaskBoard = ({
   });
 
   const filteredTasks = activeProjectTasks.filter((t) => {
-    if (statusFilter !== "All" && t.status !== statusFilter) {
-      return false;
+    if (statusFilter !== "All") {
+      const currentStatus = t.status || "Pending";
+      const statusUpper = currentStatus.toUpperCase();
+
+      if (statusFilter === "Active Tasks") {
+        const isCompleted = statusUpper === "COMPLETED";
+        const isRejected = statusUpper === "REJECTED";
+        if (isCompleted || isRejected) {
+          return false;
+        }
+      } else if (statusFilter === "In Review") {
+        if (
+          statusUpper !== "IN-REVIEW" &&
+          statusUpper !== "IN REVIEW" &&
+          statusUpper !== "IN-REVIEW"
+        ) {
+          return false;
+        }
+      } else if (statusFilter === "In Progress") {
+        if (statusUpper !== "IN PROGRESS") {
+          return false;
+        }
+      } else if (statusFilter === "On Hold") {
+        if (statusUpper !== "ON HOLD") {
+          return false;
+        }
+      } else if (statusFilter === "Pending") {
+        if (statusUpper !== "PENDING") {
+          return false;
+        }
+      } else {
+        if (t.status !== statusFilter) {
+          return false;
+        }
+      }
     }
 
     if (dateFilter === "All Time") return true;
@@ -3439,9 +3480,9 @@ const ProjectTaskBoard = ({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-36 bg-white dark:bg-[#111] border border-slate-200/80 dark:border-transparent rounded-2xl shadow-2xl p-2 z-50 space-y-1 backdrop-blur-md"
+                      className="absolute right-0 mt-2 w-40 bg-white dark:bg-[#111] border border-slate-200/80 dark:border-transparent rounded-2xl shadow-2xl p-2 z-50 space-y-1 backdrop-blur-md"
                     >
-                      {["All", "Pending", "In Progress", "On Hold", "In Review", "Completed"].map(
+                      {["All", "Active Tasks", "Pending", "In Progress", "On Hold", "In Review", "Completed"].map(
                         (option) => (
                           <button
                             key={option}

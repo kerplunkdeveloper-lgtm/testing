@@ -75,7 +75,7 @@ const WelcomeUser = () => {
     const r = (role || "").toLowerCase();
 
     if (r === "admin" || r === "superadmin") {
-      return "https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=800&q=80";
+      return "https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1200&q=80";
     }
     if (
       d.includes("social") ||
@@ -83,7 +83,7 @@ const WelcomeUser = () => {
       d.includes("marketing") ||
       d.includes("instagram")
     ) {
-      return "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=800&q=80";
+      return "https://images.unsplash.com/photo-1683721003111-070bcc053d8b?q=80&w=1400&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
     }
     if (
       d.includes("web") ||
@@ -93,7 +93,7 @@ const WelcomeUser = () => {
       d.includes("tech") ||
       d.includes("programmer")
     ) {
-      return "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80";
+      return "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80";
     }
     if (
       d.includes("design") ||
@@ -104,7 +104,8 @@ const WelcomeUser = () => {
       d.includes("graphic") ||
       d.includes("designer")
     ) {
-      return "https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?auto=format&fit=crop&w=800&q=80";
+      // Sleek Photoshop/Creative workspace image for graphic designers
+      return "https://images.unsplash.com/photo-1626785774573-4b799315345d?auto=format&fit=crop&w=1200&q=80";
     }
     if (
       d.includes("seo") ||
@@ -112,7 +113,7 @@ const WelcomeUser = () => {
       d.includes("analytics") ||
       d.includes("expert")
     ) {
-      return "https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?auto=format&fit=crop&w=800&q=80";
+      return "https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?auto=format&fit=crop&w=1200&q=80";
     }
     if (
       d.includes("video") ||
@@ -121,7 +122,7 @@ const WelcomeUser = () => {
       d.includes("production") ||
       d.includes("film")
     ) {
-      return "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=800&q=80";
+      return "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1200&q=80";
     }
     if (
       d.includes("content") ||
@@ -130,7 +131,7 @@ const WelcomeUser = () => {
       d.includes("copywriter") ||
       d.includes("blog")
     ) {
-      return "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=800&q=80";
+      return "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=1200&q=80";
     }
     if (
       d.includes("operation") ||
@@ -140,10 +141,10 @@ const WelcomeUser = () => {
       d.includes("project") ||
       d.includes("account")
     ) {
-      return "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=800&q=80";
+      return "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80";
     }
 
-    return "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80";
+    return "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80";
   };
 
   const [isLive, setIsLive] = useState(true);
@@ -300,7 +301,7 @@ const WelcomeUser = () => {
               user?.role || profile?.role,
             )}
             alt=""
-            className="w-full h-full object-cover opacity-10 mix-blend-overlay dark:opacity-10 transition-all duration-500"
+            className="w-full h-full object-cover opacity-[0.25] mix-blend-overlay dark:opacity-[0.32] transition-all duration-500"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-black/5 to-transparent dark:from-white/10 dark:via-white/2 dark:to-transparent" />
         </div>

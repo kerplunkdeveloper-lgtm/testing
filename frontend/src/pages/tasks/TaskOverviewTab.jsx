@@ -145,8 +145,21 @@ const SimpleTimeTracker = ({
     return `${h > 0 ? `${h}h ` : ""}${m}m ${s}s`;
   };
 
+  const colorClasses =
+    status === "In Progress"
+      ? "bg-blue-50/80 text-blue-700 border-blue-200 dark:bg-blue-955/30 dark:text-blue-400 dark:border-blue-900/30"
+      : status === "In Review" || status === "IN-Review" || status === "InReview"
+        ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-550/10 dark:text-amber-400 dark:border-amber-550/30"
+        : status === "IN-REVIEW" || status === "in-review"
+          ? "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30"
+          : status === "On Hold"
+            ? "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/30"
+            : status === "Completed"
+              ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+              : "bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-500/5 dark:text-slate-400 dark:border-slate-500/20";
+
   return (
-    <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-blue-50/80 text-blue-700 border border-blue-200 dark:bg-blue-955/30 dark:text-blue-400 dark:border-blue-900/30 shadow-2xs">
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black border shadow-2xs ${colorClasses}`}>
       {formatTime(elapsed)}
     </span>
   );
@@ -367,7 +380,7 @@ const renderUserAvatarSmall = (u) => {
       <img
         src={avatarUrl}
         alt={u.name || "User"}
-        className="w-5 h-5 rounded-full object-cover border border-slate-200/80 dark:border-white/10 shadow-xs shrink-0"
+        className="w-9 h-9 rounded-full object-cover border border-slate-200/80 dark:border-white/10 shadow-xs shrink-0"
       />
     );
   }
@@ -1028,6 +1041,16 @@ const TaskOverviewTab = ({
             new Date(task.dueDate) < new Date() &&
             task.status !== "Completed";
           if (!isOverdue) return false;
+        } else if (overviewStatusFilter === "Active Tasks") {
+          const statusUpper = (task.status || "Pending").toUpperCase();
+          const isCompleted = statusUpper === "COMPLETED";
+          const isRejected = statusUpper === "REJECTED";
+          if (isCompleted || isRejected) return false;
+        } else if (overviewStatusFilter === "In Review" || overviewStatusFilter === "IN-REVIEW") {
+          const statusUpper = (task.status || "Pending").toUpperCase();
+          if (statusUpper !== "IN-REVIEW" && statusUpper !== "IN REVIEW") {
+            return false;
+          }
         } else if (
           overviewStatusFilter !== "All" &&
           task.status !== overviewStatusFilter
@@ -1625,6 +1648,7 @@ const TaskOverviewTab = ({
                   >
                     {[
                       "All",
+                      "Active Tasks",
                       "Pending",
                       "In Progress",
                       "IN-REVIEW",
@@ -1911,13 +1935,13 @@ const TaskOverviewTab = ({
                 )}
 
                 {!hiddenColumns.createdBy && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[180px]">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[200px]">
                     CREATED BY
                   </th>
                 )}
 
                 {!hiddenColumns.assignee && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[180px]">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[200px]">
                     ASSIGNEE
                   </th>
                 )}
@@ -1932,12 +1956,12 @@ const TaskOverviewTab = ({
                   </th>
                 )}
                 {!hiddenColumns.priority && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[110px]">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[160px]">
                     PRIORITY
                   </th>
                 )}
                 {!hiddenColumns.status && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[130px]">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[160px]">
                     STATUS
                   </th>
                 )}

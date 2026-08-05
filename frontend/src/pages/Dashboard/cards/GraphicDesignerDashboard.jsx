@@ -21,6 +21,8 @@ import {
   subDays,
   isSameMonth,
   formatDistanceToNow,
+  isSameDay,
+  addDays,
 } from "date-fns";
 import { calculateBusinessMs } from "../../../utils/businessHours";
 import axiosInstance from "../../../services/axiosInstance";
@@ -43,6 +45,9 @@ import {
   FiPauseCircle,
   FiSearch,
   FiArrowRight,
+  FiCalendar,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 
 const getPriorityStyle = (priority) => {
@@ -58,6 +63,16 @@ const getPriorityStyle = (priority) => {
   return "bg-slate-50 text-slate-500 border border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800";
 };
 
+const getDaysRemaining = (dueDateStr) => {
+  if (!dueDateStr) return null;
+  const dueDate = new Date(dueDateStr);
+  dueDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffTime = dueDate.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
 const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const dispatch = useDispatch();
   const { theme } = useTheme();
@@ -65,12 +80,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const navigate = useNavigate();
 
   const handleMetricClick = (status) => {
-    let mappedFilter = "All";
-    if (dateFilter === "Today") mappedFilter = "Today";
-    else if (dateFilter === "Yesterday") mappedFilter = "Yesterday";
-    else if (dateFilter === "Last 7 Days") mappedFilter = "This Week";
-    else if (dateFilter === "This Month") mappedFilter = "This Month";
-    else if (dateFilter === "All Time") mappedFilter = "All";
+    let mappedFilter = "Today";
+    if (isToday(selectedDate)) mappedFilter = "Today";
+    else if (isYesterday(selectedDate)) mappedFilter = "Yesterday";
+    else mappedFilter = format(selectedDate, "yyyy-MM-dd");
 
     localStorage.setItem("task_date_filter", mappedFilter);
     navigate(`/${user?.role || "team"}/tasks?status=${status}`);
@@ -88,7 +101,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   );
   const { data: allTasks = [], isLoading } = useGetTasksQuery();
 
-  const [dateFilter, setDateFilter] = useState("Today");
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDropdown, setShowDropdown] = useState(false);
   const [approvalModal, setApprovalModal] = useState({
     open: false,
@@ -126,22 +139,12 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
   useEffect(() => {
     const params = {};
-    if (dateFilter === "Today") {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, "0");
-      const day = String(today.getDate()).padStart(2, "0");
-      params.date = `${year}-${month}-${day}`;
-    } else if (dateFilter === "Yesterday") {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const year = yesterday.getFullYear();
-      const month = String(yesterday.getMonth() + 1).padStart(2, "0");
-      const day = String(yesterday.getDate()).padStart(2, "0");
-      params.date = `${year}-${month}-${day}`;
-    }
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+    const day = String(selectedDate.getDate()).padStart(2, "0");
+    params.date = `${year}-${month}-${day}`;
     dispatch(getDesignerEodReports(params));
-  }, [dispatch, dateFilter]);
+  }, [dispatch, selectedDate]);
 
   // 1. Filter Department Members dynamically based on targetDept
   const designers = useMemo(() => {
@@ -153,14 +156,13 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           return uDept.includes("graphic") || uDept.includes("design");
         }
         if (deptLower.includes("videographer") || deptLower.includes("video")) {
-          return uDept.includes("videographer") || uDept.includes("video");
+          return uDept.includes("video") || uDept.includes("edit");
         }
-        if (deptLower.includes("editor")) {
-          return uDept.includes("editor") || uDept.includes("edit");
-        }
-        return uDept === deptLower || uDept.includes(deptLower);
+        return uDept.includes(deptLower);
       }) || [];
 
+    // If logged-in user is a Social Media Manager, filter designers to only those
+    // who are assigned tasks created by this Social Media Manager
     const isSocialMediaManager =
       user?.department?.toLowerCase() === "social media manager";
     if (isSocialMediaManager) {
@@ -173,30 +175,18 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             ? task.createdBy._id
             : task.createdBy;
         if (creatorId === currentUserId && task.assignedTo) {
-          // Filter by dateFilter so we only show designers who have tasks in the current view
+          // Filter by selectedDate so we only show designers who have tasks in the current view
           let includeTask = true;
-          if (dateFilter !== "All Time") {
-            const taskCreatedDate = task.createdAt
-              ? parseISO(task.createdAt)
-              : null;
-            const taskDueDate = task.dueDate ? parseISO(task.dueDate) : null;
-            const dateToCheck = taskDueDate || taskCreatedDate;
+          const taskCreatedDate = task.createdAt
+            ? parseISO(task.createdAt)
+            : null;
+          const taskDueDate = task.dueDate ? parseISO(task.dueDate) : null;
+          const dateToCheck = taskDueDate || taskCreatedDate;
 
-            if (!dateToCheck) {
-              includeTask = false;
-            } else {
-              if (dateFilter === "Today") {
-                includeTask = isToday(dateToCheck);
-              } else if (dateFilter === "Yesterday") {
-                includeTask = isYesterday(dateToCheck);
-              } else if (dateFilter === "Last 7 Days") {
-                const sevenDaysAgo = subDays(new Date(), 7);
-                includeTask = isAfter(dateToCheck, sevenDaysAgo);
-              } else if (dateFilter === "This Month") {
-                const now = new Date();
-                includeTask = isSameMonth(dateToCheck, now);
-              }
-            }
+          if (!dateToCheck) {
+            includeTask = false;
+          } else {
+            includeTask = isSameDay(dateToCheck, selectedDate);
           }
 
           // Also include tasks that are active (not completed) so they don't disappear if they were due yesterday
@@ -218,7 +208,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     }
 
     return baseDesigners;
-  }, [users, allTasks, user, targetDept, dateFilter]);
+  }, [users, allTasks, user, targetDept, selectedDate]);
 
   const designerIds = useMemo(() => designers.map((d) => d._id), [designers]);
 
@@ -246,32 +236,34 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       }
 
       // Check Date
-      if (dateFilter === "All Time") return true;
-
       const taskCreatedDate = task.createdAt ? parseISO(task.createdAt) : null;
       const taskDueDate = task.dueDate ? parseISO(task.dueDate) : null;
-      const dateToCheck = taskDueDate || taskCreatedDate;
+      const taskStartDate = task.startDate ? parseISO(task.startDate) : null;
 
-      if (!dateToCheck) return false;
+      const isCompleted =
+        task.status?.toLowerCase() === "completed" ||
+        task.status?.toLowerCase().includes("approve");
 
-      if (dateFilter === "Today") {
-        return isToday(dateToCheck);
-      }
-      if (dateFilter === "Yesterday") {
-        return isYesterday(dateToCheck);
-      }
-      if (dateFilter === "Last 7 Days") {
-        const sevenDaysAgo = subDays(new Date(), 7);
-        return isAfter(dateToCheck, sevenDaysAgo);
-      }
-      if (dateFilter === "This Month") {
-        const now = new Date();
-        return isSameMonth(dateToCheck, now);
+      // 1. If it's not completed, show it if the selectedDate is on or after its start date (or created date if no start date)
+      if (!isCompleted) {
+        const startCheckDate = taskStartDate || taskCreatedDate;
+        if (startCheckDate) {
+          const isStarted = isSameDay(startCheckDate, selectedDate) || isPast(startCheckDate);
+          if (isStarted) {
+            return true;
+          }
+        }
       }
 
-      return true;
+      // 2. Completed tasks: ONLY show them on the day they were actually completed
+      if (isCompleted) {
+        const completedDate = task.completedAt ? parseISO(task.completedAt) : (task.updatedAt ? parseISO(task.updatedAt) : null);
+        return completedDate ? isSameDay(completedDate, selectedDate) : false;
+      }
+
+      return false;
     });
-  }, [allTasks, designerIds, dateFilter, user]);
+  }, [allTasks, designerIds, selectedDate, user]);
 
   // 3. Compute Metrics
   const metrics = useMemo(() => {
@@ -358,6 +350,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
   // 4. Board Data
   const boardColumns = [
+    "Overdue",
     "Pending",
     "In Progress",
     "On Hold",
@@ -367,6 +360,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   ];
   const getColumnForTask = (task) => {
     const status = task.status || "Pending";
+
     if (boardColumns.includes(status)) return status;
     if (status.toLowerCase().includes("progress")) return "In Progress";
     if (status.toLowerCase().includes("hold")) return "On Hold";
@@ -385,6 +379,17 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     designerTasks.forEach((task) => {
       const col = getColumnForTask(task);
       if (cols[col]) cols[col].push(task);
+
+      // Mirror incomplete tasks that are due today or in the past in the Overdue column
+      const isCompleted =
+        task.status?.toLowerCase() === "completed" ||
+        task.status?.toLowerCase().includes("approve");
+      if (!isCompleted && task.dueDate) {
+        const daysRemaining = getDaysRemaining(task.dueDate);
+        if (daysRemaining !== null && daysRemaining <= 0) {
+          cols["Overdue"].push(task);
+        }
+      }
     });
     return cols;
   }, [designerTasks]);
@@ -531,34 +536,12 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           return rUserId === designer._id;
         }) || [];
 
-      // Find the one that matches the dateFilter
-      let designerReport = null;
-      if (dateFilter === "Today") {
-        const todayStr = getLocalDateString();
-        designerReport = designerReports.find((report) => {
-          const reportDate = new Date(report.date).toISOString().split("T")[0];
-          return reportDate === todayStr;
-        });
-      } else if (dateFilter === "Yesterday") {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = getLocalDateString(yesterday);
-        designerReport = designerReports.find((report) => {
-          const reportDate = new Date(report.date).toISOString().split("T")[0];
-          return reportDate === yesterdayStr;
-        });
-      } else {
-        // For range filters, find the latest report within the filter range
-        designerReport = designerReports.find((report) => {
-          const reportDate = new Date(report.date);
-          if (dateFilter === "Last 7 Days") {
-            return isAfter(reportDate, subDays(new Date(), 7));
-          } else if (dateFilter === "This Month") {
-            return isSameMonth(reportDate, new Date());
-          }
-          return true; // All Time
-        });
-      }
+      // Find the one that matches the selectedDate
+      const targetDateStr = getLocalDateString(selectedDate);
+      const designerReport = designerReports.find((report) => {
+        const reportDate = new Date(report.date).toISOString().split("T")[0];
+        return reportDate === targetDateStr;
+      });
 
       let lastSubmittedStr = "Not submitted";
       if (designerReport) {
@@ -616,7 +599,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         tasks: myTasks,
       };
     });
-  }, [designers, designerTasks, designerEodReports, dateFilter]);
+  }, [designers, designerTasks, designerEodReports, selectedDate]);
 
   // 6. Client Progress
   const clientProgress = useMemo(() => {
@@ -897,6 +880,194 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     }
     return name.substring(0, 2).toUpperCase();
   };
+  const getDeadlineBadgeText = (dueDateStr, status) => {
+    if (!dueDateStr) return "";
+    const days = getDaysRemaining(dueDateStr);
+    const isCompleted = status?.toLowerCase() === "completed" || status?.toLowerCase().includes("approve");
+    if (isCompleted) return "Completed";
+
+    if (days < 0) {
+      const absDays = Math.abs(days);
+      return `${absDays} ${absDays === 1 ? "day" : "days"} overdue`;
+    } else if (days === 0) {
+      return "Due Today";
+    } else if (days === 1) {
+      return "Due Tomorrow";
+    } else {
+      return `${days} days to go`;
+    }
+  };
+
+  const renderTaskCard = (task) => {
+    let clientName = "No Client";
+    if (task.client) {
+      const cId =
+        typeof task.client === "object"
+          ? task.client._id
+          : task.client;
+      const c = clients?.find((x) => x._id === cId);
+      clientName =
+        c?.companyName ||
+        c?.name ||
+        (typeof task.client === "object"
+          ? task.client.companyName || task.client.name
+          : "Unknown Client");
+    } else if (task.project) {
+      const pId =
+        typeof task.project === "object"
+          ? task.project._id
+          : task.project;
+      const p = projects?.find((x) => x._id === pId);
+      if (p) {
+        const cId =
+          typeof p.client === "object"
+            ? p.client?._id
+            : p.client;
+        const c = clients?.find((x) => x._id === cId);
+        clientName =
+          c?.companyName ||
+          c?.name ||
+          (typeof p.client === "object"
+            ? p.client.companyName || p.client.name
+            : "Unknown Client");
+      }
+    }
+
+    const aId = task.assignedTo
+      ? typeof task.assignedTo === "object"
+        ? task.assignedTo._id
+        : task.assignedTo
+      : null;
+    const assignedUser = aId
+      ? designers.find((d) => d._id === aId) ||
+        (task.assignedTo && typeof task.assignedTo === "object"
+          ? task.assignedTo
+          : null)
+      : null;
+    const assignedByName = task.createdBy
+      ? typeof task.createdBy === "object"
+        ? task.createdBy.name
+        : null
+      : null;
+
+    const profileImg =
+      assignedUser?.profile?.profileImage?.url ||
+      assignedUser?.profileImage?.url ||
+      null;
+    const initials = (assignedUser?.name || "")
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+    const creatorInitials = (assignedByName || "")
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        key={task._id}
+        className="bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-400 transition-all shadow-sm hover:shadow-md relative group backdrop-blur-sm"
+      >
+        <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-indigo-500 to-purple-500 rounded-l-xl opacity-100" />
+        {/* Title row: icon + name on left, date on right */}
+        <div className="flex items-start justify-between gap-2 pl-1.5 mb-2">
+          <div className="flex items-start gap-1.5 min-w-0">
+            <FiFileText
+              size={12}
+              className="text-indigo-400 dark:text-indigo-400 shrink-0 mt-0.5"
+            />
+            <p className="text-[9px] font-bold text-slate-700 dark:text-white leading-snug break-words">
+              {task.title}
+            </p>
+          </div>
+          {task.dueDate && (
+            <span
+              className={`shrink-0 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider whitespace-nowrap px-1.5 py-0.5 rounded ${
+                (() => {
+                  const days = getDaysRemaining(task.dueDate);
+                  const isCompleted = task.status?.toLowerCase() === "completed" || task.status?.toLowerCase().includes("approve");
+                  if (isCompleted) return "text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-500/10";
+                  if (days < 0) return "text-rose-605 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/50 dark:border-rose-900/30";
+                  if (days === 0) return "text-amber-605 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/50 dark:border-amber-900/30";
+                  if (days === 1) return "text-blue-605 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-200/50 dark:border-blue-900/30";
+                  return "text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/50";
+                })()
+              }`}
+            >
+              <FiClock size={9} />
+              <span>{format(parseISO(task.dueDate), "MMM dd")}</span>
+              <span className="opacity-40 font-normal">|</span>
+              <span>{getDeadlineBadgeText(task.dueDate, task.status)}</span>
+            </span>
+          )}
+        </div>
+        {/* Project and Priority Info */}
+        <div className="flex items-center justify-between gap-2 mt-1 pl-1.5 mb-2">
+          <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 truncate max-w-[65%]">
+            {clientName}
+          </span>
+          {task.priority && (
+            <span
+              className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${getPriorityStyle(task.priority)}`}
+            >
+              {task.priority}
+            </span>
+          )}
+        </div>
+        {/* Assigned User */}
+        {(assignedUser || assignedByName) && (
+          <div className="mt-2 pl-1 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
+            {/* Assigned To — left */}
+            {assignedUser ? (
+              <div className="flex items-center gap-1.5 min-w-0">
+                {profileImg ? (
+                  <img
+                    src={profileImg}
+                    alt={assignedUser.name}
+                    className="w-5 h-5 rounded-full object-cover ring-1 ring-indigo-400/40 shrink-0"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[8px] font-black ring-1 ring-indigo-400/30 shrink-0">
+                    {initials}
+                  </div>
+                )}
+                <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 truncate">
+                  {assignedUser.name}
+                </span>
+              </div>
+            ) : (
+              <div />
+            )}
+            {/* Assigned By — right */}
+            {assignedByName && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 flex items-center justify-center text-[8px] font-black ring-1 ring-amber-400/30 shrink-0">
+                  {creatorInitials || "SM"}
+                </div>
+                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                  {assignedByName}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    );
+  };
+
+  const getRelativeDateLabel = (date) => {
+    if (isToday(date)) return "Today";
+    if (isYesterday(date)) return "Yesterday";
+    if (isTomorrow(date)) return "Tomorrow";
+    return format(date, "EEEE");
+  };
 
   return (
     <div className="bg-white dark:bg-[#0b1120] py-4 md:py-4 px-0 md:px-0 space-y-8 font-sans  overflow-visible transition-colors duration-300 relative">
@@ -911,58 +1082,48 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           </h2>
         </div>
 
-        {/* Date Filter Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setShowDropdown(!showDropdown)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-100  border border-slate-200 dark:border-slate-600/50 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 transition-all shadow-sm backdrop-blur-md"
-          >
-            <FiFilter className="text-emerald-500 dark:text-emerald-400" />
-            {dateFilter}
-            <FiChevronDown
-              className={`transition-transform duration-200 ${showDropdown ? "rotate-180" : ""}`}
-            />
-          </button>
+        {/* Date Filter & Navigator Group */}
+        <div className="flex items-center gap-2">
+          {/* Label indicating Today/Yesterday/Tomorrow */}
+          <span className="text-[11px] font-extrabold text-slate-650 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/50 px-3.5 py-2.5 rounded-xl shadow-sm tracking-wide">
+            {getRelativeDateLabel(selectedDate)}
+          </span>
 
-          <AnimatePresence>
-            {showDropdown && (
-              <>
-                <div
-                  className="fixed inset-0 z-30"
-                  onClick={() => setShowDropdown(false)}
-                />
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0  w-48 bg-white dark:bg-[#070b13] border border-slate-200 dark:border-slate-800/80 rounded-xl shadow-2xl z-40 overflow-hidden backdrop-blur-xl"
-                >
-                  {[
-                    "Today",
-                    "Yesterday",
-                    "Last 7 Days",
-                    "This Month",
-                    "All Time",
-                  ].map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => {
-                        setDateFilter(option);
-                        setShowDropdown(false);
-                      }}
-                      className={`w-full text-left px-4 py-3 text-sm font-black transition-colors ${
-                        dateFilter === option
-                          ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-slate-100"
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
+          {/* Date Picker Button */}
+          <label className="relative flex items-center gap-2 px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all font-bold text-xs">
+            <FiCalendar className="text-emerald-500 dark:text-emerald-400 shrink-0" size={14} />
+            <span className="min-w-[80px] text-center">{format(selectedDate, "MMM dd, yyyy")}</span>
+            <FiChevronDown className="text-slate-400" size={13} />
+            <input
+              type="date"
+              value={format(selectedDate, "yyyy-MM-dd")}
+              onChange={(e) => {
+                if (e.target.value) {
+                  const [y, m, d] = e.target.value.split("-").map(Number);
+                  setSelectedDate(new Date(y, m - 1, d));
+                }
+              }}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+          </label>
+
+          {/* Prev / Next buttons */}
+          <div className="flex items-center border border-slate-250 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
+            <button
+              onClick={() => setSelectedDate((prev) => subDays(prev, 1))}
+              className="px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+              title="Previous Day"
+            >
+              <FiChevronLeft size={14} />
+            </button>
+            <button
+              onClick={() => setSelectedDate((prev) => addDays(prev, 1))}
+              className="px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+              title="Next Day"
+            >
+              <FiChevronRight size={14} />
+            </button>
+          </div>
         </div>
       </div>
       {/* Premium Metrics Grid */}
@@ -1195,7 +1356,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             LIVE SYNC
           </span>
         </div>
-        <div className="flex flex-col lg:flex-row gap-3 pb-6">
+        <div className="flex flex-row gap-4 pb-4 overflow-x-auto w-full scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
           {boardColumns.map((col, i) => {
             let colBg = "bg-slate-50 dark:bg-slate-800/80";
             let boardBg = "bg-slate-50/50 dark:bg-[#0f172a]";
@@ -1205,7 +1366,16 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             let countText = "text-slate-700 dark:text-slate-300";
 
             const lowerCol = col.toLowerCase();
-            if (lowerCol === "pending") {
+            const isOverdueCol = lowerCol === "overdue";
+
+            if (isOverdueCol) {
+              colBg = "bg-red-500 dark:bg-red-650";
+              boardBg = "bg-red-50/10 dark:bg-[#0f172a]";
+              textCol = "text-white dark:text-white";
+              colBorder = "border-red-200 dark:border-red-800/50";
+              countBg = "bg-red-100 dark:bg-red-900/40";
+              countText = "text-red-800 dark:text-red-300";
+            } else if (lowerCol === "pending") {
               colBg = "bg-slate-300 dark:bg-slate-300";
               boardBg = "bg-slate-50/50 dark:bg-[#0f172a]";
               textCol = "text-white dark:text-slate-900";
@@ -1249,10 +1419,26 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
               countText = "text-rose-800 dark:text-rose-300";
             }
 
+            const columnTasks = tasksByColumn[col] || [];
+
+            // Split overdue tasks into previous and upcoming
+            const previousOverdue = isOverdueCol
+              ? columnTasks.filter((t) => {
+                  const days = getDaysRemaining(t.dueDate);
+                  return days !== null && days < 0;
+                })
+              : [];
+            const upcomingOverdue = isOverdueCol
+              ? columnTasks.filter((t) => {
+                  const days = getDaysRemaining(t.dueDate);
+                  return days !== null && days === 0;
+                })
+              : [];
+
             return (
               <div
                 key={i}
-                className={`flex-1 min-w-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[550px] shadow-sm`}
+                className={`w-[290px] min-w-[290px] shrink-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[580px] shadow-sm`}
               >
                 <div
                   className={`p-3 border-b flex items-center justify-between rounded-t-2xl backdrop-blur-md ${colBg} ${colBorder}`}
@@ -1265,165 +1451,63 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                   <span
                     className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${countBg} ${countText}`}
                   >
-                    {tasksByColumn[col].length}
+                    {columnTasks.length}
                   </span>
                 </div>
-                <div className="p-2.5 overflow-y-auto space-y-2.5 flex-1 custom-scrollbar">
-                  <AnimatePresence>
-                    {tasksByColumn[col].map((task) => {
-                      let clientName = "No Client";
-                      if (task.client) {
-                        const cId =
-                          typeof task.client === "object"
-                            ? task.client._id
-                            : task.client;
-                        const c = clients?.find((x) => x._id === cId);
-                        clientName =
-                          c?.companyName ||
-                          c?.name ||
-                          (typeof task.client === "object"
-                            ? task.client.companyName || task.client.name
-                            : "Unknown Client");
-                      } else if (task.project) {
-                        const pId =
-                          typeof task.project === "object"
-                            ? task.project._id
-                            : task.project;
-                        const p = projects?.find((x) => x._id === pId);
-                        if (p) {
-                          const cId =
-                            typeof p.client === "object"
-                              ? p.client?._id
-                              : p.client;
-                          const c = clients?.find((x) => x._id === cId);
-                          clientName =
-                            c?.companyName ||
-                            c?.name ||
-                            (typeof p.client === "object"
-                              ? p.client.companyName || p.client.name
-                              : "Unknown Client");
-                        }
-                      }
-
-                      return (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          key={task._id}
-                          className="bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-400 transition-all shadow-sm hover:shadow-md relative group backdrop-blur-sm"
-                        >
-                          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-indigo-500 to-purple-500 rounded-l-xl opacity-100" />
-                          {/* Title row: icon + name on left, date on right */}
-                          <div className="flex items-start justify-between gap-2 pl-1.5 mb-2">
-                            <div className="flex items-start gap-1.5 min-w-0">
-                              <FiFileText
-                                size={12}
-                                className="text-indigo-400 dark:text-indigo-400 shrink-0 mt-0.5"
-                              />
-                              <p className="text-[9px] font-bold text-slate-700 dark:text-white leading-snug break-words">
-                                {task.title}
+                <div className="p-2.5 overflow-y-auto space-y-3 flex-1 custom-scrollbar">
+                  {isOverdueCol ? (
+                    <div className="space-y-4">
+                      {/* Previous Overdue */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-2 py-1 bg-red-100/40 dark:bg-red-950/20 border border-red-200/30 dark:border-red-900/30 rounded-lg">
+                          <span className="text-[9px] font-extrabold uppercase text-red-600 dark:text-red-400 tracking-wider">
+                            Previous Overdue
+                          </span>
+                          <span className="text-[9px] font-black text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded">
+                            {previousOverdue.length}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <AnimatePresence>
+                            {previousOverdue.length > 0 ? (
+                              previousOverdue.map((task) => renderTaskCard(task))
+                            ) : (
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-2">
+                                No previous overdue tasks
                               </p>
-                            </div>
-                            {task.dueDate && (
-                              <span
-                                className={`shrink-0 flex items-center gap-1 text-[9px] font-bold whitespace-nowrap ${isPast(parseISO(task.dueDate)) && task.status !== "Completed" ? "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded" : "text-slate-400 dark:text-slate-500"}`}
-                              >
-                                <FiClock size={9} />
-                                {format(parseISO(task.dueDate), "MMM dd")}
-                              </span>
                             )}
-                          </div>
-                          {/* Project and Priority Info */}
-                          <div className="flex items-center justify-between gap-2 mt-1 pl-1.5 mb-2">
-                            <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 truncate max-w-[65%]">
-                              {clientName}
-                            </span>
-                            {task.priority && (
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${getPriorityStyle(task.priority)}`}
-                              >
-                                {task.priority}
-                              </span>
+                          </AnimatePresence>
+                        </div>
+                      </div>
+
+                      {/* Upcoming Overdue */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-2 py-1 bg-amber-100/40 dark:bg-amber-950/20 border border-amber-200/30 dark:border-amber-900/30 rounded-lg">
+                          <span className="text-[9px] font-extrabold uppercase text-amber-600 dark:text-amber-400 tracking-wider">
+                            Upcoming Overdue
+                          </span>
+                          <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded">
+                            {upcomingOverdue.length}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <AnimatePresence>
+                            {upcomingOverdue.length > 0 ? (
+                              upcomingOverdue.map((task) => renderTaskCard(task))
+                            ) : (
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-2">
+                                No tasks due today
+                              </p>
                             )}
-                          </div>
-                          {/* Assigned User */}
-                          {(() => {
-                            const aId = task.assignedTo
-                              ? typeof task.assignedTo === "object"
-                                ? task.assignedTo._id
-                                : task.assignedTo
-                              : null;
-                            const assignedUser = aId
-                              ? designers.find((d) => d._id === aId) ||
-                                (task.assignedTo &&
-                                typeof task.assignedTo === "object"
-                                  ? task.assignedTo
-                                  : null)
-                              : null;
-                            const assignedByName = task.createdBy
-                              ? typeof task.createdBy === "object"
-                                ? task.createdBy.name
-                                : null
-                              : null;
-                            if (!assignedUser && !assignedByName) return null;
-                            const profileImg =
-                              assignedUser?.profile?.profileImage?.url ||
-                              assignedUser?.profileImage?.url ||
-                              null;
-                            const initials = (assignedUser?.name || "")
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .toUpperCase()
-                              .slice(0, 2);
-                            const creatorInitials = (assignedByName || "")
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .toUpperCase()
-                              .slice(0, 2);
-                            return (
-                              <div className="mt-2 pl-1 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
-                                {/* Assigned To — left */}
-                                {assignedUser ? (
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    {profileImg ? (
-                                      <img
-                                        src={profileImg}
-                                        alt={assignedUser.name}
-                                        className="w-5 h-5 rounded-full object-cover ring-1 ring-indigo-400/40 shrink-0"
-                                      />
-                                    ) : (
-                                      <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[8px] font-black ring-1 ring-indigo-400/30 shrink-0">
-                                        {initials}
-                                      </div>
-                                    )}
-                                    <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 truncate">
-                                      {assignedUser.name}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div />
-                                )}
-                                {/* Assigned By — right */}
-                                {assignedByName && (
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 flex items-center justify-center text-[8px] font-black ring-1 ring-amber-400/30 shrink-0">
-                                      {creatorInitials || "SM"}
-                                    </div>
-                                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                                      {assignedByName}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
+                          </AnimatePresence>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <AnimatePresence>
+                      {columnTasks.map((task) => renderTaskCard(task))}
+                    </AnimatePresence>
+                  )}
                 </div>
               </div>
             );
@@ -1456,7 +1540,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                 </span>
               </div>
               <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-300 uppercase tracking-wider">
-                {dateFilter}
+                {format(selectedDate, "MMM dd, yyyy")}
               </span>
             </div>
           </div>
