@@ -21,7 +21,7 @@ const SubtaskSchema = new mongoose.Schema({
   dueDate: {
     type: Date,
   },
-  priority: {
+priority: {
     type: String,
     enum: ["Low", "Medium", "High", "Top High"],
     default: "Medium",

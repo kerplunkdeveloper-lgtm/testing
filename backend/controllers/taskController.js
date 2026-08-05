@@ -280,6 +280,14 @@ if (req.body.status && req.body.status !== previousStatus) {
       break;
 
     case "Completed":
+      if (task.pausedAt) {
+        req.body.totalPausedMs =
+          (task.totalPausedMs || 0) +
+          (Date.now() - new Date(task.pausedAt).getTime());
+        req.body.businessTotalPausedMs =
+          (task.businessTotalPausedMs || 0) +
+          calculateBusinessMs(task.pausedAt, Date.now());
+      }
       if (!task.actualEndTime) {
         req.body.actualEndTime = Date.now();
       }
@@ -402,6 +410,14 @@ if (req.body.subtasks) {
           break;
 
         case "Completed":
+          if (prevSub.pausedAt) {
+            sub.totalPausedMs =
+              (prevSub.totalPausedMs || 0) +
+              (Date.now() - new Date(prevSub.pausedAt).getTime());
+            sub.businessTotalPausedMs =
+              (prevSub.businessTotalPausedMs || 0) +
+              calculateBusinessMs(prevSub.pausedAt, Date.now());
+          }
           if (!prevSub.actualEndTime && !sub.actualEndTime) {
             sub.actualEndTime = Date.now();
           }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { BiFile } from "react-icons/bi";
 import {
@@ -14,6 +15,7 @@ import {
   FiSearch,
   FiTrash2,
   FiAlertCircle,
+  FiEye,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector } from "react-redux";
@@ -22,6 +24,7 @@ import {
   useDeleteTaskMutation,
 } from "../../features/api/apiSlice";
 import ClientBadge from "../../components/common/ClientBadge";
+import { calculateBusinessMs } from "../../utils/businessHours";
 import toast from "react-hot-toast";
 
 const SimpleTimeTracker = ({
@@ -117,9 +120,205 @@ const SimpleTimeTracker = ({
   };
 
   return (
-    <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-blue-50/80 text-blue-700 border border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/30 shadow-2xs">
+    <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-blue-50/80 text-blue-700 border border-blue-200 dark:bg-blue-955/30 dark:text-blue-400 dark:border-blue-900/30 shadow-2xs">
       {formatTime(elapsed)}
     </span>
+  );
+};
+
+const formatBusinessDuration = (ms) => {
+  if (!ms) return "0m 0s";
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+};
+const ApprovalTimeDisplay = ({
+  reviewStartedAt,
+  completedAt,
+  approvalWaitingMs,
+  status,
+}) => {
+  const [liveElapsed, setLiveElapsed] = useState(0);
+  const [showPopup, setShowPopup] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef(null);
+  const popupRef = useRef(null);
+
+  useEffect(() => {
+    if (
+      !reviewStartedAt ||
+      !["In Review", "IN-REVIEW", "IN-Review"].includes(status)
+    ) {
+      setLiveElapsed(0);
+      return;
+    }
+    const updateTime = () => {
+      const elapsed = calculateBusinessMs(reviewStartedAt, Date.now());
+      setLiveElapsed(elapsed);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [reviewStartedAt, status]);
+
+  // Click outside close
+  useEffect(() => {
+    if (!showPopup) return;
+    const handleClickOutside = (e) => {
+      if (popupRef.current && !popupRef.current.contains(e.target) && buttonRef.current && !buttonRef.current.contains(e.target)) {
+        setShowPopup(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showPopup]);
+
+  if (!reviewStartedAt && !approvalWaitingMs) {
+    return (
+      <span className="text-slate-350 dark:text-slate-655 text-xs">—</span>
+    );
+  }
+
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return { date: "—", time: "", relative: "" };
+    const d = new Date(dateStr);
+    const date = d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+    });
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const diffMs = Date.now() - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    let relative = "just now";
+    if (diffDays > 0) relative = `${diffDays}d ago`;
+    else if (diffHours > 0) relative = `${diffHours}h ago`;
+    else if (diffMins > 0) relative = `${diffMins}m ago`;
+    return { date, time, relative };
+  };
+
+  const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
+  const isInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(status);
+  const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
+  const doneInfo = completedAt ? formatDateTime(completedAt) : null;
+
+  const handleToggle = (e) => {
+    e.stopPropagation();
+    if (!showPopup && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      // Position above the button, aligned to its right edge
+      setCoords({
+        top: rect.top + window.scrollY - 175,
+        left: rect.right + window.scrollX - 224,
+      });
+    }
+    setShowPopup(!showPopup);
+  };
+
+  return (
+    <div className="relative inline-flex items-center gap-1.5 justify-center">
+      {/* Duration badge */}
+      {totalWaitMs > 0 && (
+        <div
+          className={`px-2.5 py-1 rounded-full font-black text-[10px] tracking-wide border shadow-sm ${
+            isInReview
+              ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/25"
+              : "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20"
+          }`}
+        >
+          {isInReview && (
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0 mr-1 inline-block" />
+          )}
+          {isInReview ? "Waiting " : "Took "}
+          <span className="font-black">
+            {formatBusinessDuration(totalWaitMs)}
+          </span>
+        </div>
+      )}
+
+      {/* View Details Eye Icon */}
+      {(revInfo || doneInfo) && (
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={handleToggle}
+          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-[#3b82f6] transition-colors cursor-pointer"
+          title="View approval details"
+        >
+          <FiEye size={13} />
+        </button>
+      )}
+
+      {/* Details Popup rendered via Portal */}
+      {showPopup && createPortal(
+        <AnimatePresence>
+          <motion.div
+            ref={popupRef}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.15 }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute",
+              top: coords.top,
+              left: coords.left,
+            }}
+            className="z-[9999] w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl flex flex-col gap-2 text-left"
+          >
+            <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Timeline Details
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowPopup(false)}
+                className="text-slate-400 hover:text-slate-600 dark:text-[#555] dark:hover:text-slate-350 cursor-pointer"
+              >
+                <FiX size={10} />
+              </button>
+            </div>
+
+            {revInfo && (
+              <div className="flex flex-col gap-0.5 bg-blue-50/40 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
+                <span className="text-[8px] font-black text-blue-500 dark:text-blue-450 uppercase tracking-widest">
+                  Review Start
+                </span>
+                <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                  {revInfo.date} · {revInfo.time}
+                </span>
+                <span className="text-[9px] text-blue-455 dark:text-blue-500 font-medium">
+                  {revInfo.relative}
+                </span>
+              </div>
+            )}
+
+            {doneInfo && (
+              <div className="flex flex-col gap-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
+                <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
+                  Completed
+                </span>
+                <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                  {doneInfo.date} · {doneInfo.time}
+                </span>
+                <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium">
+                  {doneInfo.relative}
+                </span>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+    </div>
   );
 };
 
@@ -482,6 +681,7 @@ const TaskOverviewTab = ({
     priority: false,
     status: false,
     totalHours: false,
+    approvalInfo: false,
     action: false,
   });
   const [isColsOpen, setIsColsOpen] = useState(false);
@@ -749,8 +949,12 @@ const TaskOverviewTab = ({
 
         if (dateFilter !== "All") {
           const targetDate = task.dueDate ? new Date(task.dueDate) : null;
+          const targetStartDate = task.startDate ? new Date(task.startDate) : null;
 
-          if (!targetDate || isNaN(targetDate.getTime())) {
+          const hasValidDueDate = targetDate && !isNaN(targetDate.getTime());
+          const hasValidStartDate = targetStartDate && !isNaN(targetStartDate.getTime());
+
+          if (!hasValidDueDate && !hasValidStartDate) {
             return false;
           } else {
             const now = new Date();
@@ -770,15 +974,17 @@ const TaskOverviewTab = ({
             );
 
             if (dateFilter === "Today") {
-              if (targetDate < todayStart || targetDate > todayEnd)
-                return false;
+              const isDueToday = hasValidDueDate && targetDate >= todayStart && targetDate <= todayEnd;
+              const isStartToday = hasValidStartDate && targetStartDate >= todayStart && targetStartDate <= todayEnd;
+              if (!isDueToday && !isStartToday) return false;
             } else if (dateFilter === "Yesterday") {
               const yesterdayStart = new Date(todayStart);
               yesterdayStart.setDate(yesterdayStart.getDate() - 1);
               const yesterdayEnd = new Date(todayEnd);
               yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
-              if (targetDate < yesterdayStart || targetDate > yesterdayEnd)
-                return false;
+              const isDueYesterday = hasValidDueDate && targetDate >= yesterdayStart && targetDate <= yesterdayEnd;
+              const isStartYesterday = hasValidStartDate && targetStartDate >= yesterdayStart && targetStartDate <= yesterdayEnd;
+              if (!isDueYesterday && !isStartYesterday) return false;
             } else if (dateFilter === "This Week") {
               const dayOfWeek = now.getDay();
               const startOfWeek = new Date(todayStart);
@@ -788,8 +994,9 @@ const TaskOverviewTab = ({
               const endOfWeek = new Date(startOfWeek);
               endOfWeek.setDate(endOfWeek.getDate() + 6);
               endOfWeek.setHours(23, 59, 59, 999);
-              if (targetDate < startOfWeek || targetDate > endOfWeek)
-                return false;
+              const isDueThisWeek = hasValidDueDate && targetDate >= startOfWeek && targetDate <= endOfWeek;
+              const isStartThisWeek = hasValidStartDate && targetStartDate >= startOfWeek && targetStartDate <= endOfWeek;
+              if (!isDueThisWeek && !isStartThisWeek) return false;
             } else if (dateFilter === "This Month") {
               const startOfMonth = new Date(
                 now.getFullYear(),
@@ -805,8 +1012,9 @@ const TaskOverviewTab = ({
                 59,
                 999,
               );
-              if (targetDate < startOfMonth || targetDate > endOfMonth)
-                return false;
+              const isDueThisMonth = hasValidDueDate && targetDate >= startOfMonth && targetDate <= endOfMonth;
+              const isStartThisMonth = hasValidStartDate && targetStartDate >= startOfMonth && targetStartDate <= endOfMonth;
+              if (!isDueThisMonth && !isStartThisMonth) return false;
             }
           }
         }
@@ -1515,6 +1723,7 @@ const TaskOverviewTab = ({
                               status: false,
                               revisions: false,
                               totalHours: false,
+                              approvalInfo: false,
                               action: false,
                             })
                           }
@@ -1535,6 +1744,7 @@ const TaskOverviewTab = ({
                         { key: "priority", label: "Priority" },
                         { key: "status", label: "Status" },
                         { key: "totalHours", label: "Total Hours" },
+                        { key: "approvalInfo", label: "Approve Info" },
                         { key: "action", label: "Action" },
                       ].map((col) => (
                         <label
@@ -1564,7 +1774,7 @@ const TaskOverviewTab = ({
         </div>
 
         <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1 relative bg-white dark:bg-[#11131e]">
-          <table className="w-full text-left border-collapse min-w-[1305px] table-fixed">
+          <table className="w-full text-left border-collapse min-w-[1505px] table-fixed">
             <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161826] shadow-sm">
               <tr className="border-b border-slate-300 dark:border-white/15 text-[9.5px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-wider">
                 {!hiddenColumns.taskName && (
@@ -1612,7 +1822,12 @@ const TaskOverviewTab = ({
                 )}
                 {!hiddenColumns.totalHours && (
                   <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[110px]">
-                    TOTAL HOURS
+                    TOTAL Inprogress 
+                  </th>
+                )}
+                {!hiddenColumns.approvalInfo && (
+                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[200px]">
+                    APPROVE INFO
                   </th>
                 )}
                 {!hiddenColumns.action && (
@@ -1829,6 +2044,16 @@ const TaskOverviewTab = ({
                             />
                           </td>
                         )}
+                        {!hiddenColumns.approvalInfo && (
+                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                            <ApprovalTimeDisplay
+                              reviewStartedAt={task.reviewStartedAt}
+                              completedAt={task.completedAt}
+                              approvalWaitingMs={task.approvalWaitingMs}
+                              status={task.status}
+                            />
+                          </td>
+                        )}
                         {!hiddenColumns.action && (
                           <td
                             className="py-2.5 px-3 border-b border-slate-200 dark:border-white/10 text-right"
@@ -2029,6 +2254,42 @@ const TaskOverviewTab = ({
 
                     <div className="space-y-1">
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
+                        Status
+                      </span>
+                      <select
+                        value={selectedTask.status || "Pending"}
+                        onChange={(e) =>
+                          handleTaskFieldChange(selectedTask._id, {
+                            status: e.target.value,
+                          })
+                        }
+                        className={`badge-select border rounded px-2 py-0.5 text-[10px] font-bold ${
+                          selectedTask.status === "Completed"
+                            ? "badge-status-completed"
+                            : selectedTask.status === "In Progress"
+                              ? "badge-status-in-progress"
+                              : selectedTask.status === "IN-REVIEW" ||
+                                  selectedTask.status === "In Review" ||
+                                  selectedTask.status === "IN-Review"
+                                ? "badge-status-in-review"
+                                : selectedTask.status === "On Hold"
+                                  ? "badge-status-on-hold"
+                                  : selectedTask.status === "Rejected"
+                                    ? "badge-status-rejected"
+                                    : "badge-status-pending"
+                        }`}
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="IN-REVIEW">In Review</option>
+                        <option value="Completed">Completed</option>
+                        <option value="On Hold">On Hold</option>
+                        <option value="Rejected">Rejected</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
                         Client
                       </span>
                       <div className="font-bold text-slate-700 dark:text-white mt-1">
@@ -2080,31 +2341,7 @@ const TaskOverviewTab = ({
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 tracking-wider flex items-center gap-1.5 uppercase">
-                    <FiTag size={12} /> Status
-                  </label>
-                  <select
-                    value={selectedTask.status}
-                    onChange={(e) =>
-                      handleTaskFieldChange(selectedTask._id, {
-                        status: e.target.value,
-                      })
-                    }
-                    className={`w-full border rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${getDrawerStatusStyle(selectedTask.status).bg}`}
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="IN-REVIEW">In Review</option>
-                    {selectedTask.status === "Completed" && (
-                      <option value="Completed">Completed</option>
-                    )}
-                    <option value="On Hold">On Hold</option>
-                    {selectedTask.status === "Rejected" && (
-                      <option value="Rejected">Rejected</option>
-                    )}
-                  </select>
-                </div>
+
               </div>
             </motion.div>
           </div>

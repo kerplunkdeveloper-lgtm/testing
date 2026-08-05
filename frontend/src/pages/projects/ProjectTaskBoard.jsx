@@ -52,6 +52,206 @@ import { updateProject } from "../../features/projects/projectSlice";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import ProjectIcon from "../../components/common/ProjectIcon";
 import ClientBadge from "../../components/common/ClientBadge";
+import { calculateBusinessMs } from "../../utils/businessHours";
+
+const formatBusinessDuration = (ms) => {
+  if (!ms) return "0m 0s";
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+};
+
+
+
+const ApprovalTimeDisplay = ({
+  reviewStartedAt,
+  completedAt,
+  approvalWaitingMs,
+  status,
+}) => {
+  const [liveElapsed, setLiveElapsed] = useState(0);
+  const [showPopup, setShowPopup] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef(null);
+  const popupRef = useRef(null);
+
+  useEffect(() => {
+    if (
+      !reviewStartedAt ||
+      !["In Review", "IN-REVIEW", "IN-Review"].includes(status)
+    ) {
+      setLiveElapsed(0);
+      return;
+    }
+    const updateTime = () => {
+      const elapsed = calculateBusinessMs(reviewStartedAt, Date.now());
+      setLiveElapsed(elapsed);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [reviewStartedAt, status]);
+
+  // Click outside close
+  useEffect(() => {
+    if (!showPopup) return;
+    const handleClickOutside = (e) => {
+      if (popupRef.current && !popupRef.current.contains(e.target) && buttonRef.current && !buttonRef.current.contains(e.target)) {
+        setShowPopup(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showPopup]);
+
+  if (!reviewStartedAt && !approvalWaitingMs) {
+    return (
+      <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+    );
+  }
+
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return { date: "—", time: "", relative: "" };
+    const d = new Date(dateStr);
+    const date = d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+    });
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const diffMs = Date.now() - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    let relative = "just now";
+    if (diffDays > 0) relative = `${diffDays}d ago`;
+    else if (diffHours > 0) relative = `${diffHours}h ago`;
+    else if (diffMins > 0) relative = `${diffMins}m ago`;
+    return { date, time, relative };
+  };
+
+  const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
+  const isInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(status);
+  const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
+  const doneInfo = completedAt ? formatDateTime(completedAt) : null;
+
+  const handleToggle = (e) => {
+    e.stopPropagation();
+    if (!showPopup && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      // Position above the button, aligned to its right edge
+      setCoords({
+        top: rect.top + window.scrollY - 175,
+        left: rect.right + window.scrollX - 224,
+      });
+    }
+    setShowPopup(!showPopup);
+  };
+
+  return (
+    <div className="relative inline-flex items-center gap-1.5 justify-center">
+      {/* Duration badge */}
+      {totalWaitMs > 0 && (
+        <div
+          className={`px-2.5 py-1 rounded-full font-black text-[10px] tracking-wide border shadow-sm ${
+            isInReview
+              ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/25"
+              : "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20"
+          }`}
+        >
+          {isInReview && (
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0 mr-1 inline-block" />
+          )}
+          {isInReview ? "Waiting " : "Took "}
+          <span className="font-black">
+            {formatBusinessDuration(totalWaitMs)}
+          </span>
+        </div>
+      )}
+
+      {/* View Details Eye Icon */}
+      {(revInfo || doneInfo) && (
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={handleToggle}
+          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-[#3b82f6] transition-colors cursor-pointer"
+          title="View approval details"
+        >
+          <FiEye size={13} />
+        </button>
+      )}
+
+      {/* Details Popup rendered via Portal */}
+      {showPopup && createPortal(
+        <AnimatePresence>
+          <motion.div
+            ref={popupRef}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.15 }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute",
+              top: coords.top,
+              left: coords.left,
+            }}
+            className="z-[9999] w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl flex flex-col gap-2 text-left"
+          >
+            <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Timeline Details
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowPopup(false)}
+                className="text-slate-400 hover:text-slate-600 dark:text-[#555] dark:hover:text-slate-350 cursor-pointer"
+              >
+                <FiX size={10} />
+              </button>
+            </div>
+
+            {revInfo && (
+              <div className="flex flex-col gap-0.5 bg-blue-50/40 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
+                <span className="text-[8px] font-black text-blue-500 dark:text-blue-450 uppercase tracking-widest">
+                  Review Start
+                </span>
+                <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                  {revInfo.date} · {revInfo.time}
+                </span>
+                <span className="text-[9px] text-blue-450 dark:text-blue-500 font-medium">
+                  {revInfo.relative}
+                </span>
+              </div>
+            )}
+
+            {doneInfo && (
+              <div className="flex flex-col gap-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
+                <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
+                  Completed
+                </span>
+                <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                  {doneInfo.date} · {doneInfo.time}
+                </span>
+                <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium">
+                  {doneInfo.relative}
+                </span>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+    </div>
+  );
+};
 
 const StrictModeDroppable = ({ children, ...props }) => {
   const [enabled, setEnabled] = useState(false);
@@ -84,15 +284,22 @@ const TimeTracker = ({
       let end;
 
       if (endTime) {
+        // Task is completed — use the locked end time
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "In Review", "IN-REVIEW"].includes(status)
+        ["On Hold", "Rejected", "In Review", "IN-REVIEW", "IN-Review"].includes(
+          status,
+        )
       ) {
+        // Task is paused (In Review / On Hold) — freeze at pausedAt
         end = new Date(pausedAt).getTime();
       } else {
+        // Task is actively running
         end = Date.now();
       }
+
+      // Subtract all accumulated paused/review time
       const elapsedMs = end - start - (savedPausedMs || 0);
 
       return Math.max(0, Math.floor(elapsedMs / 1000));
@@ -100,13 +307,14 @@ const TimeTracker = ({
 
     setElapsed(calculateElapsed());
 
+    // Only tick when actively running
     if (status === "In Progress" && !endTime) {
       const interval = setInterval(() => {
         setElapsed(calculateElapsed());
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [startTime, endTime, pausedAt, status]);
+  }, [startTime, endTime, pausedAt, status, savedPausedMs]);
 
   if (!startTime && status !== "In Progress") return null;
   if (!startTime && status === "In Progress")
@@ -538,7 +746,13 @@ const AssigneeDropdown = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [coords, setCoords] = useState({ top: 0, bottom: null, left: 0, width: 0, isUpward: false });
+  const [coords, setCoords] = useState({
+    top: 0,
+    bottom: null,
+    left: 0,
+    width: 0,
+    isUpward: false,
+  });
   const dropdownRef = useRef(null);
 
   const updateCoords = () => {
@@ -933,7 +1147,13 @@ const ClientDropdown = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [coords, setCoords] = useState({ top: 0, bottom: null, left: 0, width: 0, isUpward: false });
+  const [coords, setCoords] = useState({
+    top: 0,
+    bottom: null,
+    left: 0,
+    width: 0,
+    isUpward: false,
+  });
   const dropdownRef = useRef(null);
 
   const updateCoords = () => {
@@ -2168,86 +2388,102 @@ const ProjectTaskBoard = ({
       return;
     }
 
-   try {
-  await updateTaskMutation({
-    id: taskId,
-    taskData: sanitizedFields,
-  }).unwrap();
-} catch (err) {
-  console.error("Failed to update task:", err);
+    try {
+      await updateTaskMutation({
+        id: taskId,
+        taskData: sanitizedFields,
+      }).unwrap();
+    } catch (err) {
+      console.error("Failed to update task:", err);
 
-  if (err?.status === 409) {
-    toast.custom(
-      (t) => (
-        <div
-          className={`${
-            t.visible ? "animate-enter" : "animate-leave"
-          } max-w-sm w-full pointer-events-auto flex flex-col gap-3 p-4 rounded-2xl shadow-2xl border
+      if (err?.status === 409) {
+        toast.custom(
+          (t) => (
+            <div
+              className={`${
+                t.visible ? "animate-enter" : "animate-leave"
+              } max-w-sm w-full pointer-events-auto flex flex-col gap-3 p-4 rounded-2xl shadow-2xl border
           bg-white dark:bg-[#0f172a]
           border-[var(--accent-color)]/30 dark:border-[var(--accent-color-dark)]/30
           backdrop-blur-xl z-[99999]`}
-        >
-          <div className="flex items-start gap-3">
-            <div
-              className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"
-              style={{ background: "var(--accent-light-bg-subtle)" }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
+              <div className="flex items-start gap-3">
+                <div
+                  className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"
+                  style={{ background: "var(--accent-light-bg-subtle)" }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--accent-color)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-[12px] font-black tracking-wide"
+                    style={{ color: "var(--accent-color)" }}
+                  >
+                    Active Task Already Running
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-snug">
+                    {err?.data?.message ||
+                      "You already have one active task or subtask."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toast.dismiss(t.id)}
+                  className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  <FiX size={13} />
+                </button>
+              </div>
+              <div className="h-px bg-slate-100 dark:bg-slate-800" />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toast.dismiss(t.id)}
+                  className="flex-1 py-1.5 px-3 rounded-lg text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    updateTaskMutation({
+                      id: taskId,
+                      taskData: { ...sanitizedFields, forceSwitch: true },
+                    });
+                  }}
+                  className="flex-1 py-1.5 px-3 rounded-lg text-[11px] font-black text-white transition-all cursor-pointer shadow-sm"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, var(--accent-color), var(--accent-color-dark))",
+                  }}
+                >
+                  Switch Task
+                </button>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p
-                className="text-[12px] font-black tracking-wide"
-                style={{ color: "var(--accent-color)" }}
-              >
-                Active Task Already Running
-              </p>
-              <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-snug">
-                {err?.data?.message || "You already have one active task or subtask."}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => toast.dismiss(t.id)}
-              className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-            >
-              <FiX size={13} />
-            </button>
-          </div>
-          <div className="h-px bg-slate-100 dark:bg-slate-800" />
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => toast.dismiss(t.id)}
-              className="flex-1 py-1.5 px-3 rounded-lg text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                toast.dismiss(t.id);
-                updateTaskMutation({ id: taskId, taskData: { ...sanitizedFields, forceSwitch: true } });
-              }}
-              className="flex-1 py-1.5 px-3 rounded-lg text-[11px] font-black text-white transition-all cursor-pointer shadow-sm"
-              style={{ background: "linear-gradient(135deg, var(--accent-color), var(--accent-color-dark))" }}
-            >
-              Switch Task
-            </button>
-          </div>
-        </div>
-      ),
-      { duration: 6000, position: "bottom-right" },
-    );
-  } else {
-    toast.error("Failed to update task");
-  }
+          ),
+          { duration: 6000, position: "bottom-right" },
+        );
+      } else {
+        toast.error("Failed to update task");
+      }
 
-  throw err;
-}
+      throw err;
+    }
   };
 
   // Add Comment Handler
@@ -2960,8 +3196,11 @@ const ProjectTaskBoard = ({
                           { id: "priority", label: "Priority" },
                           { id: "status", label: "Status" },
                           { id: "revision", label: "Revision" },
-                          { id: "totalHours", label: "Total productivity" },
-                          { id: "approveTime", label: "Approve time" },
+                          {
+                            id: "totalHours",
+                            label: "Total productivity - (total inprogress) ",
+                          },
+                          { id: "approvalInfo", label: "Approval Info" },
                         ].map((col) => {
                           const isHidden = !!hiddenColumns[col.id];
                           return (
@@ -3427,12 +3666,12 @@ const ProjectTaskBoard = ({
                               )}
                               {!hiddenColumns.totalHours && (
                                 <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  Total productivity
+                                  Total productivity - (inprogress taken)
                                 </th>
                               )}
-                              {!hiddenColumns.approveTime && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  Approve time
+                              {!hiddenColumns.approvalInfo && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[200px]">
+                                  Approval Info
                                 </th>
                               )}
                               <th className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 text-center whitespace-nowrap min-w-[80px]">
@@ -4723,15 +4962,41 @@ const ProjectTaskBoard = ({
                                                                   task.contentType ||
                                                                   ""
                                                                 }
-                                                                onChange={(e) => {
-                                                                  const val = e.target.value;
-                                                                  if (val === "__ADD_CUSTOM__") {
-                                                                    const customVal = prompt("Enter custom content type:");
-                                                                    if (customVal && customVal.trim() !== "") {
-                                                                      handleTaskFieldChange(task._id, { contentType: customVal.trim() });
+                                                                onChange={(
+                                                                  e,
+                                                                ) => {
+                                                                  const val =
+                                                                    e.target
+                                                                      .value;
+                                                                  if (
+                                                                    val ===
+                                                                    "__ADD_CUSTOM__"
+                                                                  ) {
+                                                                    const customVal =
+                                                                      prompt(
+                                                                        "Enter custom content type:",
+                                                                      );
+                                                                    if (
+                                                                      customVal &&
+                                                                      customVal.trim() !==
+                                                                        ""
+                                                                    ) {
+                                                                      handleTaskFieldChange(
+                                                                        task._id,
+                                                                        {
+                                                                          contentType:
+                                                                            customVal.trim(),
+                                                                        },
+                                                                      );
                                                                     }
                                                                   } else {
-                                                                    handleTaskFieldChange(task._id, { contentType: val });
+                                                                    handleTaskFieldChange(
+                                                                      task._id,
+                                                                      {
+                                                                        contentType:
+                                                                          val,
+                                                                      },
+                                                                    );
                                                                   }
                                                                 }}
                                                                 className={`badge-select ${
@@ -4795,9 +5060,30 @@ const ProjectTaskBoard = ({
                                                                 <option value="Video shoot">
                                                                   Video shoot
                                                                 </option>
-                                                                {task.contentType && !["VIDEO", "IMAGE", "CAROUSEL", "REEL", "POST", "STORY", "Website", "SEO", "Video shoot"].includes(task.contentType) && (
-                                                                  <option value={task.contentType}>{task.contentType}</option>
-                                                                )}
+                                                                {task.contentType &&
+                                                                  ![
+                                                                    "VIDEO",
+                                                                    "IMAGE",
+                                                                    "CAROUSEL",
+                                                                    "REEL",
+                                                                    "POST",
+                                                                    "STORY",
+                                                                    "Website",
+                                                                    "SEO",
+                                                                    "Video shoot",
+                                                                  ].includes(
+                                                                    task.contentType,
+                                                                  ) && (
+                                                                    <option
+                                                                      value={
+                                                                        task.contentType
+                                                                      }
+                                                                    >
+                                                                      {
+                                                                        task.contentType
+                                                                      }
+                                                                    </option>
+                                                                  )}
                                                                 <option value="__ADD_CUSTOM__">
                                                                   ➕ Custom...
                                                                 </option>
@@ -4924,7 +5210,7 @@ const ProjectTaskBoard = ({
                                                               e.stopPropagation()
                                                             }
                                                           >
-                                                            {isAdminOrManager ? (
+                                                            {isAdminOrManager && task.status !== "Completed" ? (
                                                               <select
                                                                 value={
                                                                   task.status ||
@@ -5067,10 +5353,21 @@ const ProjectTaskBoard = ({
                                                         </td>
                                                       )}
 
-                                                      {/* Approve Time */}
-                                                      {!hiddenColumns.approveTime && (
+                                                      {/* Approval Info */}
+                                                      {!hiddenColumns.approvalInfo && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 text-center whitespace-nowrap">
-                                                          {task.approveTime || "-"}
+                                                          <ApprovalTimeDisplay
+                                                            reviewStartedAt={
+                                                              task.reviewStartedAt
+                                                            }
+                                                            completedAt={
+                                                              task.completedAt
+                                                            }
+                                                            approvalWaitingMs={
+                                                              task.approvalWaitingMs
+                                                            }
+                                                            status={task.status}
+                                                          />
                                                         </td>
                                                       )}
 
@@ -5855,16 +6152,32 @@ const ProjectTaskBoard = ({
                                                                           sub.contentType ||
                                                                           ""
                                                                         }
-                                                                        onChange={(e) => {
-                                                                          const val = e.target.value;
-                                                                          if (val === "__ADD_CUSTOM__") {
-                                                                            const customVal = prompt("Enter custom content type:");
-                                                                            if (customVal && customVal.trim() !== "") {
+                                                                        onChange={(
+                                                                          e,
+                                                                        ) => {
+                                                                          const val =
+                                                                            e
+                                                                              .target
+                                                                              .value;
+                                                                          if (
+                                                                            val ===
+                                                                            "__ADD_CUSTOM__"
+                                                                          ) {
+                                                                            const customVal =
+                                                                              prompt(
+                                                                                "Enter custom content type:",
+                                                                              );
+                                                                            if (
+                                                                              customVal &&
+                                                                              customVal.trim() !==
+                                                                                ""
+                                                                            ) {
                                                                               handleSubtaskFieldChange(
                                                                                 task,
                                                                                 sub._id,
                                                                                 {
-                                                                                  contentType: customVal.trim(),
+                                                                                  contentType:
+                                                                                    customVal.trim(),
                                                                                 },
                                                                               );
                                                                             }
@@ -5873,7 +6186,8 @@ const ProjectTaskBoard = ({
                                                                               task,
                                                                               sub._id,
                                                                               {
-                                                                                contentType: val,
+                                                                                contentType:
+                                                                                  val,
                                                                               },
                                                                             );
                                                                           }
@@ -5937,13 +6251,36 @@ const ProjectTaskBoard = ({
                                                                           SEO
                                                                         </option>
                                                                         <option value="Video shoot">
-                                                                          Video shoot
+                                                                          Video
+                                                                          shoot
                                                                         </option>
-                                                                        {sub.contentType && !["VIDEO", "IMAGE", "CAROUSEL", "REEL", "POST", "STORY", "Website", "SEO", "Video shoot"].includes(sub.contentType) && (
-                                                                          <option value={sub.contentType}>{sub.contentType}</option>
-                                                                        )}
+                                                                        {sub.contentType &&
+                                                                          ![
+                                                                            "VIDEO",
+                                                                            "IMAGE",
+                                                                            "CAROUSEL",
+                                                                            "REEL",
+                                                                            "POST",
+                                                                            "STORY",
+                                                                            "Website",
+                                                                            "SEO",
+                                                                            "Video shoot",
+                                                                          ].includes(
+                                                                            sub.contentType,
+                                                                          ) && (
+                                                                            <option
+                                                                              value={
+                                                                                sub.contentType
+                                                                              }
+                                                                            >
+                                                                              {
+                                                                                sub.contentType
+                                                                              }
+                                                                            </option>
+                                                                          )}
                                                                         <option value="__ADD_CUSTOM__">
-                                                                          ➕ Custom...
+                                                                          ➕
+                                                                          Custom...
                                                                         </option>
                                                                       </select>
                                                                     ) : (
@@ -6120,12 +6457,27 @@ const ProjectTaskBoard = ({
                                                                                     : "badge-status-pending"
                                                                         }`}
                                                                       >
-                                                                 <option value="Pending">Pending</option>
-                                                                 <option value="In Progress">In Progress</option>
-                                                                 <option value="IN-REVIEW">In Review</option>
-                                                                 <option value="Completed">Completed</option>
-                                                                 <option value="On Hold">On Hold</option>
-                                                                 <option value="Rejected">Rejected</option>             
+                                                                        <option value="Pending">
+                                                                          Pending
+                                                                        </option>
+                                                                        <option value="In Progress">
+                                                                          In
+                                                                          Progress
+                                                                        </option>
+                                                                        <option value="IN-REVIEW">
+                                                                          In
+                                                                          Review
+                                                                        </option>
+                                                                        <option value="Completed">
+                                                                          Completed
+                                                                        </option>
+                                                                        <option value="On Hold">
+                                                                          On
+                                                                          Hold
+                                                                        </option>
+                                                                        <option value="Rejected">
+                                                                          Rejected
+                                                                        </option>
                                                                       </select>
                                                                     ) : (
                                                                       <span
@@ -6217,10 +6569,23 @@ const ProjectTaskBoard = ({
                                                                 </td>
                                                               )}
 
-                                                              {/* Approve Time Column */}
-                                                              {!hiddenColumns.approveTime && (
+                                                              {/* Approval Info Column */}
+                                                              {!hiddenColumns.approvalInfo && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 text-center whitespace-nowrap">
-                                                                  {sub.approveTime || "-"}
+                                                                  <ApprovalTimeDisplay
+                                                                    reviewStartedAt={
+                                                                      sub.reviewStartedAt
+                                                                    }
+                                                                    completedAt={
+                                                                      sub.completedAt
+                                                                    }
+                                                                    approvalWaitingMs={
+                                                                      sub.approvalWaitingMs
+                                                                    }
+                                                                    status={
+                                                                      sub.status
+                                                                    }
+                                                                  />
                                                                 </td>
                                                               )}
 
@@ -7193,28 +7558,61 @@ const ProjectTaskBoard = ({
 
                 {/* Metrics Showcase (Revisions & Time Tracker) */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Revisions Card */}
-                  <div className="relative overflow-hidden bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-950/20 dark:to-fuchsia-900/20 border border-violet-100/50 dark:border-violet-500/10 rounded-2xl p-5 group transition-all hover:shadow-lg hover:shadow-violet-500/5">
-                    <div className="absolute -right-4 -top-4 w-16 h-16 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500 blur-xl" />
+                  {/* Approval Info Card */}
+                  <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-900/20 border border-blue-100/50 dark:border-blue-500/10 rounded-2xl p-4 group transition-all hover:shadow-lg hover:shadow-blue-500/5">
+                    <div className="absolute -right-4 -top-4 w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500 blur-xl" />
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 rounded-xl bg-white dark:bg-[#111] shadow-sm flex items-center justify-center text-violet-600 dark:text-violet-400">
-                        <FiLayers size={16} />
+                      <div className="w-8 h-8 rounded-xl bg-white dark:bg-[#111] shadow-sm flex items-center justify-center text-blue-600 dark:text-blue-400">
+                        <FiClock size={16} />
                       </div>
                       <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                        Revisions
+                        Approval Info
                       </h3>
                     </div>
-                    <div className="flex items-baseline gap-2 relative z-10">
-                      <span className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">
-                        {selectedTask.revisions || 0}
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Times
-                      </span>
+                    <div className="relative z-10 flex flex-col gap-2.5 text-[10px] mt-2.5">
+                      {selectedTask.reviewStartedAt ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[8px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest">
+                            Review Start
+                          </span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">
+                            {new Date(selectedTask.reviewStartedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {new Date(selectedTask.reviewStartedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                            Review Start
+                          </span>
+                          <span className="font-semibold text-slate-400 dark:text-slate-550">
+                            Not started
+                          </span>
+                        </div>
+                      )}
+                      
+                      {selectedTask.completedAt ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
+                            Completed At
+                          </span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">
+                            {new Date(selectedTask.completedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {new Date(selectedTask.completedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                            Completed At
+                          </span>
+                          <span className="font-semibold text-slate-400 dark:text-slate-550">
+                            Pending
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Total productivity Card */}
+                  {/* Total Productivity Card */}
                   <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-900/20 border border-emerald-100/50 dark:border-emerald-500/10 rounded-2xl p-5 group transition-all hover:shadow-lg hover:shadow-emerald-500/5">
                     <div className="absolute -right-4 -top-4 w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full opacity-10 group-hover:scale-150 transition-transform duration-500 blur-xl" />
                     <div className="flex items-center gap-3 mb-2">
@@ -7222,17 +7620,66 @@ const ProjectTaskBoard = ({
                         <FiActivity size={16} />
                       </div>
                       <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                        Time Tracked
+                        Total Productivity
                       </h3>
                     </div>
                     <div className="relative z-10">
-                      <TimeTracker
-                        startTime={selectedTask.actualStartTime}
-                        endTime={selectedTask.actualEndTime}
-                        pausedAt={selectedTask.pausedAt}
-                        status={selectedTask.status}
-                        variant="premium"
-                      />
+                      {(() => {
+                        if (!selectedTask.actualStartTime) {
+                          return (
+                            <span className="text-slate-400 dark:text-slate-500 text-sm font-bold">
+                              —
+                            </span>
+                          );
+                        }
+                        const start = new Date(
+                          selectedTask.actualStartTime,
+                        ).getTime();
+                        const end = selectedTask.actualEndTime
+                          ? new Date(selectedTask.actualEndTime).getTime()
+                          : selectedTask.pausedAt
+                            ? new Date(selectedTask.pausedAt).getTime()
+                            : Date.now();
+                        const pausedMs = selectedTask.totalPausedMs || 0;
+                        const workedMs = Math.max(0, end - start - pausedMs);
+                        const totalSecs = Math.floor(workedMs / 1000);
+                        const h = Math.floor(totalSecs / 3600);
+                        const m = Math.floor((totalSecs % 3600) / 60);
+                        const s = totalSecs % 60;
+                        const isActive =
+                          selectedTask.status === "In Progress" &&
+                          !selectedTask.actualEndTime &&
+                          !selectedTask.pausedAt;
+                        return (
+                          <div className="flex items-baseline gap-1 text-slate-800 dark:text-white">
+                            {h > 0 && (
+                              <>
+                                <span className="text-3xl font-black tracking-tight">
+                                  {h}
+                                </span>
+                                <span className="text-xs font-bold text-slate-400 mr-1">
+                                  h
+                                </span>
+                              </>
+                            )}
+                            <span className="text-3xl font-black tracking-tight">
+                              {m}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400 mr-1">
+                              m
+                            </span>
+                            <span className="text-xl font-black tracking-tight text-emerald-500 dark:text-emerald-400">
+                              {s}
+                            </span>
+                            <span className="text-xs font-bold text-emerald-400">
+                              s
+                            </span>
+                            {isActive && (
+                              <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0 self-center" />
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

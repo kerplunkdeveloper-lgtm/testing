@@ -116,6 +116,7 @@ const TimeTracker = ({
     endTime,
     pausedAt,
     status,
+    savedPausedMs,
     isBlocked,
     blockerPausedAt,
     blockerHistory,
@@ -306,63 +307,139 @@ const ApprovalTimeDisplay = ({ reviewStartedAt, completedAt, approvalWaitingMs, 
   const [liveElapsed, setLiveElapsed] = useState(0);
 
   useEffect(() => {
-    // Only tick if status is In Review and we have a start time
     if (!reviewStartedAt || !["In Review", "IN-REVIEW", "IN-Review"].includes(status)) {
       setLiveElapsed(0);
       return;
     }
-
     const updateTime = () => {
-      // Calculate elapsed business MS since reviewStartedAt
       const elapsed = calculateBusinessMs(reviewStartedAt, Date.now());
       setLiveElapsed(elapsed);
     };
-
-    updateTime(); // Initial call
+    updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, [reviewStartedAt, status]);
 
   if (!reviewStartedAt && !approvalWaitingMs) {
-    return <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">—</span>;
+    return <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>;
   }
-  
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "—";
+
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return { date: "—", time: "", relative: "" };
     const d = new Date(dateStr);
-    const datePart = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-    return `${datePart} ${timePart}`;
+    const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const diffMs = Date.now() - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    let relative = "just now";
+    if (diffDays > 0) relative = `${diffDays}d ago`;
+    else if (diffHours > 0) relative = `${diffHours}h ago`;
+    else if (diffMins > 0) relative = `${diffMins}m ago`;
+    return { date, time, relative };
   };
 
   const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
+  const isInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(status);
+  const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
+  const doneInfo = completedAt ? formatDateTime(completedAt) : null;
 
   return (
-    <div className="flex flex-col gap-1 text-[10px] text-left">
-      {reviewStartedAt && (
-        <div className="text-blue-600 dark:text-blue-400">
-          <span className="font-semibold text-slate-500 dark:text-slate-400">Rev Start:</span><br/>
-          {formatDate(reviewStartedAt)}
-        </div>
-      )}
-      {completedAt && (
-        <div className="text-emerald-600 dark:text-emerald-400">
-          <span className="font-semibold text-slate-500 dark:text-slate-400">Completed:</span><br/>
-          {formatDate(completedAt)}
-        </div>
-      )}
-      {(totalWaitMs > 0) && (
-        <div className={`mt-1 px-1.5 py-0.5 rounded inline-flex items-center gap-1 w-fit ${
-          ["In Review", "IN-REVIEW", "IN-Review"].includes(status)
-            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30"
-            : "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400"
-        }`}>
-          {["In Review", "IN-REVIEW", "IN-Review"].includes(status) && (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
+    <div className="inline-flex flex-col gap-1.5 text-[10px]">
+
+      {/* Horizontal 2-col table: Review Start | Completed */}
+      {(revInfo || doneInfo) && (
+        <div className="flex items-stretch rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 shadow-sm">
+
+          {/* Rev Start column */}
+          {revInfo && (
+            <div className="flex-1 flex flex-col px-2.5 py-2 border-r border-slate-200 dark:border-slate-700/60">
+              <span className="text-[8px] font-black uppercase tracking-widest text-blue-500 dark:text-blue-400 leading-none mb-1">
+                Rev Start
+              </span>
+              <span className="font-bold text-slate-700 dark:text-slate-100 text-[10px] leading-tight whitespace-nowrap">
+                {revInfo.date}
+              </span>
+              <span className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                {revInfo.time}
+              </span>
+              <span className="text-[9px] text-blue-400 dark:text-blue-500 font-medium mt-0.5">
+                {revInfo.relative}
+              </span>
+            </div>
           )}
-          <span className="font-bold">{formatBusinessDuration(totalWaitMs)}</span>
+
+          {/* Completed column */}
+          {doneInfo && (
+            <div className="flex-1 flex flex-col px-2.5 py-2">
+              <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500 dark:text-emerald-400 leading-none mb-1">
+                Completed
+              </span>
+              <span className="font-bold text-slate-700 dark:text-slate-100 text-[10px] leading-tight whitespace-nowrap">
+                {doneInfo.date}
+              </span>
+              <span className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                {doneInfo.time}
+              </span>
+              <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium mt-0.5">
+                {doneInfo.relative}
+              </span>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Duration badge */}
+      {totalWaitMs > 0 && (
+        <div className={`self-start flex items-center gap-1.5 px-2.5 py-1 rounded-full font-black text-[10px] tracking-wide ${
+          isInReview
+            ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/25 shadow-sm"
+            : "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/25 shadow-sm"
+        }`}>
+          {isInReview
+            ? <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+            : <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+          }
+          {isInReview ? "Waiting " : "Took "}
+          <span className="font-black">{formatBusinessDuration(totalWaitMs)}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Lightweight badge — shows only the approval duration (no date cards)
+const ApprovalDurationBadge = ({ approvalWaitingMs, reviewStartedAt, status }) => {
+  const [liveElapsed, setLiveElapsed] = useState(0);
+  const isInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(status);
+
+  useEffect(() => {
+    if (!reviewStartedAt || !isInReview) {
+      setLiveElapsed(0);
+      return;
+    }
+    const tick = () => setLiveElapsed(calculateBusinessMs(reviewStartedAt, Date.now()));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [reviewStartedAt, status]);
+
+  const totalMs = (approvalWaitingMs || 0) + liveElapsed;
+  if (!totalMs) return <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>;
+
+  return (
+    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-black text-[10px] tracking-wide ${
+      isInReview
+        ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/25"
+        : "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/25"
+    }`}>
+      {isInReview
+        ? <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+        : <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+      }
+      {isInReview ? "Waiting " : "Took "}
+      {formatBusinessDuration(totalMs)}
     </div>
   );
 };
@@ -1960,13 +2037,7 @@ const MyTasksTab = ({
                       handleMouseDown={handleMouseDown}
                       defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
                     />
-                    <ResizableHeader
-                      id="approvalTime"
-                      label="Approval Info"
-                      colWidths={colWidths}
-                      handleMouseDown={handleMouseDown}
-                      defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-44 whitespace-nowrap"
-                    />
+                   
                     <ResizableHeader
                       id="blockerTime"
                       label="Blocker time"
@@ -2009,6 +2080,14 @@ const MyTasksTab = ({
                       handleMouseDown={handleMouseDown}
                       defaultClassName="px-20 py-2 border border-slate-200/70 dark:border-transparent w-60"
                     />
+
+                    <ResizableHeader
+                       id="approvalTime"
+                       label="Approval Info"
+                       colWidths={colWidths}
+                       handleMouseDown={handleMouseDown}
+                       defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
+                     />
                     <ResizableHeader
                       id="createdTime"
                       label="Created Time"
@@ -2398,18 +2477,7 @@ const MyTasksTab = ({
                               />
                             </td>
 
-                            {/* Approval Time Column */}
-                            <td
-                              className="px-3 py-2 border border-slate-200/70 dark:border-transparent w-44 whitespace-nowrap align-top"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <ApprovalTimeDisplay 
-                                reviewStartedAt={task.reviewStartedAt} 
-                                completedAt={task.completedAt} 
-                                approvalWaitingMs={task.approvalWaitingMs} 
-                                status={task.status}
-                              />
-                            </td>
+                           
 
                             {/* Blocker Time Column */}
                             <td
@@ -2560,6 +2628,19 @@ const MyTasksTab = ({
                                   </span>
                                 </div>
                               </div>
+                            </td>
+
+
+                            {/* Approval Info — duration only */}
+                            <td
+                              className="px-3 py-2 border border-slate-200/70 dark:border-transparent text-center"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ApprovalDurationBadge
+                                approvalWaitingMs={task.approvalWaitingMs}
+                                reviewStartedAt={task.reviewStartedAt}
+                                status={task.status}
+                              />
                             </td>
 
                             {/* Created Time */}
@@ -3003,6 +3084,26 @@ const MyTasksTab = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Approval Info Section */}
+                {(selectedTask.reviewStartedAt || selectedTask.approvalWaitingMs) && (
+                  <div className="bg-slate-50 dark:bg-[#111827] rounded-3xl p-5 border border-slate-100 dark:border-slate-800/80 space-y-3 shadow-sm">
+                    <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-slate-700">
+                      <div className="w-7 h-7 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 flex items-center justify-center shrink-0">
+                        <span className="text-blue-500 dark:text-blue-400 text-xs">⏱</span>
+                      </div>
+                      <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                        Approval Info
+                      </span>
+                    </div>
+                    <ApprovalTimeDisplay
+                      reviewStartedAt={selectedTask.reviewStartedAt}
+                      completedAt={selectedTask.completedAt}
+                      approvalWaitingMs={selectedTask.approvalWaitingMs}
+                      status={selectedTask.status}
+                    />
+                  </div>
+                )}
 
                 {/* Blocker & Pause Control */}
                 <div className="p-4 bg-rose-500/5 dark:bg-[#111827] border border-rose-200/50 dark:border-rose-900/30 rounded-3xl space-y-4">

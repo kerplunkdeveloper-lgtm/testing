@@ -20,7 +20,9 @@ import {
   isAfter,
   subDays,
   isSameMonth,
+  formatDistanceToNow,
 } from "date-fns";
+import { calculateBusinessMs } from "../../../utils/businessHours";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiClock,
@@ -39,6 +41,7 @@ import {
   FiEye,
   FiPauseCircle,
   FiSearch,
+  FiArrowRight,
 } from "react-icons/fi";
 
 const getPriorityStyle = (priority) => {
@@ -88,8 +91,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [approvalModal, setApprovalModal] = useState({
     open: false,
-    designerId: null,
     designerName: "",
+    tasks: [],
   });
   const [viewTasksModal, setViewTasksModal] = useState({
     open: false,
@@ -407,6 +410,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
         if (t.actualStartTime) {
           const start = new Date(t.actualStartTime).getTime();
+          // For completed tasks: use actualEndTime
+          // For paused tasks (In Review / On Hold): use pausedAt (timer was frozen there)
+          // For active tasks: use now
           const end = t.actualEndTime
             ? new Date(t.actualEndTime).getTime()
             : t.pausedAt
@@ -415,9 +421,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           const paused = t.totalPausedMs || 0;
           const taskLoggedMs = Math.max(0, end - start - paused);
           totalLoggedMs += taskLoggedMs;
-          if (s.includes("progress")) {
-            inProgressLoggedMs += taskLoggedMs;
-          }
+          // Include ALL tasks that have been started — the formula already
+          // subtracts review/hold time via totalPausedMs, so this is pure
+          // "in-progress" worked time regardless of current status.
+          inProgressLoggedMs += taskLoggedMs;
         }
 
         // Collect blockers and compute blocker time
@@ -452,19 +459,11 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         }
       });
 
-      // Compute approval time: time from task completion/approval to now or approvedAt
+      // Compute approval time using actual review and completion fields
       myTasks.forEach((t) => {
-        const s = t.status?.toLowerCase() || "";
-        const isCompleted = s === "completed" || s.includes("approve");
-        if (isCompleted && t.actualEndTime) {
-          const endTime = new Date(t.actualEndTime).getTime();
-          const approvedAt = t.approvedAt
-            ? new Date(t.approvedAt).getTime()
-            : t.updatedAt
-              ? new Date(t.updatedAt).getTime()
-              : endTime;
-          const diff = Math.max(0, approvedAt - endTime);
-          totalApprovalMs += diff;
+        const totalWaitMs = t.approvalWaitingMs || (t.reviewStartedAt && t.completedAt ? calculateBusinessMs(t.reviewStartedAt, t.completedAt) : 0);
+        if (totalWaitMs > 0) {
+          totalApprovalMs += totalWaitMs;
           approvalCount++;
         }
       });
@@ -561,6 +560,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         overdue: over,
         avgRevisions,
         totalHours,
+        totalLoggedMs,
         inProgressHours,
         inProgressLoggedMs,
         avgApprovalMs,
@@ -1433,9 +1433,11 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                     Blocker Time
                   </th>
                   <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
-                    Productivity
+                    Productivity (Total inprogress)
                   </th>
-
+                  <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                    Approve Info
+                  </th>
                   <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                     Delay
                   </th>
@@ -1563,6 +1565,26 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                           —
                         </span>
                       )}
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs text-center">
+                      <div className="flex items-center justify-center">
+                        {tp.tasks.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setApprovalModal({
+                                open: true,
+                                designerName: tp.name,
+                                tasks: tp.tasks,
+                              });
+                            }}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-650 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50 transition-all cursor-pointer flex items-center justify-center"
+                            title="View approval timeline details"
+                          >
+                            <FiArrowRight size={14} />
+                          </button>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-2.5 px-3 border-r border-b border-slate-100 dark:border-slate-700/60 text-xs font-semibold">
@@ -1855,140 +1877,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           )}
         </div>
       </div>
-      {/* Approval Modal */}
-      {approvalModal.open &&
-        createPortal(
-          <div className="fixed inset-0 z-[999] flex items-center justify-center">
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-              onClick={() =>
-                setApprovalModal({
-                  open: false,
-                  designerId: null,
-                  designerName: "",
-                })
-              }
-            />
-            {/* Modal */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative z-10 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col"
-            >
-              {/* Modal Header */}
-              <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-wide">
-                    Approval — {approvalModal.designerName}
-                  </h3>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5 uppercase tracking-widest">
-                    In Review Tasks
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setApprovalModal({
-                      open: false,
-                      designerId: null,
-                      designerName: "",
-                    })
-                  }
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all cursor-pointer"
-                >
-                  <FiXCircle size={18} />
-                </button>
-              </div>
-              {/* Modal Body */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {(() => {
-                  const tp = teamPerformance.find(
-                    (p) => p.id === approvalModal.designerId,
-                  );
-                  const reviewTasks = tp?.inReviewTasks || [];
-                  if (reviewTasks.length === 0) {
-                    return (
-                      <div className="flex flex-col items-center justify-center py-10 text-slate-400 dark:text-slate-500">
-                        <FiCheckCircle size={32} className="mb-2 opacity-50" />
-                        <p className="text-xs font-black uppercase tracking-widest">
-                          No tasks in review
-                        </p>
-                      </div>
-                    );
-                  }
-                  return reviewTasks.map((task) => {
-                    let projName = "No Project";
-                    if (task.project) {
-                      const pId =
-                        typeof task.project === "object"
-                          ? task.project._id
-                          : task.project;
-                      const p = projects?.find((x) => x._id === pId);
-                      projName = p?.name || "Unknown";
-                    }
-                    return (
-                      <div
-                        key={task._id}
-                        className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 hover:border-indigo-300 dark:hover:border-indigo-500/30 transition-all group"
-                      >
-                        {/* Approve Checkbox */}
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const now = new Date().toISOString();
-                            try {
-                              await updateTask({
-                                id: task._id,
-                                taskData: {
-                                  status: "Completed",
-                                  approvedAt: now,
-                                  actualEndTime: task.actualEndTime || now,
-                                },
-                              }).unwrap();
-                              toast.success(`"${task.title}" approved!`);
-                            } catch (err) {
-                              toast.error("Failed to approve task");
-                            }
-                          }}
-                          className="mt-0.5 w-5 h-5 shrink-0 rounded-md border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500 dark:hover:border-emerald-400 flex items-center justify-center transition-all cursor-pointer group-hover:border-emerald-400 dark:group-hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
-                          title="Approve this task"
-                        >
-                          <FiCheckCircle
-                            size={12}
-                            className="text-transparent group-hover:text-emerald-500 transition-colors"
-                          />
-                        </button>
-                        {/* Task Details */}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-700 dark:text-white leading-snug break-words">
-                            {task.title}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate">
-                              {projName}
-                            </span>
-                            <span className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-500/20">
-                              {task.status}
-                            </span>
-                            {task.dueDate && (
-                              <span className="flex items-center gap-0.5 text-[9px] font-bold text-slate-400 dark:text-slate-500">
-                                <FiClock size={9} />
-                                {format(parseISO(task.dueDate), "MMM dd")}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </motion.div>
-          </div>,
-          document.body,
-        )}
+
       {/* View Tasks Modal */}
       {viewTasksModal.open &&
         createPortal(
@@ -2237,6 +2126,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                               <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
                                 Status
                               </th>
+                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase text-center">
+                                Approve Info
+                              </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150 dark:divide-slate-850">
@@ -2308,7 +2200,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                   className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors"
                                 >
                                   <td className="py-2.5 px-4 text-xs font-bold text-slate-800 dark:text-white max-w-xs break-words">
-                                    {task.title}
+                                    <div className="flex flex-col gap-1">
+                                      <span>{task.title}</span>
+                                      {(task.reviewStartedAt || task.completedAt || task.approvedAt) && (
+                                        <span className="inline-flex items-center gap-1 w-fit text-[9px] font-black uppercase bg-emerald-50 dark:bg-emerald-500/10 text-emerald-650 dark:text-emerald-450 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
+                                          Has Approve Info
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="py-2.5 px-4">
                                     <span
@@ -2533,6 +2432,26 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                       {task.status || "Pending"}
                                     </span>
                                   </td>
+                                  <td className="py-2.5 px-4 text-center">
+                                    {task.reviewStartedAt || task.completedAt || task.approvedAt ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setApprovalModal({
+                                            open: true,
+                                            designerName: viewTasksModal.designerName || activeDesigner?.name || "Designer",
+                                            tasks: [task],
+                                          });
+                                        }}
+                                        className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-650 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50 transition-all cursor-pointer inline-flex items-center justify-center"
+                                        title="View approval details"
+                                      >
+                                        <FiArrowRight size={14} />
+                                      </button>
+                                    ) : (
+                                      <span className="text-slate-400 dark:text-slate-600 font-bold">—</span>
+                                    )}
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -2564,6 +2483,235 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           </div>,
           document.body,
         )}
+
+      {/* APPROVAL TIMELINE DETAILS OFFCANVAS (SLIDE-OVER FROM RIGHT) */}
+      <AnimatePresence>
+        {approvalModal.open && createPortal(
+          <div className="fixed inset-0 z-[1050] overflow-hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setApprovalModal({ open: false, designerName: "", tasks: [] })}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+            />
+            
+            <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+              <motion.div
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="w-screen max-w-5xl bg-white dark:bg-[#0f111a] border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden"
+              >
+                {/* Header */}
+                <div className="p-5 px-6 border-b border-slate-150 dark:border-slate-800 flex justify-between items-center bg-slate-50/80 dark:bg-[#0c121e] shrink-0">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setApprovalModal({ open: false, designerName: "", tasks: [] })}
+                      className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer mr-1 shadow-sm"
+                      title="Close panel"
+                    >
+                      <FiArrowRight size={18} />
+                    </button>
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-450 shadow-sm shrink-0">
+                      <FiClock size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-black text-slate-800 dark:text-white tracking-wider">
+                        Approval Info
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-bold tracking-wide mt-0.5">
+                        Detailed review and completion timestamps for <span className="text-indigo-600 dark:text-indigo-400">{approvalModal.designerName}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setApprovalModal({ open: false, designerName: "", tasks: [] })}
+                    className="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-655 dark:hover:text-white transition-colors cursor-pointer"
+                  >
+                    <FiXCircle size={20} className="text-slate-450" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {approvalModal.tasks.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                      <FiAlertCircle size={36} className="opacity-50 mb-2" />
+                      <span className="text-xs font-bold uppercase tracking-wider">No approval tasks found</span>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900/40">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/90 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                            <th className="py-3 px-4 border-r border-slate-250 dark:border-slate-800">Task Name</th>
+                            <th className="py-3 px-4 border-r border-slate-250 dark:border-slate-800">Client Name</th>
+                            <th className="py-3 px-4 border-r border-slate-250 dark:border-slate-800">Created By</th>
+                            <th className="py-3 px-4 border-r border-slate-250 dark:border-slate-800">Assignee</th>
+                            <th className="py-3 px-4 border-r border-slate-250 dark:border-slate-800">Start & End Date</th>
+                            <th className="py-3 px-4 text-center">Approval Info</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150 dark:divide-slate-800/80 text-xs">
+                          {approvalModal.tasks.map((task) => {
+                            const clientObj = task.project?.client || task.client;
+                            // Resolve clientName
+                            let clientName = "No Client";
+                            if (clientObj) {
+                              const cId = typeof clientObj === "object" ? clientObj._id : clientObj;
+                              const c = clients?.find((x) => x._id === cId);
+                              clientName = c?.companyName || c?.name || (typeof clientObj === "object" ? clientObj.companyName || clientObj.name : "Unknown Client");
+                            }
+
+                            const creatorObj = task.createdBy && typeof task.createdBy === "object"
+                              ? task.createdBy
+                              : users?.find((u) => u._id === task.createdBy);
+                            const creatorName = creatorObj?.name || "Unknown";
+
+                            const assigneeObj = task.assignedTo && typeof task.assignedTo === "object"
+                              ? task.assignedTo
+                              : designers.find((d) => d._id === task.assignedTo) || users?.find((u) => u._id === task.assignedTo);
+                            const assigneeName = assigneeObj?.name || "Unassigned";
+
+                            const totalWaitMs = task.approvalWaitingMs || (task.reviewStartedAt && task.completedAt ? calculateBusinessMs(task.reviewStartedAt, task.completedAt) : 0);
+
+                            let tookText = "";
+                            if (totalWaitMs > 0) {
+                              const totalSecs = Math.floor(totalWaitMs / 1000);
+                              const h = Math.floor(totalSecs / 3600);
+                              const m = Math.floor((totalSecs % 3600) / 60);
+                              const s = totalSecs % 60;
+                              tookText = h > 0 ? `Took ${h}h ${m}m ${s}s` : `Took ${m}m ${s}s`;
+                            }
+
+                            const formatApprovalDate = (dateStr) => {
+                              if (!dateStr) return null;
+                              try {
+                                const d = parseISO(dateStr);
+                                return {
+                                  dayMonth: format(d, "dd MMM"),
+                                  time: format(d, "hh:mm a"),
+                                  relative: formatDistanceToNow(d) + " ago"
+                                };
+                              } catch (e) {
+                                return null;
+                              }
+                            };
+
+                            const startInfo = formatApprovalDate(task.reviewStartedAt);
+                            const endInfo = formatApprovalDate(task.completedAt);
+
+                            return (
+                              <tr key={task._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                <td className="py-3 px-4 border-r border-slate-200 dark:border-slate-800 font-bold text-slate-800 dark:text-white">
+                                  {task.title}
+                                </td>
+                                <td className="py-3 px-4 border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-600 dark:text-slate-350">
+                                  {clientName}
+                                </td>
+                                <td className="py-3 px-4 border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-600 dark:text-slate-350">
+                                  {creatorName}
+                                </td>
+                                <td className="py-3 px-4 border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-600 dark:text-slate-350">
+                                  {assigneeName}
+                                </td>
+                                <td className="py-3 px-4 border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-500 dark:text-slate-400">
+                                  {task.startDate ? format(parseISO(task.startDate), "dd MMM yyyy") : "—"}
+                                  <span className="mx-1.5 text-slate-300 dark:text-slate-700">to</span>
+                                  {task.dueDate ? format(parseISO(task.dueDate), "dd MMM yyyy") : "—"}
+                                </td>
+                                <td className="py-3 px-4 text-center flex flex-col items-center justify-center gap-2">
+                                  <div className="flex items-stretch bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm max-w-[280px]">
+                                    {/* Left side: Rev Start */}
+                                    <div className="flex-1 p-2 flex flex-col items-start min-w-[105px] text-left">
+                                      <span className="text-[8px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-wider mb-0.5">
+                                        REV START
+                                      </span>
+                                      {startInfo ? (
+                                        <>
+                                          <span className="text-xs font-black text-slate-855 dark:text-white leading-tight">
+                                            {startInfo.dayMonth}
+                                          </span>
+                                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight">
+                                            {startInfo.time}
+                                          </span>
+                                          <span className="text-[9px] font-bold text-blue-500 dark:text-blue-400 leading-tight mt-0.5">
+                                            {startInfo.relative}
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <span className="text-xs font-bold text-slate-400 dark:text-slate-600">—</span>
+                                      )}
+                                    </div>
+
+                                    {/* Divider */}
+                                    <div className="w-[1px] bg-slate-200 dark:bg-slate-700 self-stretch" />
+
+                                    {/* Right side: Completed */}
+                                    <div className="flex-1 p-2 flex flex-col items-start min-w-[105px] text-left">
+                                      <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-wider mb-0.5">
+                                        COMPLETED
+                                      </span>
+                                      {endInfo ? (
+                                        <>
+                                          <span className="text-xs font-black text-slate-855 dark:text-white leading-tight">
+                                            {endInfo.dayMonth}
+                                          </span>
+                                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight">
+                                            {endInfo.time}
+                                          </span>
+                                          <span className="text-[9px] font-bold text-emerald-500 dark:text-emerald-450 leading-tight mt-0.5">
+                                            {endInfo.relative}
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <span className="text-xs font-bold text-slate-400 dark:text-slate-600">—</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {tookText ? (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-violet-50 dark:bg-violet-500/10 text-violet-750 dark:text-violet-400 border border-violet-200 dark:border-violet-500/25">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-violet-500 dark:bg-violet-400" />
+                                      {tookText}
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 dark:text-slate-600 font-bold">—</span>
+                                  )}
+                                  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-1.5">
+                                    Created by: <span className="text-slate-700 dark:text-slate-350">{creatorName}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-slate-150 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-end shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setApprovalModal({ open: false, designerName: "", tasks: [] })}
+                    className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-xs font-black text-slate-655 dark:text-slate-250 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </div>,
+          document.body
+        )}
+      </AnimatePresence>
     </div>
   );
 };

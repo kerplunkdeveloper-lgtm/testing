@@ -1,7 +1,9 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useTheme } from "../../context/ThemeContext";
 import { getProfile } from "../../features/profile/profileSlice";
+import axiosInstance from "../../services/axiosInstance";
+import toast from "react-hot-toast";
 import {
   FiUser,
   FiMail,
@@ -11,6 +13,7 @@ import {
   FiMoon,
   FiSun,
   FiMonitor,
+  FiClock,
 } from "react-icons/fi";
 import { LuPaintbrush } from "react-icons/lu";
 
@@ -102,9 +105,50 @@ const Settings = () => {
     setSoundEnabled,
   } = useTheme();
 
+  const [startHour, setStartHour] = useState(9);
+  const [endHour, setEndHour] = useState(19);
+  const [loadingHours, setLoadingHours] = useState(true);
+  const [savingHours, setSavingHours] = useState(false);
+
   useEffect(() => {
     dispatch(getProfile());
   }, [dispatch, user]);
+
+  useEffect(() => {
+    const fetchOfficeHours = async () => {
+      try {
+        const response = await axiosInstance.get("/settings/office-hours");
+        if (response.data?.success) {
+          setStartHour(response.data.data.startHour);
+          setEndHour(response.data.data.endHour);
+        }
+      } catch (err) {
+        console.error("Failed to fetch office hours:", err);
+      } finally {
+        setLoadingHours(false);
+      }
+    };
+    fetchOfficeHours();
+  }, []);
+
+  const handleSaveHours = async () => {
+    setSavingHours(true);
+    try {
+      const response = await axiosInstance.put("/settings/office-hours", {
+        startHour,
+        endHour,
+      });
+      if (response.data?.success) {
+        toast.success("Office working hours updated successfully!");
+      }
+    } catch (err) {
+      toast.error("Failed to update working hours");
+      console.error(err);
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
 
   const initials = user?.name ? user.name.charAt(0).toUpperCase() : "U";
   const avatarUrl = profile?.profileImage?.url;
@@ -329,7 +373,94 @@ const Settings = () => {
                 </button>
               </div>
             </div>
+
+            {/* BUSINESS HOURS INFO */}
+            <div className="theme-bg-card border theme-border rounded-2xl p-5 shadow-sm mt-5">
+              <div className="flex items-center justify-between mb-4 border-b theme-border pb-3">
+                <div className="flex items-center gap-2">
+                  <FiClock className="text-emerald-500 dark:text-emerald-400 text-lg animate-pulse" />
+                  <h3 className="text-sm font-bold theme-text-primary uppercase tracking-wider">
+                    Office Working Hours
+                  </h3>
+                </div>
+                <button
+                  onClick={handleSaveHours}
+                  disabled={savingHours || loadingHours}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-[11px] tracking-wide shadow-md shadow-emerald-500/10 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {savingHours ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+
+              {loadingHours ? (
+                <div className="text-xs theme-text-secondary py-2">Loading hours config...</div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Select Hours Fields */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-wider theme-text-secondary block">
+                        Start Workday
+                      </label>
+                      <select
+                        value={startHour}
+                        onChange={(e) => setStartHour(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold theme-text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
+                      >
+                        {Array.from({ length: 24 }).map((_, i) => (
+                          <option key={i} value={i}>
+                            {(() => {
+                              const ampm = i >= 12 ? "PM" : "AM";
+                              const hourVal = i % 12 === 0 ? 12 : i % 12;
+                              return `${String(hourVal).padStart(2, "0")}:00 ${ampm}`;
+                            })()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-wider theme-text-secondary block">
+                        End Workday
+                      </label>
+                      <select
+                        value={endHour}
+                        onChange={(e) => setEndHour(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold theme-text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
+                      >
+                        {Array.from({ length: 24 }).map((_, i) => (
+                          <option key={i} value={i}>
+                            {(() => {
+                              const ampm = i >= 12 ? "PM" : "AM";
+                              const hourVal = i % 12 === 0 ? 12 : i % 12;
+                              return `${String(hourVal).padStart(2, "0")}:00 ${ampm}`;
+                            })()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="h-px theme-border" />
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-rose-500/10 dark:bg-rose-450/15 flex items-center justify-center text-rose-500 dark:text-rose-400 shrink-0 text-xs">
+                      🚫
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-[11px] font-black theme-text-primary">
+                        Weekends & Holidays
+                      </h4>
+                      <p className="text-[10px] theme-text-secondary mt-0.5">
+                        Closed (Saturdays & Sundays are excluded from productivity tracking)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
         </div>
       </div>
     </div>
