@@ -125,12 +125,36 @@ exports.getTasks = async (req, res) => {
   }
 };
 
+// Helper for comparing date only
+const isSameDay = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  try {
+    const s1 = d1 instanceof Date ? d1.toISOString().split("T")[0] : new Date(d1).toISOString().split("T")[0];
+    const s2 = d2 instanceof Date ? d2.toISOString().split("T")[0] : new Date(d2).toISOString().split("T")[0];
+    return s1 === s2 && s1 !== "1970-01-01";
+  } catch (e) {
+    return false;
+  }
+};
+
 // @desc    Create a new task
 // @route   POST /api/tasks
 // @access  Private/Admin/OperationManager
 exports.createTask = async (req, res) => {
   try {
     req.body.createdBy = req.user._id;
+
+    if (isSameDay(req.body.startDate, req.body.dueDate)) {
+      req.body.priority = "Top High";
+    }
+    if (req.body.subtasks && Array.isArray(req.body.subtasks)) {
+      req.body.subtasks.forEach((sub) => {
+        if (isSameDay(sub.startDate, sub.dueDate)) {
+          sub.priority = "Top High";
+        }
+      });
+    }
+
     const task = await Task.create(req.body);
 
     const populatedTask = await Task.findById(task._id)
@@ -296,6 +320,16 @@ if (req.body.status && req.body.status !== previousStatus) {
       break;
 
     case "On Hold":
+      if (!task.actualStartTime) {
+        return res.status(400).json({
+          message: "Please start the task by setting its status to 'In Progress' first before placing it on hold.",
+        });
+      }
+      if (!task.pausedAt) {
+        req.body.pausedAt = Date.now();
+      }
+      break;
+
     case "Rejected":
       if (!task.pausedAt) {
         req.body.pausedAt = Date.now();
@@ -305,6 +339,11 @@ if (req.body.status && req.body.status !== previousStatus) {
     case "In Review":
     case "IN-REVIEW":
     case "IN-Review":
+      if (!task.actualStartTime) {
+        return res.status(400).json({
+          message: "Please start the task by setting its status to 'In Progress' first before submitting it for review.",
+        });
+      }
       if (!task.pausedAt) {
         req.body.pausedAt = Date.now();
       }
@@ -426,6 +465,16 @@ if (req.body.subtasks) {
           break;
 
         case "On Hold":
+          if (!prevSub.actualStartTime && !sub.actualStartTime) {
+            return res.status(400).json({
+              message: "Please start the subtask by setting its status to 'In Progress' first before placing it on hold.",
+            });
+          }
+          if (!prevSub.pausedAt) {
+            sub.pausedAt = Date.now();
+          }
+          break;
+
         case "Rejected":
           if (!prevSub.pausedAt) {
             sub.pausedAt = Date.now();
@@ -435,6 +484,11 @@ if (req.body.subtasks) {
         case "In Review":
         case "IN-REVIEW":
         case "IN-Review":
+          if (!prevSub.actualStartTime && !sub.actualStartTime) {
+            return res.status(400).json({
+              message: "Please start the subtask by setting its status to 'In Progress' first before submitting it for review.",
+            });
+          }
           if (!prevSub.pausedAt) {
             sub.pausedAt = Date.now();
           }
@@ -449,8 +503,26 @@ if (req.body.subtasks) {
   });
 }
 
+    const effectiveStart = req.body.startDate !== undefined ? req.body.startDate : task.startDate;
+    const effectiveEnd = req.body.dueDate !== undefined ? req.body.dueDate : task.dueDate;
+    if (effectiveStart && effectiveEnd && isSameDay(effectiveStart, effectiveEnd)) {
+      req.body.priority = "Top High";
+    }
+
+    if (req.body.subtasks && Array.isArray(req.body.subtasks)) {
+      req.body.subtasks = req.body.subtasks.map((sub) => {
+        const prevSub = task.subtasks ? task.subtasks.find((s) => s._id && sub._id && s._id.toString() === sub._id.toString()) : null;
+        const effSubStart = sub.startDate !== undefined ? sub.startDate : prevSub?.startDate;
+        const effSubEnd = sub.dueDate !== undefined ? sub.dueDate : prevSub?.dueDate;
+        if (effSubStart && effSubEnd && isSameDay(effSubStart, effSubEnd)) {
+          return { ...sub, priority: "Top High" };
+        }
+        return sub;
+      });
+    }
+
     task = await Task.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     })
       .populate({

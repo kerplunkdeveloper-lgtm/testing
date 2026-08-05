@@ -308,4 +308,29 @@ const TaskSchema = new mongoose.Schema(
 TaskSchema.index({ project: 1 });
 TaskSchema.index({ assignedTo: 1 });
 
+const isSameDay = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  try {
+    const s1 = d1 instanceof Date ? d1.toISOString().split("T")[0] : new Date(d1).toISOString().split("T")[0];
+    const s2 = d2 instanceof Date ? d2.toISOString().split("T")[0] : new Date(d2).toISOString().split("T")[0];
+    return s1 === s2 && s1 !== "1970-01-01";
+  } catch (e) {
+    return false;
+  }
+};
+
+TaskSchema.pre("save", function (next) {
+  if (isSameDay(this.startDate, this.dueDate)) {
+    this.priority = "Top High";
+  }
+  if (this.subtasks && Array.isArray(this.subtasks)) {
+    this.subtasks.forEach((sub) => {
+      if (isSameDay(sub.startDate, sub.dueDate)) {
+        sub.priority = "Top High";
+      }
+    });
+  }
+  next();
+});
+
 module.exports = mongoose.model("Task", TaskSchema);

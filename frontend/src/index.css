@@ -880,15 +880,16 @@ select.badge-priority-top-high {
 
 /* Status: Pending */
 .badge-status-pending {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
-  color: #d97706 !important;
-  border-color: #fcd34d !important;
+  background: #d8d8d8 !important;
+  color: #080808 !important;
+  border-color: #e2e8f0 !important;
+  
 }
 .dark .badge-status-pending {
-  background: linear-gradient(135deg, rgba(217, 119, 6, 0.18) 0%, rgba(217, 119, 6, 0.28) 100%) !important;
-  color: #fbbf24 !important;
-  border-color: rgba(217, 119, 6, 0.4) !important;
-  box-shadow: 0 0 8px rgba(217, 119, 6, 0.12) !important;
+  background:white !important;
+  color: #070707 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.05) !important;
 }
 
 /* Status: On Hold */

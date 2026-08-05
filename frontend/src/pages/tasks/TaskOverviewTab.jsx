@@ -16,6 +16,7 @@ import {
   FiTrash2,
   FiAlertCircle,
   FiEye,
+  FiClock,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector } from "react-redux";
@@ -26,6 +27,23 @@ import {
 import ClientBadge from "../../components/common/ClientBadge";
 import { calculateBusinessMs } from "../../utils/businessHours";
 import toast from "react-hot-toast";
+
+const isSameDate = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  try {
+    const s1 =
+      typeof d1 === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d1.trim())
+        ? d1.trim()
+        : new Date(d1).toISOString().split("T")[0];
+    const s2 =
+      typeof d2 === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d2.trim())
+        ? d2.trim()
+        : new Date(d2).toISOString().split("T")[0];
+    return s1 === s2 && s1 !== "1970-01-01";
+  } catch (e) {
+    return false;
+  }
+};
 
 const SimpleTimeTracker = ({
   startTime,
@@ -554,12 +572,107 @@ const TaskOverviewTab = ({
     return `${projChar}${clientChars}T${num}`;
   };
 
+  const showStartInProgressWarning = (action = "review") => {
+    const actionMsg =
+      action === "hold"
+        ? "before placing it on hold."
+        : "before submitting it for review.";
+
+    toast.custom(
+      (t) => (
+        <div
+          className={`${
+            t.visible ? "animate-enter" : "animate-leave"
+          } max-w-md w-full pointer-events-auto flex flex-col gap-4 p-5 rounded-2xl shadow-2xl border
+          bg-white dark:bg-[#0f172a]
+          border-amber-500/40 dark:border-amber-500/40
+          backdrop-blur-xl z-[99999]`}
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="shrink-0 w-11 h-11 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner">
+              <FiClock size={22} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-snug">
+                Action Required: Start Task First
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed font-medium">
+                Please start the task by setting its status to <strong className="text-amber-600 dark:text-amber-400 font-bold">"In Progress"</strong> {actionMsg}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              Understood
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: 6000 }
+    );
+  };
+
+  const [reviewModalData, setReviewModalData] = useState(null);
+
+  const handleConfirmReviewSubmit = async () => {
+    if (!reviewModalData) return;
+    const { taskId, fields } = reviewModalData;
+    setReviewModalData(null);
+    try {
+      await updateTaskTrigger({
+        id: taskId,
+        taskData: fields,
+      }).unwrap();
+      toast.success("Task submitted for review successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.data?.message || "Failed to submit task for review.");
+    }
+  };
+
   const handleTaskFieldChange = async (taskId, fields) => {
     const sanitizedFields = { ...fields };
+
+    if (sanitizedFields.status && ["IN-REVIEW", "In Review", "IN-Review"].includes(sanitizedFields.status)) {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      if (currentTaskObj && !currentTaskObj.actualStartTime) {
+        showStartInProgressWarning("review");
+        return;
+      }
+      if (currentTaskObj && currentTaskObj.status !== sanitizedFields.status) {
+        setReviewModalData({ taskId, fields: sanitizedFields });
+        return;
+      }
+    }
+
+    if (sanitizedFields.status === "On Hold") {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      if (currentTaskObj && !currentTaskObj.actualStartTime) {
+        showStartInProgressWarning("hold");
+        return;
+      }
+    }
 
     if (sanitizedFields.startDate === "") sanitizedFields.startDate = null;
 
     if (sanitizedFields.dueDate === "") sanitizedFields.dueDate = null;
+
+    const currentTaskForPriority = tasks?.find((t) => t._id === taskId);
+    const effectiveStart =
+      sanitizedFields.startDate !== undefined
+        ? sanitizedFields.startDate
+        : currentTaskForPriority?.startDate;
+    const effectiveEnd =
+      sanitizedFields.dueDate !== undefined
+        ? sanitizedFields.dueDate
+        : currentTaskForPriority?.dueDate;
+
+    if (effectiveStart && effectiveEnd && isSameDate(effectiveStart, effectiveEnd)) {
+      sanitizedFields.priority = "Top High";
+    }
 
     try {
       await updateTaskTrigger({
@@ -2012,9 +2125,13 @@ const TaskOverviewTab = ({
                         {!hiddenColumns.priority && (
                           <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[14px] font-medium  tracking-wider shadow-lg border ${pStyle}`}
+                              className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[14px] font-medium  tracking-wider shadow-lg border ${
+                                isSameDate(task.startDate, task.dueDate)
+                                  ? "badge-priority-top-high"
+                                  : pStyle
+                              }`}
                             >
-                              {task.priority || "Medium"}
+                              {isSameDate(task.startDate, task.dueDate) ? "🔴 Top High" : task.priority || "Medium"}
                             </span>
                           </td>
                         )}
@@ -2256,36 +2373,43 @@ const TaskOverviewTab = ({
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
                         Status
                       </span>
-                      <select
-                        value={selectedTask.status || "Pending"}
-                        onChange={(e) =>
-                          handleTaskFieldChange(selectedTask._id, {
-                            status: e.target.value,
-                          })
-                        }
-                        className={`badge-select border rounded px-2 py-0.5 text-[10px] font-bold ${
-                          selectedTask.status === "Completed"
-                            ? "badge-status-completed"
-                            : selectedTask.status === "In Progress"
-                              ? "badge-status-in-progress"
-                              : selectedTask.status === "IN-REVIEW" ||
-                                  selectedTask.status === "In Review" ||
-                                  selectedTask.status === "IN-Review"
-                                ? "badge-status-in-review"
-                                : selectedTask.status === "On Hold"
-                                  ? "badge-status-on-hold"
-                                  : selectedTask.status === "Rejected"
-                                    ? "badge-status-rejected"
-                                    : "badge-status-pending"
-                        }`}
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="IN-REVIEW">In Review</option>
-                        <option value="Completed">Completed</option>
-                        <option value="On Hold">On Hold</option>
-                        <option value="Rejected">Rejected</option>
-                      </select>
+                      {selectedTask.status === "Completed" ? (
+                        <div className="px-2.5 py-1 text-[10px] font-black rounded-full border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 flex items-center gap-1.5 shadow-sm uppercase tracking-wider w-fit">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Completed
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedTask.status || "Pending"}
+                          onChange={(e) =>
+                            handleTaskFieldChange(selectedTask._id, {
+                              status: e.target.value,
+                            })
+                          }
+                          className={`badge-select border rounded px-2 py-0.5 text-[10px] font-bold ${
+                            selectedTask.status === "Completed"
+                              ? "badge-status-completed"
+                              : selectedTask.status === "In Progress"
+                                ? "badge-status-in-progress"
+                                : selectedTask.status === "IN-REVIEW" ||
+                                    selectedTask.status === "In Review" ||
+                                    selectedTask.status === "IN-Review"
+                                  ? "badge-status-in-review"
+                                  : selectedTask.status === "On Hold"
+                                    ? "badge-status-on-hold"
+                                    : selectedTask.status === "Rejected"
+                                      ? "badge-status-rejected"
+                                      : "badge-status-pending"
+                          }`}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="IN-REVIEW">In Review</option>
+                          <option value="Completed">Completed</option>
+                          <option value="On Hold">On Hold</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
+                      )}
                     </div>
 
                     <div className="space-y-1">
@@ -2348,6 +2472,50 @@ const TaskOverviewTab = ({
         )}
       </AnimatePresence>
       <AnimatePresence>
+        {/* SUBMIT FOR REVIEW CONFIRMATION MODAL */}
+        {reviewModalData && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-md bg-white dark:bg-[#11131f] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 text-left"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <FiCheckSquare size={24} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
+                    Submit Task for Review?
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed font-medium">
+                    Are you sure you want to submit this task for review? Once submitted, the task status will update to <strong className="text-indigo-600 dark:text-indigo-400 font-bold">"In Review"</strong> and your manager will be notified.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => setReviewModalData(null)}
+                  className="px-4.5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmReviewSubmit}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-all shadow-md shadow-indigo-500/20 cursor-pointer active:scale-95 flex items-center gap-2"
+                >
+                  <FiCheckSquare size={14} />
+                  Submit for Review
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {taskToDelete && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
             <motion.div

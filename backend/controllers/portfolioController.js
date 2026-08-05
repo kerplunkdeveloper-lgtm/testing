@@ -64,7 +64,7 @@ exports.updatePortfolio = async (req, res) => {
     portfolio = await Portfolio.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
       .populate("projectIds", "name status client")
       .populate("portfolioIds", "name color access")

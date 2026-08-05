@@ -140,7 +140,7 @@ exports.updateUser = async (req, res) => {
       targetId,
       updateData,
       {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
       }
     );

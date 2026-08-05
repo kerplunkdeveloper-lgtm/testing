@@ -256,7 +256,7 @@ exports.updateDesignerEodReport = async (req, res) => {
     const wasDraft = report.isDraft;
 
     report = await DesignerEodReport.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     })
       .populate({

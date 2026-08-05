@@ -22,7 +22,7 @@ router.put("/office-hours", async (req, res) => {
     const settings = await OfficeSettings.findOneAndUpdate(
       { key: "global" },
       { startHour: Number(startHour), endHour: Number(endHour) },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
     res.json({ success: true, data: settings });
   } catch (err) {

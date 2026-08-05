@@ -51,7 +51,8 @@ import {
 import { updateProject } from "../../features/projects/projectSlice";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import ProjectIcon from "../../components/common/ProjectIcon";
-import ClientBadge from "../../components/common/ClientBadge";
+import ClientBadge, { getClientBranding } from "../../components/common/ClientBadge";
+import { getClientIconComponent } from "../../utils/clientHelpers";
 import { calculateBusinessMs } from "../../utils/businessHours";
 
 const formatBusinessDuration = (ms) => {
@@ -64,7 +65,22 @@ const formatBusinessDuration = (ms) => {
   return `${m}m ${s}s`;
 };
 
-
+export const isSameDate = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  try {
+    const s1 =
+      typeof d1 === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d1.trim())
+        ? d1.trim()
+        : new Date(d1).toISOString().split("T")[0];
+    const s2 =
+      typeof d2 === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d2.trim())
+        ? d2.trim()
+        : new Date(d2).toISOString().split("T")[0];
+    return s1 === s2 && s1 !== "1970-01-01";
+  } catch (e) {
+    return false;
+  }
+};
 
 const ApprovalTimeDisplay = ({
   reviewStartedAt,
@@ -99,7 +115,12 @@ const ApprovalTimeDisplay = ({
   useEffect(() => {
     if (!showPopup) return;
     const handleClickOutside = (e) => {
-      if (popupRef.current && !popupRef.current.contains(e.target) && buttonRef.current && !buttonRef.current.contains(e.target)) {
+      if (
+        popupRef.current &&
+        !popupRef.current.contains(e.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target)
+      ) {
         setShowPopup(false);
       }
     };
@@ -189,66 +210,67 @@ const ApprovalTimeDisplay = ({
       )}
 
       {/* Details Popup rendered via Portal */}
-      {showPopup && createPortal(
-        <AnimatePresence>
-          <motion.div
-            ref={popupRef}
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.15 }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: "absolute",
-              top: coords.top,
-              left: coords.left,
-            }}
-            className="z-[9999] w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl flex flex-col gap-2 text-left"
-          >
-            <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Timeline Details
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowPopup(false)}
-                className="text-slate-400 hover:text-slate-600 dark:text-[#555] dark:hover:text-slate-350 cursor-pointer"
-              >
-                <FiX size={10} />
-              </button>
-            </div>
-
-            {revInfo && (
-              <div className="flex flex-col gap-0.5 bg-blue-50/40 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
-                <span className="text-[8px] font-black text-blue-500 dark:text-blue-450 uppercase tracking-widest">
-                  Review Start
+      {showPopup &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={popupRef}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.15 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: "absolute",
+                top: coords.top,
+                left: coords.left,
+              }}
+              className="z-[9999] w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl flex flex-col gap-2 text-left"
+            >
+              <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Timeline Details
                 </span>
-                <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
-                  {revInfo.date} · {revInfo.time}
-                </span>
-                <span className="text-[9px] text-blue-450 dark:text-blue-500 font-medium">
-                  {revInfo.relative}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowPopup(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:text-[#555] dark:hover:text-slate-350 cursor-pointer"
+                >
+                  <FiX size={10} />
+                </button>
               </div>
-            )}
 
-            {doneInfo && (
-              <div className="flex flex-col gap-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
-                <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
-                  Completed
-                </span>
-                <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
-                  {doneInfo.date} · {doneInfo.time}
-                </span>
-                <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium">
-                  {doneInfo.relative}
-                </span>
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>,
-        document.body
-      )}
+              {revInfo && (
+                <div className="flex flex-col gap-0.5 bg-blue-50/40 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
+                  <span className="text-[8px] font-black text-blue-500 dark:text-blue-450 uppercase tracking-widest">
+                    Review Start
+                  </span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                    {revInfo.date} · {revInfo.time}
+                  </span>
+                  <span className="text-[9px] text-blue-450 dark:text-blue-500 font-medium">
+                    {revInfo.relative}
+                  </span>
+                </div>
+              )}
+
+              {doneInfo && (
+                <div className="flex flex-col gap-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
+                  <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
+                    Completed
+                  </span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                    {doneInfo.date} · {doneInfo.time}
+                  </span>
+                  <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium">
+                    {doneInfo.relative}
+                  </span>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
     </div>
   );
 };
@@ -959,19 +981,19 @@ const AssigneeDropdown = ({
       return (
         <div
           onClick={() => isAdminOrManager && setIsOpen(!isOpen)}
-          className={`group/assigned relative flex items-center gap-2 bg-slate-50/40 dark:bg-white/5 hover:bg-slate-100/50 dark:hover:bg-white/10 px-2 py-1 rounded-xl border border-slate-200/60 dark:border-white/10 transition-all ${
+          className={`group/assigned relative flex items-center gap-1.5 bg-slate-50/40 dark:bg-white/5 hover:bg-slate-100/50 dark:hover:bg-white/10 px-1.5 py-0.5 rounded-lg border border-slate-200/60 dark:border-white/10 transition-all ${
             isAdminOrManager ? "cursor-pointer" : "cursor-not-allowed"
-          } w-[170px] h-[36px] shadow-sm`}
+          } w-[135px] h-[28px] shadow-sm`}
         >
           {avatarUrl ? (
             <img
               src={avatarUrl}
               alt={selectedUserObj?.name || "User"}
-              className="w-7 h-7 rounded-full object-cover border border-slate-250 dark:border-white/10 shrink-0"
+              className="w-5.5 h-5.5 rounded-full object-cover border border-slate-250 dark:border-white/10 shrink-0"
             />
           ) : (
             <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-black text-[10px] bg-gradient-to-br shrink-0 ${safeGetAvatarColor(
+              className={`w-5.5 h-5.5 rounded-full flex items-center justify-center text-white font-black text-[9px] bg-gradient-to-br shrink-0 ${safeGetAvatarColor(
                 selectedUserObj?.name || "Unknown",
               )}`}
             >
@@ -979,11 +1001,11 @@ const AssigneeDropdown = ({
             </div>
           )}
           <div className="flex-1 min-w-0 flex flex-col text-left">
-            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate leading-tight">
-              {selectedUserObj?.name || "Assigned User"}
+            <span className="text-[9.5px] font-bold text-slate-800 dark:text-slate-200 truncate leading-tight">
+              {selectedUserObj?.name || "Assigned"}
             </span>
             {dept && (
-              <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 truncate leading-none mt-0.5">
+              <span className="text-[8px] font-medium text-slate-500 dark:text-slate-400 truncate leading-none mt-0">
                 {dept}
               </span>
             )}
@@ -995,10 +1017,10 @@ const AssigneeDropdown = ({
                 e.stopPropagation();
                 handleSelect(null);
               }}
-              className="relative z-20 p-0.5 text-slate-400 hover:text-rose-500 rounded transition-colors hover:bg-slate-200/60 dark:hover:bg-white/10 shrink-0"
+              className="relative z-20 p-0.5 text-slate-400 hover:text-rose-500 rounded transition-colors hover:bg-slate-200/60 dark:hover:bg-white/10 shrink-0 cursor-pointer"
               title="Clear Assignee"
             >
-              <FiX size={11} />
+              <FiX size={9.5} />
             </button>
           )}
         </div>
@@ -1010,22 +1032,22 @@ const AssigneeDropdown = ({
         type="button"
         disabled={!isAdminOrManager}
         onClick={() => setIsOpen(!isOpen)}
-        className={`group/assign relative flex items-center gap-2 bg-slate-50/20 dark:bg-white/5 hover:bg-slate-100/40 dark:hover:bg-white/10 px-2 py-1 rounded-xl border border-dashed border-slate-300 dark:border-white/10 transition-all ${
+        className={`group/assign relative flex items-center gap-1.5 bg-slate-50/20 dark:bg-white/5 hover:bg-slate-100/40 dark:hover:bg-white/10 px-1.5 py-0.5 rounded-lg border border-dashed border-slate-300 dark:border-white/10 transition-all ${
           isAdminOrManager ? "cursor-pointer" : "cursor-not-allowed"
-        } w-[170px] h-[36px] text-left`}
+        } w-[135px] h-[28px] text-left`}
       >
-        <div className="w-7 h-7 rounded-full border border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0 bg-white dark:bg-[#111111]">
-          <FiUser size={12} className="group-hover/assign:hidden" />
+        <div className="w-5.5 h-5.5 rounded-full border border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0 bg-white dark:bg-[#111111]">
+          <FiUser size={10} className="group-hover/assign:hidden" />
           <FiPlus
-            size={12}
+            size={10}
             className="hidden group-hover/assign:block text-blue-500 dark:text-[#3b82f6]"
           />
         </div>
         <div className="flex-1 min-w-0 flex flex-col text-left">
-          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-550 truncate leading-tight">
+          <span className="text-[9.5px] font-bold text-slate-400 dark:text-slate-550 truncate leading-tight">
             Unassigned
           </span>
-          <span className="text-[9px] font-medium text-slate-400/80 dark:text-slate-550/80 truncate leading-none mt-0.5">
+          <span className="text-[8px] font-medium text-slate-400/80 dark:text-slate-550/80 truncate leading-none mt-0">
             Assign Task
           </span>
         </div>
@@ -1252,38 +1274,26 @@ const ClientDropdown = ({
 
   const renderTrigger = () => {
     if (selectedClientObj) {
+      const branding = getClientBranding(selectedClientObj);
+      const IconComponent = getClientIconComponent(branding.iconName);
       return (
         <div
           onClick={() => isAdminOrManager && setIsOpen(!isOpen)}
-          className={`group/assigned relative flex items-center gap-1.5 px-2 py-1 rounded-xl border transition-all ${
+          className={`group/assigned relative flex items-center font-extrabold border shrink-0 px-2 py-0.5 text-[9px] gap-1 rounded-md transition-all ${
             isAdminOrManager
               ? "cursor-pointer hover:shadow-sm"
               : "cursor-not-allowed"
-          } ${getClientBadgeStyle(selectedClientObj.companyName)} min-w-[100px] h-[30px] w-[140px]`}
+          } h-[24px] w-[110px]`}
+          style={branding.hasCustomColor ? {
+            backgroundColor: `${branding.color}15`,
+            borderColor: `${branding.color}30`,
+            color: branding.color
+          } : {}}
         >
-          {selectedClientObj.icon && (
-            <img
-              src={selectedClientObj.icon}
-              alt=""
-              className="w-4 h-4 rounded-sm object-contain bg-white shrink-0"
-            />
-          )}
-          <span className="text-[10px] font-bold truncate leading-tight flex-1">
-            {selectedClientObj.companyName}
-          </span>
-          {isAdminOrManager && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSelect(null);
-              }}
-              className="relative z-20 p-0.5 text-slate-400 hover:text-rose-500 rounded transition-colors hover:bg-slate-200/60 dark:hover:bg-white/10 shrink-0"
-              title="Clear Client"
-            >
-              <FiX size={10} />
-            </button>
-          )}
+          <div className="flex items-center justify-center shrink-0">
+            <IconComponent size={8.5} />
+          </div>
+          <span className="truncate flex-1 leading-tight">{selectedClientObj.companyName}</span>
         </div>
       );
     }
@@ -1293,16 +1303,16 @@ const ClientDropdown = ({
         type="button"
         disabled={!isAdminOrManager}
         onClick={() => setIsOpen(!isOpen)}
-        className={`group/assign relative flex items-center gap-1 px-2 py-1 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 transition-all ${
+        className={`group/assign relative flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-slate-300 dark:border-slate-700 transition-all ${
           isAdminOrManager
             ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
             : "cursor-not-allowed"
-        } h-[30px] w-[140px] text-left`}
+        } h-[24px] w-[110px] text-left`}
       >
-        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate flex-1">
+        <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500 truncate flex-1">
           Select Client
         </span>
-        <FiChevronDown size={12} className="text-slate-400" />
+        <FiChevronDown size={10} className="text-slate-400" />
       </button>
     );
   };
@@ -1434,7 +1444,12 @@ const ContentCopyInput = ({
         }
       }}
       placeholder={placeholder}
-      className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300 outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] transition-all placeholder:font-normal hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-[#0f172a] shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] focus:shadow-[0_0_0_2px_rgba(59,130,246,0.15)]"
+      className="bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300 outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] transition-all placeholder:font-normal hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-[#0f172a] shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] focus:shadow-[0_0_0_2px_rgba(59,130,246,0.15)] text-center"
+      style={{
+        width: `${Math.max(val.length, placeholder.length) + 4}ch`,
+        minWidth: "120px",
+        maxWidth: "400px",
+      }}
     />
   );
 };
@@ -1465,60 +1480,77 @@ const RejectionModal = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#151518] rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-[#11131f] rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-rose-50/20 dark:bg-rose-950/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400">
+            <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400">
               <FiAlertTriangle size={20} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-white">
-                Reason for Rejection
+              <h3 className="text-base font-extrabold text-slate-800 dark:text-white">
+                Reject Task?
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-[200px]">
-                {target?.title || "Task"}
+              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest mt-0.5">
+                Confirm Action
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
           >
             <FiX size={20} />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6">
+        <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-5">
+          <div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+              Are you sure you want to reject the following task? This action
+              will set the task status to Rejected.
+            </p>
+            <div className="mt-3.5 px-3.5 py-2.5 rounded-xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-800/40">
+              <p className="text-[10px] font-black text-rose-500 dark:text-rose-500 uppercase tracking-widest mb-1">
+                Task Name
+              </p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug break-words">
+                {target?.title || "Untitled Task"}
+              </p>
+            </div>
+          </div>
+
           {/* Input Form */}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Why is this task being rejected?{" "}
-              <span className="text-rose-500">*</span>
-            </label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Provide a detailed explanation..."
-              className="w-full bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-rose-500 dark:focus:border-rose-500/50 focus:ring-4 focus:ring-rose-500/10 dark:focus:ring-rose-500/10 transition-all resize-none h-28"
-              autoFocus
-            />
-            <div className="flex justify-end gap-3 mt-2">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4.5">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Reason for Rejection <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Please enter a professional reason explaining why this task is being rejected..."
+                className="w-full bg-slate-50 dark:bg-[#181822] border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-rose-500 dark:focus:border-rose-500/50 focus:ring-4 focus:ring-rose-500/10 dark:focus:ring-rose-500/10 transition-all resize-none h-28"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
+                className="px-4.5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/30 transition-all flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-600 text-white shadow-md shadow-rose-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
               >
-                <FiCheck size={16} />
-                Confirm Rejection
+                <FiCheck size={14} />
+                Reject Task
               </button>
             </div>
           </form>
@@ -2262,8 +2294,152 @@ const ProjectTaskBoard = ({
     }
   };
 
+  const showStartInProgressWarning = (action = "review") => {
+    const actionMsg =
+      action === "hold"
+        ? "before placing it on hold."
+        : "before submitting it for review.";
+
+    toast.custom(
+      (t) => (
+        <div
+          className={`${
+            t.visible ? "animate-enter" : "animate-leave"
+          } max-w-md w-full pointer-events-auto flex flex-col gap-4 p-5 rounded-2xl shadow-2xl border
+          bg-white dark:bg-[#0f172a]
+          border-amber-500/40 dark:border-amber-500/40
+          backdrop-blur-xl z-[99999]`}
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="shrink-0 w-11 h-11 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner">
+              <FiClock size={22} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-snug">
+                Action Required: Start Task First
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed font-medium">
+                Please start the task by setting its status to{" "}
+                <strong className="text-amber-600 dark:text-amber-400 font-bold">
+                  "In Progress"
+                </strong>{" "}
+                {actionMsg}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              Understood
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: 6000 },
+    );
+  };
+
+  const [reviewModalData, setReviewModalData] = useState(null);
+  const [completeModalData, setCompleteModalData] = useState(null);
+
+  const handleConfirmReviewSubmit = async () => {
+    if (!reviewModalData) return;
+    const { taskId, fields, isSubtask, taskObj, subtaskId } = reviewModalData;
+    setReviewModalData(null);
+    try {
+      if (isSubtask) {
+        const updatedSubtasks = (taskObj.subtasks || []).map((s) => {
+          if (s._id === subtaskId) {
+            return { ...s, ...fields };
+          }
+          return s;
+        });
+        await updateTaskMutation({
+          id: taskId,
+          taskData: { subtasks: updatedSubtasks },
+        }).unwrap();
+      } else {
+        await updateTaskMutation({
+          id: taskId,
+          taskData: fields,
+        }).unwrap();
+      }
+      toast.success("Submitted for review successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.data?.message || "Failed to submit for review.");
+    }
+  };
+
+  const handleConfirmComplete = async () => {
+    if (!completeModalData) return;
+    const { taskId, fields, isSubtask, taskObj, subtaskId } = completeModalData;
+    setCompleteModalData(null);
+    try {
+      if (isSubtask) {
+        const updatedSubtasks = (taskObj.subtasks || []).map((s) => {
+          if (s._id === subtaskId) {
+            return { ...s, ...fields };
+          }
+          return s;
+        });
+        await updateTaskMutation({
+          id: taskId,
+          taskData: { subtasks: updatedSubtasks },
+        }).unwrap();
+      } else {
+        await updateTaskMutation({
+          id: taskId,
+          taskData: fields,
+        }).unwrap();
+      }
+      toast.success("Task marked as completed successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.data?.message || "Failed to mark task as completed.");
+    }
+  };
+
   // Update Task fields inline / autosave
   const handleTaskFieldChange = async (taskId, fields) => {
+    if (
+      fields.status &&
+      ["IN-REVIEW", "In Review", "IN-Review"].includes(fields.status)
+    ) {
+      const taskObj = localTasks.find((t) => t._id === taskId);
+      if (taskObj && !taskObj.actualStartTime) {
+        showStartInProgressWarning("review");
+        return;
+      }
+      if (taskObj && taskObj.status !== fields.status) {
+        setReviewModalData({ taskId, fields, isSubtask: false });
+        return;
+      }
+    }
+
+    if (fields.status === "On Hold") {
+      const taskObj = localTasks.find((t) => t._id === taskId);
+      if (taskObj && !taskObj.actualStartTime) {
+        showStartInProgressWarning("hold");
+        return;
+      }
+    }
+
+    if (fields.status === "Completed") {
+      const taskObj = localTasks.find((t) => t._id === taskId);
+      if (taskObj && taskObj.status !== "Completed") {
+        setCompleteModalData({
+          taskId,
+          fields,
+          isSubtask: false,
+          taskName: taskObj.title,
+        });
+        return;
+      }
+    }
+
     // Intercept rejection status
     if (fields.status === "Rejected") {
       const taskObj = localTasks.find((t) => t._id === taskId);
@@ -2355,6 +2531,24 @@ const ProjectTaskBoard = ({
           return; // Block invalid end date
         }
       }
+    }
+
+    const currentTaskForPriority = localTasks.find((t) => t._id === taskId);
+    const effectiveStart =
+      sanitizedFields.startDate !== undefined
+        ? sanitizedFields.startDate
+        : currentTaskForPriority?.startDate;
+    const effectiveEnd =
+      sanitizedFields.dueDate !== undefined
+        ? sanitizedFields.dueDate
+        : currentTaskForPriority?.dueDate;
+
+    if (
+      effectiveStart &&
+      effectiveEnd &&
+      isSameDate(effectiveStart, effectiveEnd)
+    ) {
+      sanitizedFields.priority = "Top High";
     }
 
     const isNewStatusInProgress = sanitizedFields.status === "In Progress";
@@ -2611,6 +2805,50 @@ const ProjectTaskBoard = ({
 
   // Update specific subtask fields
   const handleSubtaskFieldChange = async (task, subtaskId, updatedFields) => {
+    if (
+      updatedFields.status &&
+      ["IN-REVIEW", "In Review", "IN-Review"].includes(updatedFields.status)
+    ) {
+      const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
+      if (subtaskObj && !subtaskObj.actualStartTime) {
+        showStartInProgressWarning("review");
+        return;
+      }
+      if (subtaskObj && subtaskObj.status !== updatedFields.status) {
+        setReviewModalData({
+          taskId: task._id,
+          fields: updatedFields,
+          isSubtask: true,
+          taskObj: task,
+          subtaskId,
+        });
+        return;
+      }
+    }
+
+    if (updatedFields.status === "On Hold") {
+      const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
+      if (subtaskObj && !subtaskObj.actualStartTime) {
+        showStartInProgressWarning("hold");
+        return;
+      }
+    }
+
+    if (updatedFields.status === "Completed") {
+      const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
+      if (subtaskObj && subtaskObj.status !== "Completed") {
+        setCompleteModalData({
+          taskId: task._id,
+          fields: updatedFields,
+          isSubtask: true,
+          taskObj: task,
+          subtaskId,
+          taskName: subtaskObj.title || task.title,
+        });
+        return;
+      }
+    }
+
     // Intercept rejection status
     if (updatedFields.status === "Rejected") {
       const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
@@ -2699,6 +2937,23 @@ const ProjectTaskBoard = ({
           return; // Block invalid end date
         }
       }
+    }
+
+    const effectiveSubStart =
+      sanitizedFields.startDate !== undefined
+        ? sanitizedFields.startDate
+        : currentSub?.startDate || task?.startDate;
+    const effectiveSubEnd =
+      sanitizedFields.dueDate !== undefined
+        ? sanitizedFields.dueDate
+        : currentSub?.dueDate || task?.dueDate;
+
+    if (
+      effectiveSubStart &&
+      effectiveSubEnd &&
+      isSameDate(effectiveSubStart, effectiveSubEnd)
+    ) {
+      sanitizedFields.priority = "Top High";
     }
 
     const updatedSubtasks = task.subtasks.map((sub) =>
@@ -3188,7 +3443,7 @@ const ProjectTaskBoard = ({
                         {[
                           { id: "contentCopy", label: "Content Copy" },
                           { id: "client", label: "Client" },
-                          { id: "createdBy", label: "Task Created By" },
+                          { id: "createdBy", label: "Owner" },
                           { id: "assignee", label: "Assignee" },
                           { id: "contentType", label: "Content Type" },
                           { id: "startDate", label: "Start Date" },
@@ -3521,16 +3776,52 @@ const ProjectTaskBoard = ({
                                 ID
                               </th>
                               <th
-                                className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[250px] md:min-w-[400px] md:sticky z-40 bg-slate-50 dark:bg-[#16161b]"
+                                className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[250px] md:min-w-[80px] md:sticky z-40 bg-slate-50 dark:bg-[#16161b]"
                                 style={{
                                   left: showSelectionColumn ? "160px" : "120px",
                                 }}
                               >
                                 Task Name
                               </th>
+                              {/* Client Column */}
+                              {!hiddenColumns.client && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
+                                  Client
+                                </th>
+                              )}
+                              {/* Created By Column */}
+                              {!hiddenColumns.createdBy && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[100px]">
+                                  Owner
+                                </th>
+                              )}
+                              {/* Start Date Column */}
+                              {!hiddenColumns.startDate && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[90px]">
+                                  Start Date
+                                </th>
+                              )}
+                              {/* End Date Column */}
+                              {!hiddenColumns.endDate && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[90px]">
+                                  End Date
+                                </th>
+                              )}
+                              {/* Assignee Column */}
+                              {!hiddenColumns.assignee && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[150px]">
+                                  Assignee
+                                </th>
+                              )}
+                              {/* Content Type Column */}
+                              {!hiddenColumns.contentType && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[100px]">
+                                  Content Type
+                                </th>
+                              )}
                               {/* Content Copy Column */}
                               {!hiddenColumns.contentCopy && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[250px] md:min-w-[400px] w-auto group relative">
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[140px] md:min-w-[180px] w-auto group relative">
                                   <div className="flex items-center justify-between gap-2">
                                     <span>Content Copy</span>
                                     <div className="relative col-header-menu">
@@ -3570,42 +3861,6 @@ const ProjectTaskBoard = ({
                                       )}
                                     </div>
                                   </div>
-                                </th>
-                              )}
-                              {/* Client Column */}
-                              {!hiddenColumns.client && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[140px]">
-                                  Client
-                                </th>
-                              )}
-                              {/* Created By Column */}
-                              {!hiddenColumns.createdBy && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[140px]">
-                                  Task Created By
-                                </th>
-                              )}
-                              {/* Start Date Column */}
-                              {!hiddenColumns.startDate && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  Start Date
-                                </th>
-                              )}
-                              {/* End Date Column */}
-                              {!hiddenColumns.endDate && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  End Date
-                                </th>
-                              )}
-                              {/* Assignee Column */}
-                              {!hiddenColumns.assignee && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[190px]">
-                                  Assignee
-                                </th>
-                              )}
-                              {/* Content Type Column */}
-                              {!hiddenColumns.contentType && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[130px]">
-                                  Content Type
                                 </th>
                               )}
                               {/* Priority Column */}
@@ -3666,7 +3921,7 @@ const ProjectTaskBoard = ({
                               )}
                               {!hiddenColumns.totalHours && (
                                 <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  Total productivity - (inprogress taken)
+                                  Inprogress taken
                                 </th>
                               )}
                               {!hiddenColumns.approvalInfo && (
@@ -4545,35 +4800,6 @@ const ProjectTaskBoard = ({
                                                         </div>
                                                       </td>
 
-                                                      {/* Content Copy */}
-                                                      <td
-                                                        className={`px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 ${hiddenColumns.contentCopy ? "hidden" : ""}`}
-                                                      >
-                                                        <div
-                                                          onClick={(e) =>
-                                                            e.stopPropagation()
-                                                          }
-                                                          className="w-full"
-                                                        >
-                                                          <ContentCopyInput
-                                                            value={
-                                                              task.contentCopy
-                                                            }
-                                                            onChange={(
-                                                              newVal,
-                                                            ) =>
-                                                              handleTaskFieldChange(
-                                                                task._id,
-                                                                {
-                                                                  contentCopy:
-                                                                    newVal,
-                                                                },
-                                                              )
-                                                            }
-                                                          />
-                                                        </div>
-                                                      </td>
-
                                                       {/* Client Column */}
                                                       {!hiddenColumns.client && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 font-medium">
@@ -4654,11 +4880,11 @@ const ProjectTaskBoard = ({
                                                                       .createdBy
                                                                       .name
                                                                   }
-                                                                  className="w-5 h-5 rounded-full object-cover border border-slate-250 dark:border-white/10 shrink-0"
+                                                                  className="w-4 h-4 rounded-full object-cover border border-slate-250 dark:border-white/10 shrink-0"
                                                                 />
                                                               ) : (
                                                                 <div
-                                                                  className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold bg-gradient-to-br shrink-0 ${getAvatarColor(
+                                                                  className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[7.5px] font-bold bg-gradient-to-br shrink-0 ${getAvatarColor(
                                                                     task
                                                                       .createdBy
                                                                       .name ||
@@ -4674,7 +4900,7 @@ const ProjectTaskBoard = ({
                                                                 </div>
                                                               )}
                                                               <span
-                                                                className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[100px]"
+                                                                className="text-[9.5px] font-semibold text-slate-605 dark:text-slate-400 truncate max-w-[85px]"
                                                                 title={
                                                                   task.createdBy
                                                                     .name
@@ -4687,7 +4913,7 @@ const ProjectTaskBoard = ({
                                                               </span>
                                                             </div>
                                                           ) : (
-                                                            <span className="text-slate-400 dark:text-slate-550 text-[10px] font-normal">
+                                                            <span className="text-slate-400 dark:text-slate-550 text-[9px] font-normal">
                                                               N/A
                                                             </span>
                                                           )}
@@ -4715,9 +4941,9 @@ const ProjectTaskBoard = ({
                                                             }}
                                                           >
                                                             {task.startDate ? (
-                                                              <div className="flex items-center flex-nowrap gap-1.5 px-2.5 py-1 rounded-md border border-blue-300 dark:border-blue-800/85 hover:border-blue-400 dark:hover:border-blue-500/70 text-blue-855 dark:text-blue-300 text-[14px] font-bold bg-blue-100 dark:bg-blue-900 transition-all shadow-sm">
+                                                              <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-800/85 hover:border-blue-400 dark:hover:border-blue-500/70 text-blue-855 dark:text-blue-300 text-[9.5px] font-bold bg-blue-100 dark:bg-blue-900 transition-all shadow-sm">
                                                                 <FiCalendar
-                                                                  size={10.5}
+                                                                  size={9.5}
                                                                   className="text-blue-900 dark:text-blue-900 shrink-0"
                                                                 />
                                                                 <span className="whitespace-nowrap">
@@ -4750,15 +4976,15 @@ const ProjectTaskBoard = ({
                                                                     className="ml-1 text-blue-505 hover:text-rose-600 dark:text-blue-450 dark:hover:text-rose-455 relative z-10 transition-colors cursor-pointer"
                                                                   >
                                                                     <FiX
-                                                                      size={10}
+                                                                      size={9}
                                                                     />
                                                                   </button>
                                                                 )}
                                                               </div>
                                                             ) : (
-                                                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-dashed border-blue-600 dark:border-blue-800/80 text-white  dark:text-blue-400/90   bg-blue-400 dark:bg-blue-400 transition-all text-[9px] font-bold">
+                                                              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-blue-600 dark:border-blue-800/80 text-white dark:text-blue-400/90 bg-blue-400 dark:bg-blue-400 transition-all text-[8px] font-bold">
                                                                 <FiCalendar
-                                                                  size={10.5}
+                                                                  size={9.5}
                                                                 />
                                                                 <span>
                                                                   + Start Date
@@ -4796,7 +5022,7 @@ const ProjectTaskBoard = ({
                                                           </div>
                                                         </td>
                                                       )}
-
+ 
                                                       {/* End Date */}
                                                       {!hiddenColumns.endDate && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
@@ -4818,9 +5044,9 @@ const ProjectTaskBoard = ({
                                                             }}
                                                           >
                                                             {task.dueDate ? (
-                                                              <div className="flex items-center flex-nowrap gap-1.5 px-2.5 py-1 rounded-md border border-rose-300 dark:border-rose-700/80 hover:border-rose-400 dark:hover:border-rose-500/70 text-rose-855 dark:text-rose-100 text-[14px] font-bold bg-rose-100 dark:bg-rose-800 transition-all shadow-sm">
+                                                              <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-700/80 hover:border-rose-400 dark:hover:border-rose-500/70 text-rose-855 dark:text-rose-100 text-[9.5px] font-bold bg-rose-100 dark:bg-rose-800 transition-all shadow-sm">
                                                                 <FiCalendar
-                                                                  size={10.5}
+                                                                  size={9.5}
                                                                   className="text-rose-600 dark:text-rose-400 shrink-0"
                                                                 />
                                                                 <span className="whitespace-nowrap">
@@ -4853,15 +5079,15 @@ const ProjectTaskBoard = ({
                                                                     className="ml-1 text-rose-505 hover:text-rose-755 dark:text-rose-400 dark:hover:text-rose-300 relative z-10 transition-colors cursor-pointer"
                                                                   >
                                                                     <FiX
-                                                                      size={10}
+                                                                      size={9}
                                                                     />
                                                                   </button>
                                                                 )}
                                                               </div>
                                                             ) : (
-                                                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-dashed border-rose-300 dark:border-rose-800/80 text-rose-605 dark:text-rose-400/90 hover:border-rose-400 hover:text-rose-750 dark:hover:text-rose-300 dark:hover:border-rose-600/85 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/50 transition-all text-[9.5px] font-bold">
+                                                              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-rose-300 dark:border-rose-800/80 text-rose-605 dark:text-rose-400/90 hover:border-rose-400 hover:text-rose-750 dark:hover:text-rose-300 dark:hover:border-rose-600/85 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/50 transition-all text-[8px] font-bold">
                                                                 <FiCalendar
-                                                                  size={10.5}
+                                                                  size={9.5}
                                                                 />
                                                                 <span>
                                                                   + End Date
@@ -5128,6 +5354,34 @@ const ProjectTaskBoard = ({
                                                           </div>
                                                         </td>
                                                       )}
+                                                      {/* Content Copy */}
+                                                      <td
+                                                        className={`px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 ${hiddenColumns.contentCopy ? "hidden" : ""}`}
+                                                      >
+                                                        <div
+                                                          onClick={(e) =>
+                                                            e.stopPropagation()
+                                                          }
+                                                          className="w-full"
+                                                        >
+                                                          <ContentCopyInput
+                                                            value={
+                                                              task.contentCopy
+                                                            }
+                                                            onChange={(
+                                                              newVal,
+                                                            ) =>
+                                                              handleTaskFieldChange(
+                                                                task._id,
+                                                                {
+                                                                  contentCopy:
+                                                                    newVal,
+                                                                },
+                                                              )
+                                                            }
+                                                          />
+                                                        </div>
+                                                      </td>
 
                                                       {/* Priority */}
                                                       {!hiddenColumns.priority && (
@@ -5137,7 +5391,14 @@ const ProjectTaskBoard = ({
                                                               e.stopPropagation()
                                                             }
                                                           >
-                                                            {isAdminOrManager ? (
+                                                            {isSameDate(
+                                                              task.startDate,
+                                                              task.dueDate,
+                                                            ) ? (
+                                                              <span className="badge-span badge-priority-top-high">
+                                                                🔴 Top High
+                                                              </span>
+                                                            ) : isAdminOrManager ? (
                                                               <select
                                                                 value={
                                                                   task.priority ||
@@ -5210,7 +5471,9 @@ const ProjectTaskBoard = ({
                                                               e.stopPropagation()
                                                             }
                                                           >
-                                                            {isAdminOrManager && task.status !== "Completed" ? (
+                                                            {isAdminOrManager &&
+                                                            task.status !==
+                                                              "Completed" ? (
                                                               <select
                                                                 value={
                                                                   task.status ||
@@ -5249,24 +5512,46 @@ const ProjectTaskBoard = ({
                                                                             : "badge-status-pending"
                                                                 }`}
                                                               >
-                                                                <option value="Pending">
-                                                                  Pending
-                                                                </option>
-                                                                <option value="In Progress">
-                                                                  In Progress
-                                                                </option>
-                                                                <option value="IN-REVIEW">
-                                                                  In Review
-                                                                </option>
-                                                                <option value="Completed">
-                                                                  Completed
-                                                                </option>
-                                                                <option value="On Hold">
-                                                                  On Hold
-                                                                </option>
-                                                                <option value="Rejected">
-                                                                  Rejected
-                                                                </option>
+                                                                {task.status ===
+                                                                  "IN-REVIEW" ||
+                                                                task.status ===
+                                                                  "In Review" ||
+                                                                task.status ===
+                                                                  "IN-Review" ? (
+                                                                  <>
+                                                                    <option value="IN-REVIEW">
+                                                                      In Review
+                                                                    </option>
+                                                                    <option value="Completed">
+                                                                      Completed
+                                                                    </option>
+                                                                    <option value="Rejected">
+                                                                      Rejected
+                                                                    </option>
+                                                                  </>
+                                                                ) : (
+                                                                  <>
+                                                                    <option value="Pending">
+                                                                      Pending
+                                                                    </option>
+                                                                    <option value="In Progress">
+                                                                      In
+                                                                      Progress
+                                                                    </option>
+                                                                    <option value="IN-REVIEW">
+                                                                      In Review
+                                                                    </option>
+                                                                    <option value="Completed">
+                                                                      Completed
+                                                                    </option>
+                                                                    <option value="On Hold">
+                                                                      On Hold
+                                                                    </option>
+                                                                    <option value="Rejected">
+                                                                      Rejected
+                                                                    </option>
+                                                                  </>
+                                                                )}
                                                               </select>
                                                             ) : (
                                                               <span
@@ -5442,7 +5727,7 @@ const ProjectTaskBoard = ({
                                                           const rowBgSub =
                                                             isSubCompleted
                                                               ? "bg-slate-50 text-slate-405 dark:bg-[#18181f] dark:text-slate-550 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-                                                              : "bg-slate-100 dark:bg-[#16161b] text-slate-855 dark:text-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]";
+                                                              : "bg-yellow-100 dark:bg-[#16161b] text-slate-855 dark:text-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]";
 
                                                           return (
                                                             <tr
@@ -5681,38 +5966,6 @@ const ProjectTaskBoard = ({
                                                                 </div>
                                                               </td>
 
-                                                              {/* Content Copy Column */}
-                                                              <td
-                                                                className={`px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 ${hiddenColumns.contentCopy ? "hidden" : ""}`}
-                                                              >
-                                                                <div
-                                                                  onClick={(
-                                                                    e,
-                                                                  ) =>
-                                                                    e.stopPropagation()
-                                                                  }
-                                                                  className="w-full"
-                                                                >
-                                                                  <ContentCopyInput
-                                                                    value={
-                                                                      sub.contentCopy
-                                                                    }
-                                                                    onChange={(
-                                                                      newVal,
-                                                                    ) =>
-                                                                      handleSubtaskFieldChange(
-                                                                        task,
-                                                                        sub._id,
-                                                                        {
-                                                                          contentCopy:
-                                                                            newVal,
-                                                                        },
-                                                                      )
-                                                                    }
-                                                                  />
-                                                                </div>
-                                                              </td>
-
                                                               {/* 2. Client Column */}
                                                               {!hiddenColumns.client && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
@@ -5806,11 +6059,11 @@ const ProjectTaskBoard = ({
                                                                               .createdBy
                                                                               .name
                                                                           }
-                                                                          className="w-5 h-5 rounded-full object-cover border border-slate-200 dark:border-white/10 shrink-0"
+                                                                          className="w-4 h-4 rounded-full object-cover border border-slate-200 dark:border-white/10 shrink-0"
                                                                         />
                                                                       ) : (
                                                                         <div
-                                                                          className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold bg-gradient-to-br shrink-0 ${getAvatarColor(
+                                                                          className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[7.5px] font-bold bg-gradient-to-br shrink-0 ${getAvatarColor(
                                                                             task
                                                                               .createdBy
                                                                               .name ||
@@ -5826,7 +6079,7 @@ const ProjectTaskBoard = ({
                                                                         </div>
                                                                       )}
                                                                       <span
-                                                                        className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[100px]"
+                                                                        className="text-[9.5px] font-semibold text-slate-705 dark:text-slate-400 truncate max-w-[85px]"
                                                                         title={
                                                                           task
                                                                             .createdBy
@@ -5871,11 +6124,9 @@ const ProjectTaskBoard = ({
                                                                     }}
                                                                   >
                                                                     {sub.startDate ? (
-                                                                      <div className="flex items-center flex-nowrap gap-1.5 px-2.5 py-1 rounded-md border border-blue-300 dark:border-blue-800/80 hover:border-blue-400 dark:hover:border-blue-500/70 text-blue-855 dark:text-blue-200 text-[10px] font-bold bg-blue-100/90 dark:bg-blue-955/75 transition-all shadow-sm">
+                                                                      <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-800/80 hover:border-blue-400 dark:hover:border-blue-500/70 text-blue-855 dark:text-blue-200 text-[9.5px] font-bold bg-blue-100/90 dark:bg-blue-955/75 transition-all shadow-sm">
                                                                         <FiCalendar
-                                                                          size={
-                                                                            10.5
-                                                                          }
+                                                                          size={9.5}
                                                                           className="text-blue-600 dark:text-blue-450 shrink-0"
                                                                         />
                                                                         <span className="whitespace-nowrap">
@@ -5909,24 +6160,18 @@ const ProjectTaskBoard = ({
                                                                             className="ml-1 text-blue-505 hover:text-rose-600 dark:text-blue-450 dark:hover:text-rose-455 relative z-10 transition-colors cursor-pointer"
                                                                           >
                                                                             <FiX
-                                                                              size={
-                                                                                10
-                                                                              }
+                                                                              size={9}
                                                                             />
                                                                           </button>
                                                                         )}
                                                                       </div>
                                                                     ) : (
-                                                                      <div className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-md border border-dashed border-blue-300 dark:border-blue-800/80 text-blue-605 dark:text-blue-400/90 hover:border-blue-400 hover:text-blue-755 dark:hover:text-blue-305 dark:hover:border-blue-600/80 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-955/50 transition-all text-[8px] font-bold">
+                                                                      <div className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-blue-300 dark:border-blue-800/80 text-blue-605 dark:text-blue-400/90 hover:border-blue-400 hover:text-blue-755 dark:hover:text-blue-305 dark:hover:border-blue-600/80 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-955/50 transition-all text-[8px] font-bold">
                                                                         <FiCalendar
-                                                                          size={
-                                                                            10.5
-                                                                          }
+                                                                          size={9.5}
                                                                         />
                                                                         <span>
-                                                                          +
-                                                                          Start
-                                                                          Date
+                                                                          + Start Date
                                                                         </span>
                                                                       </div>
                                                                     )}
@@ -5965,7 +6210,7 @@ const ProjectTaskBoard = ({
                                                                   </div>
                                                                 </td>
                                                               )}
-
+ 
                                                               {/* 4. End Date Column */}
                                                               {!hiddenColumns.endDate && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
@@ -5989,11 +6234,9 @@ const ProjectTaskBoard = ({
                                                                     }}
                                                                   >
                                                                     {sub.dueDate ? (
-                                                                      <div className="flex items-center flex-nowrap gap-1.5 px-2.5 py-1 rounded-md border border-rose-300 dark:border-rose-750/80 hover:border-rose-400 dark:hover:border-rose-500/70 text-rose-850 dark:text-rose-200 text-[10px] font-bold bg-rose-100/90 dark:bg-rose-955/75 transition-all shadow-sm">
+                                                                      <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-750/80 hover:border-rose-400 dark:hover:border-rose-500/70 text-rose-850 dark:text-rose-200 text-[9.5px] font-bold bg-rose-100/90 dark:bg-rose-955/75 transition-all shadow-sm">
                                                                         <FiCalendar
-                                                                          size={
-                                                                            10.5
-                                                                          }
+                                                                          size={9.5}
                                                                           className="text-rose-600 dark:text-rose-400 shrink-0"
                                                                         />
                                                                         <span className="whitespace-nowrap">
@@ -6027,23 +6270,18 @@ const ProjectTaskBoard = ({
                                                                             className="ml-1 text-rose-505 hover:text-rose-650 dark:text-rose-455 dark:hover:text-rose-455 relative z-10 transition-colors cursor-pointer"
                                                                           >
                                                                             <FiX
-                                                                              size={
-                                                                                10
-                                                                              }
+                                                                              size={9}
                                                                             />
                                                                           </button>
                                                                         )}
                                                                       </div>
                                                                     ) : (
-                                                                      <div className="flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-md border border-dashed border-rose-300 dark:border-rose-800/80 text-rose-605 dark:text-rose-400/90 hover:border-rose-400 hover:text-rose-750 dark:hover:text-rose-300 dark:hover:border-rose-600/80 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/50 transition-all text-[8px] font-bold">
+                                                                      <div className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-rose-300 dark:border-rose-800/80 text-rose-605 dark:text-rose-400/90 hover:border-rose-400 hover:text-rose-750 dark:hover:text-rose-300 dark:hover:border-rose-600/80 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/50 transition-all text-[8px] font-bold">
                                                                         <FiCalendar
-                                                                          size={
-                                                                            10.5
-                                                                          }
+                                                                          size={9.5}
                                                                         />
                                                                         <span>
-                                                                          + End
-                                                                          Date
+                                                                          + End Date
                                                                         </span>
                                                                       </div>
                                                                     )}
@@ -6323,6 +6561,37 @@ const ProjectTaskBoard = ({
                                                                   </div>
                                                                 </td>
                                                               )}
+                                                              {/* Content Copy Column */}
+                                                              <td
+                                                                className={`px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 ${hiddenColumns.contentCopy ? "hidden" : ""}`}
+                                                              >
+                                                                <div
+                                                                  onClick={(
+                                                                    e,
+                                                                  ) =>
+                                                                    e.stopPropagation()
+                                                                  }
+                                                                  className="w-full"
+                                                                >
+                                                                  <ContentCopyInput
+                                                                    value={
+                                                                      sub.contentCopy
+                                                                    }
+                                                                    onChange={(
+                                                                      newVal,
+                                                                    ) =>
+                                                                      handleSubtaskFieldChange(
+                                                                        task,
+                                                                        sub._id,
+                                                                        {
+                                                                          contentCopy:
+                                                                            newVal,
+                                                                        },
+                                                                      )
+                                                                    }
+                                                                  />
+                                                                </div>
+                                                              </td>
 
                                                               {/* 7. Priority Column */}
                                                               {!hiddenColumns.priority && (
@@ -6334,7 +6603,17 @@ const ProjectTaskBoard = ({
                                                                       e.stopPropagation()
                                                                     }
                                                                   >
-                                                                    {isAdminOrManager ? (
+                                                                    {isSameDate(
+                                                                      sub.startDate ||
+                                                                        task.startDate,
+                                                                      sub.dueDate ||
+                                                                        task.dueDate,
+                                                                    ) ? (
+                                                                      <span className="badge-span badge-priority-top-high">
+                                                                        🔴 Top
+                                                                        High
+                                                                      </span>
+                                                                    ) : isAdminOrManager ? (
                                                                       <select
                                                                         value={
                                                                           sub.priority ||
@@ -6457,27 +6736,49 @@ const ProjectTaskBoard = ({
                                                                                     : "badge-status-pending"
                                                                         }`}
                                                                       >
-                                                                        <option value="Pending">
-                                                                          Pending
-                                                                        </option>
-                                                                        <option value="In Progress">
-                                                                          In
-                                                                          Progress
-                                                                        </option>
-                                                                        <option value="IN-REVIEW">
-                                                                          In
-                                                                          Review
-                                                                        </option>
-                                                                        <option value="Completed">
-                                                                          Completed
-                                                                        </option>
-                                                                        <option value="On Hold">
-                                                                          On
-                                                                          Hold
-                                                                        </option>
-                                                                        <option value="Rejected">
-                                                                          Rejected
-                                                                        </option>
+                                                                        {sub.status ===
+                                                                          "IN-REVIEW" ||
+                                                                        sub.status ===
+                                                                          "In Review" ||
+                                                                        sub.status ===
+                                                                          "IN-Review" ? (
+                                                                          <>
+                                                                            <option value="IN-REVIEW">
+                                                                              In
+                                                                              Review
+                                                                            </option>
+                                                                            <option value="Completed">
+                                                                              Completed
+                                                                            </option>
+                                                                            <option value="Rejected">
+                                                                              Rejected
+                                                                            </option>
+                                                                          </>
+                                                                        ) : (
+                                                                          <>
+                                                                            <option value="Pending">
+                                                                              Pending
+                                                                            </option>
+                                                                            <option value="In Progress">
+                                                                              In
+                                                                              Progress
+                                                                            </option>
+                                                                            <option value="IN-REVIEW">
+                                                                              In
+                                                                              Review
+                                                                            </option>
+                                                                            <option value="Completed">
+                                                                              Completed
+                                                                            </option>
+                                                                            <option value="On Hold">
+                                                                              On
+                                                                              Hold
+                                                                            </option>
+                                                                            <option value="Rejected">
+                                                                              Rejected
+                                                                            </option>
+                                                                          </>
+                                                                        )}
                                                                       </select>
                                                                     ) : (
                                                                       <span
@@ -6796,7 +7097,10 @@ const ProjectTaskBoard = ({
                                         {/* Priority Badge */}
                                         <span
                                           className={`text-[8px] font-bold tracking-wider px-1 py-2 rounded-md border whitespace-nowrap ${
-                                            task.priority === "Top High"
+                                            isSameDate(
+                                              task.startDate,
+                                              task.dueDate,
+                                            ) || task.priority === "Top High"
                                               ? "bg-red-50 text-red-600 border-red-100 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/40"
                                               : task.priority === "High"
                                                 ? "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-955/20 dark:border-rose-900/40"
@@ -6805,7 +7109,12 @@ const ProjectTaskBoard = ({
                                                   : "bg-slate-50 text-slate-500 border-slate-200 dark:bg-[#1a1a1a] dark:text-slate-400 dark:border-white/5"
                                           }`}
                                         >
-                                          {task.priority || "Medium"}
+                                          {isSameDate(
+                                            task.startDate,
+                                            task.dueDate,
+                                          )
+                                            ? "🔴 Top High"
+                                            : task.priority || "Medium"}
                                         </span>
 
                                         {/* Due Date */}
@@ -6886,7 +7195,7 @@ const ProjectTaskBoard = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               {/* Card 1: Total Completed */}
               <div className="relative overflow-hidden p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-[#070b13] border-slate-200/60 dark:border-white/5 shadow-lg shadow-slate-100/40 dark:shadow-none hover:shadow-xl group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400 rounded-full blur-3xl -mr-10 -mt-10 transition-transform group-hover:scale-110 opacity-10 dark:opacity-20 pointer-events-none" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400 rounded-md blur-3xl -mr-10 -mt-10 transition-transform group-hover:scale-110 opacity-10 dark:opacity-20 pointer-events-none" />
                 <FiCheckCircle
                   size={24}
                   className="text-emerald-500/40 dark:text-emerald-400/25 absolute top-5 right-5 pointer-events-none"
@@ -7274,7 +7583,12 @@ const ProjectTaskBoard = ({
                     <label className="text-[10px] font-bold text-slate-450 dark:text-slate-400  tracking-wider flex items-center gap-1.5">
                       <FiTag size={12} /> Status
                     </label>
-                    {isAdminOrManager ? (
+                    {selectedTask.status === "Completed" ? (
+                      <div className="w-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 rounded-xl px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        Completed
+                      </div>
+                    ) : isAdminOrManager ? (
                       <select
                         value={selectedTask.status || "Pending"}
                         onChange={(e) =>
@@ -7284,24 +7598,51 @@ const ProjectTaskBoard = ({
                         }
                         className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
                       >
-                        <option
-                          value="Pending"
-                          className="dark:bg-slate-950 dark:text-slate-200"
-                        >
-                          Pending
-                        </option>
-                        <option
-                          value="Completed"
-                          className="dark:bg-slate-950 dark:text-slate-200"
-                        >
-                          Completed
-                        </option>
-                        <option
-                          value="Rejected"
-                          className="dark:bg-slate-950 dark:text-slate-200"
-                        >
-                          Rejected
-                        </option>
+                        {selectedTask.status === "IN-REVIEW" ||
+                        selectedTask.status === "In Review" ||
+                        selectedTask.status === "IN-Review" ? (
+                          <>
+                            <option
+                              value="IN-REVIEW"
+                              className="dark:bg-slate-950 dark:text-slate-200"
+                            >
+                              In Review
+                            </option>
+                            <option
+                              value="Completed"
+                              className="dark:bg-slate-950 dark:text-slate-200"
+                            >
+                              Completed
+                            </option>
+                            <option
+                              value="Rejected"
+                              className="dark:bg-slate-950 dark:text-slate-200"
+                            >
+                              Rejected
+                            </option>
+                          </>
+                        ) : (
+                          <>
+                            <option
+                              value="Pending"
+                              className="dark:bg-slate-950 dark:text-slate-200"
+                            >
+                              Pending
+                            </option>
+                            <option
+                              value="Completed"
+                              className="dark:bg-slate-950 dark:text-slate-200"
+                            >
+                              Completed
+                            </option>
+                            <option
+                              value="Rejected"
+                              className="dark:bg-slate-950 dark:text-slate-200"
+                            >
+                              Rejected
+                            </option>
+                          </>
+                        )}
                       </select>
                     ) : (
                       <div
@@ -7450,7 +7791,16 @@ const ProjectTaskBoard = ({
                     <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400  tracking-wider flex items-center gap-1.5">
                       <FiClock size={12} /> Priority
                     </label>
-                    {isAdminOrManager ? (
+                    {isSameDate(
+                      selectedTask.startDate,
+                      selectedTask.dueDate,
+                    ) ? (
+                      <div className="w-full pt-1">
+                        <span className="badge-span badge-priority-top-high">
+                          🔴 Top High
+                        </span>
+                      </div>
+                    ) : isAdminOrManager ? (
                       <select
                         value={selectedTask.priority || "Medium"}
                         onChange={(e) =>
@@ -7576,7 +7926,20 @@ const ProjectTaskBoard = ({
                             Review Start
                           </span>
                           <span className="font-bold text-slate-700 dark:text-slate-200">
-                            {new Date(selectedTask.reviewStartedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {new Date(selectedTask.reviewStartedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {new Date(
+                              selectedTask.reviewStartedAt,
+                            ).toLocaleDateString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                            })}{" "}
+                            ·{" "}
+                            {new Date(
+                              selectedTask.reviewStartedAt,
+                            ).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
                           </span>
                         </div>
                       ) : (
@@ -7589,14 +7952,27 @@ const ProjectTaskBoard = ({
                           </span>
                         </div>
                       )}
-                      
+
                       {selectedTask.completedAt ? (
                         <div className="flex flex-col gap-0.5">
                           <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
                             Completed At
                           </span>
                           <span className="font-bold text-slate-700 dark:text-slate-200">
-                            {new Date(selectedTask.completedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {new Date(selectedTask.completedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {new Date(
+                              selectedTask.completedAt,
+                            ).toLocaleDateString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                            })}{" "}
+                            ·{" "}
+                            {new Date(
+                              selectedTask.completedAt,
+                            ).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
                           </span>
                         </div>
                       ) : (
@@ -7825,6 +8201,120 @@ const ProjectTaskBoard = ({
           </div>
         )}
       </AnimatePresence>
+      {/* SUBMIT FOR REVIEW CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {reviewModalData && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-md bg-white dark:bg-[#11131f] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 text-left"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <FiCheckSquare size={24} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
+                    Submit Task for Review?
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed font-medium">
+                    Are you sure you want to submit this item for review? Once
+                    submitted, the status will update to{" "}
+                    <strong className="text-indigo-600 dark:text-indigo-400 font-bold">
+                      "In Review"
+                    </strong>{" "}
+                    and your manager will be notified.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => setReviewModalData(null)}
+                  className="px-4.5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmReviewSubmit}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-all shadow-md shadow-indigo-500/20 cursor-pointer active:scale-95 flex items-center gap-2"
+                >
+                  <FiCheckSquare size={14} />
+                  Submit for Review
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MARK AS COMPLETED CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {completeModalData && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-white dark:bg-[#11131f] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 text-left"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <FiCheckCircle size={24} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
+                    Mark Task as Completed?
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed font-medium">
+                    Are you sure you want to mark the following task as
+                    completed?
+                  </p>
+                  <div className="mt-3 px-3.5 py-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/40">
+                    <p className="text-[10px] font-black text-emerald-500 dark:text-emerald-500 uppercase tracking-widest mb-1">
+                      Task Name
+                    </p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug break-words">
+                      {completeModalData.taskName || "Untitled Task"}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2.5 leading-relaxed">
+                    Once completed, the task status will be updated to{" "}
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                      "Completed"
+                    </strong>{" "}
+                    and tracked in your project timeline.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => setCompleteModalData(null)}
+                  className="px-4.5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmComplete}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 transition-all shadow-md shadow-emerald-500/20 cursor-pointer active:scale-95 flex items-center gap-2"
+                >
+                  <FiCheckCircle size={14} />
+                  Mark as Completed
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <RejectionModal
         isOpen={rejectionModalOpen}
         onClose={() => {

@@ -156,7 +156,7 @@ exports.updateEodReport = async (req, res) => {
     }
 
     report = await EodReport.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     }).populate("user", "name email profile");
 

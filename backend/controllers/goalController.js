@@ -72,7 +72,7 @@ exports.updateGoal = async (req, res) => {
     }
 
     goal = await Goal.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     });
 

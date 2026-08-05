@@ -58,7 +58,7 @@ const updateStickyNote = async (req, res) => {
     const updatedStickyNote = await StickyNote.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
+      { returnDocument: 'after' }
     ).populate("user", "name");
 
     res.status(200).json(updatedStickyNote);
