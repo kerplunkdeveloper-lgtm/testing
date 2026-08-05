@@ -907,15 +907,15 @@ select.badge-priority-top-high {
 
 /* Status: In Review */
 .badge-status-in-review {
-  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%) !important;
-  color: #0369a1 !important;
-  border-color: #7dd3fc !important;
+  background: linear-gradient(135deg, #fef9c3 0%, #fef08a 100%) !important;
+  color: #a16207 !important;
+  border-color: #fde047 !important;
 }
 .dark .badge-status-in-review {
-  background: linear-gradient(135deg, rgba(3, 105, 161, 0.18) 0%, rgba(3, 105, 161, 0.28) 100%) !important;
-  color: #38bdf8 !important;
-  border-color: rgba(3, 105, 161, 0.4) !important;
-  box-shadow: 0 0 8px rgba(3, 105, 161, 0.15) !important;
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(234, 179, 8, 0.28) 100%) !important;
+  color: #fde047 !important;
+  border-color: rgba(234, 179, 8, 0.4) !important;
+  box-shadow: 0 0 8px rgba(234, 179, 8, 0.15) !important;
 }
 
 /* Status: Rejected */

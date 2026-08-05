@@ -125,10 +125,18 @@ const SimpleTimeTracker = ({
     savedPausedMs,
   ]);
 
-  if (!startTime)
+  if (!startTime) {
+    if (!status || status.toLowerCase() === "pending") {
+      return (
+        <span className="text-slate-450 dark:text-slate-500 font-semibold text-xs">
+          Not started
+        </span>
+      );
+    }
     return (
       <span className="text-slate-450 dark:text-slate-500 font-normal">—</span>
     );
+  }
 
   const formatTime = (secs) => {
     const h = Math.floor(secs / 3600);
@@ -1897,19 +1905,19 @@ const TaskOverviewTab = ({
                 )}
 
                 {!hiddenColumns.clientName && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[130px]">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[150px]">
                     CLIENT NAME
                   </th>
                 )}
 
                 {!hiddenColumns.createdBy && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[100px]">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[180px]">
                     CREATED BY
                   </th>
                 )}
 
                 {!hiddenColumns.assignee && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[110px]">
+                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[180px]">
                     ASSIGNEE
                   </th>
                 )}
@@ -2064,9 +2072,7 @@ const TaskOverviewTab = ({
                                 <span
                                   className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black border uppercase tracking-wider mt-1 w-max ${getDeptBadgeStyle(task.createdBy?.department || "Creator")}`}
                                 >
-                                  {shortenDept(
-                                    task.createdBy?.department || "Creator",
-                                  )}
+                                  {task.createdBy?.department || "Creator"}
                                 </span>
                               </div>
                             </div>
@@ -2085,10 +2091,7 @@ const TaskOverviewTab = ({
                                 <span
                                   className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black border uppercase tracking-wider mt-1 w-max ${getDeptBadgeStyle(task.assignedTo?.department || "Team Member")}`}
                                 >
-                                  {shortenDept(
-                                    task.assignedTo?.department ||
-                                      "Team Member",
-                                  )}
+                                  {task.assignedTo?.department || "Team Member"}
                                 </span>
                               </div>
                             </div>
@@ -2131,7 +2134,7 @@ const TaskOverviewTab = ({
                                   : pStyle
                               }`}
                             >
-                              {isSameDate(task.startDate, task.dueDate) ? "🔴 Top High" : task.priority || "Medium"}
+                              {isSameDate(task.startDate, task.dueDate) ? " Top High" : task.priority || "Medium"}
                             </span>
                           </td>
                         )}
@@ -2187,7 +2190,7 @@ const TaskOverviewTab = ({
                                         ? "operationmanager"
                                         : "team";
                                   navigate(
-                                    `/${userRole}/projects?id=${projId}`,
+                                    `/${userRole}/projects?id=${projId}&taskId=${task._id}`,
                                   );
                                 }}
                                 className="px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-extrabold text-slate-800 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-[#3b82f6] hover:border-blue-200 transition-all cursor-pointer shadow-2xs"

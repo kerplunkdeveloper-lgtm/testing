@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiArrowLeft,
@@ -38,6 +38,7 @@ import {
   FiEyeOff,
   FiColumns,
   FiFilter,
+  FiLoader,
 } from "react-icons/fi";
 import axiosInstance from "../../services/axiosInstance";
 import toast from "react-hot-toast";
@@ -340,7 +341,16 @@ const TimeTracker = ({
     }
   }, [startTime, endTime, pausedAt, status, savedPausedMs]);
 
-  if (!startTime && status !== "In Progress") return null;
+  if (!startTime && status !== "In Progress") {
+    if (!status || status.toLowerCase() === "pending") {
+      return (
+        <span className="text-slate-405 dark:text-slate-500 font-semibold text-xs block text-center w-full">
+          Not started
+        </span>
+      );
+    }
+    return null;
+  }
   if (!startTime && status === "In Progress")
     return (
       <div className="inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold tracking-wider bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30 shadow-sm w-full">
@@ -1631,6 +1641,28 @@ const ProjectTaskBoard = ({
 }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const targetHighlightTaskId = searchParams.get("taskId");
+  const [highlightedTaskId, setHighlightedTaskId] = useState(null);
+
+  useEffect(() => {
+    if (targetHighlightTaskId) {
+      setHighlightedTaskId(targetHighlightTaskId);
+      const timer1 = setTimeout(() => {
+        const el = document.getElementById(`task-row-${targetHighlightTaskId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 500);
+      const timer2 = setTimeout(() => {
+        setHighlightedTaskId(null);
+      }, 2500);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
+    }
+  }, [targetHighlightTaskId]);
 
   const getInitials = (name) => {
     return (
@@ -1797,6 +1829,26 @@ const ProjectTaskBoard = ({
   const inlineTaskInputRef = useRef(null);
   const inlineSectionInputRef = useRef(null);
 
+  // Status Filter State
+  const [statusFilter, setStatusFilter] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ptb_status_filter");
+      return saved ? saved : "All";
+    } catch (e) {
+      return "All";
+    }
+  });
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
+  const statusFilterDropdownRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("ptb_status_filter", statusFilter);
+    } catch (e) {
+      // ignore
+    }
+  }, [statusFilter]);
+
   // Date Filter State
   const [dateFilter, setDateFilter] = useState(() => {
     try {
@@ -1847,6 +1899,12 @@ const ProjectTaskBoard = ({
         !dateFilterDropdownRef.current.contains(event.target)
       ) {
         setIsDateFilterOpen(false);
+      }
+      if (
+        statusFilterDropdownRef.current &&
+        !statusFilterDropdownRef.current.contains(event.target)
+      ) {
+        setIsStatusFilterOpen(false);
       }
       if (!event.target.closest(".col-header-menu")) {
         setOpenColMenu(null);
@@ -1984,6 +2042,10 @@ const ProjectTaskBoard = ({
   });
 
   const filteredTasks = activeProjectTasks.filter((t) => {
+    if (statusFilter !== "All" && t.status !== statusFilter) {
+      return false;
+    }
+
     if (dateFilter === "All Time") return true;
     const taskDate = new Date(t.createdAt || new Date());
     const today = new Date();
@@ -2007,7 +2069,11 @@ const ProjectTaskBoard = ({
     }
     return true;
   });
-  const sortedTasks = filteredTasks;
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (a.status === "Completed" && b.status !== "Completed") return 1;
+    if (b.status === "Completed" && a.status !== "Completed") return -1;
+    return 0;
+  });
 
   const handleDragEnd = async (result) => {
     const { destination, source, draggableId, type } = result;
@@ -3350,6 +3416,55 @@ const ProjectTaskBoard = ({
         <div className="flex items-center justify-between lg:justify-end gap-2 w-full lg:w-1/4 order-3 lg:order-none relative">
           {activeTab === "List" ? (
             <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+              {/* Status Filter Dropdown */}
+              <div className="relative" ref={statusFilterDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                    isStatusFilterOpen || statusFilter !== "All"
+                      ? "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-transparent text-blue-600 dark:text-blue-400"
+                      : "bg-white dark:bg-[#111] border-slate-200/80 dark:border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                  }`}
+                >
+                  <FiFilter className="shrink-0" size={13} />
+                  <span>{statusFilter === "All" ? "All Status" : statusFilter}</span>
+                  <FiChevronDown className="shrink-0 text-slate-400" size={13} />
+                </button>
+
+                <AnimatePresence>
+                  {isStatusFilterOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-36 bg-white dark:bg-[#111] border border-slate-200/80 dark:border-transparent rounded-2xl shadow-2xl p-2 z-50 space-y-1 backdrop-blur-md"
+                    >
+                      {["All", "Pending", "In Progress", "On Hold", "In Review", "Completed"].map(
+                        (option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => {
+                              setStatusFilter(option);
+                              setIsStatusFilterOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                              statusFilter === option
+                                ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ),
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {/* Date Filter Dropdown */}
               <div className="relative" ref={dateFilterDropdownRef}>
                 <button
@@ -4548,12 +4663,17 @@ const ProjectTaskBoard = ({
                                                   >
                                                     {/* Parent Task Row */}
                                                     <tr
+                                                      id={`task-row-${task._id}`}
                                                       onClick={() =>
                                                         setSelectedTaskId(
                                                           task._id,
                                                         )
                                                       }
-                                                      className={`group cursor-pointer transition-colors ${rowBg} ${
+                                                      className={`group cursor-pointer transition-colors ${
+                                                        highlightedTaskId === task._id
+                                                          ? "bg-indigo-100/80 dark:bg-indigo-900/40"
+                                                          : rowBg
+                                                      } ${
                                                         task.priority ===
                                                           "Top High" &&
                                                         task.status !==
@@ -4708,7 +4828,10 @@ const ProjectTaskBoard = ({
                                                           </button>
 
                                                           {/* Task Title contentEditable Span */}
-                                                          <div className="flex-grow min-w-0">
+                                                          <div className="flex-grow min-w-0 flex items-center gap-1.5">
+                                                            {highlightedTaskId === task._id && (
+                                                              <FiLoader size={12} className="animate-spin text-indigo-500 dark:text-indigo-400 shrink-0" />
+                                                            )}
                                                             <span
                                                               ref={(el) => {
                                                                 if (

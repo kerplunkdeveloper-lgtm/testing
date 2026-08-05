@@ -140,6 +140,13 @@ const TimeTracker = ({
   ]);
 
   if (!startTime && status !== "In Progress") {
+    if (!status || status.toLowerCase() === "pending") {
+      return (
+        <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">
+          Not started
+        </span>
+      );
+    }
     return (
       <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">
         —
@@ -274,6 +281,13 @@ const SingleTimeDisplay = ({
   ]);
 
   if (!startTime && status !== "In Progress") {
+    if (!status || status.toLowerCase() === "pending") {
+      return (
+        <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">
+          Not started
+        </span>
+      );
+    }
     return (
       <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">
         —
