@@ -350,7 +350,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
   // 4. Board Data
   const boardColumns = [
-    "Overdue",
+    "Overall Overdue",
     "Pending",
     "In Progress",
     "On Hold",
@@ -380,14 +380,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       const col = getColumnForTask(task);
       if (cols[col]) cols[col].push(task);
 
-      // Mirror incomplete tasks that are due today or in the past in the Overdue column
+      // Mirror incomplete tasks that are due today, tomorrow, or in the past in the Overall Overdue column
       const isCompleted =
         task.status?.toLowerCase() === "completed" ||
         task.status?.toLowerCase().includes("approve");
       if (!isCompleted && task.dueDate) {
         const daysRemaining = getDaysRemaining(task.dueDate);
-        if (daysRemaining !== null && daysRemaining <= 0) {
-          cols["Overdue"].push(task);
+        if (daysRemaining !== null && daysRemaining <= 1) {
+          cols["Overall Overdue"].push(task);
         }
       }
     });
@@ -1152,7 +1152,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             },
           },
           {
-            label: "Tasks Assigned",
+            label: `${getRelativeDateLabel(selectedDate)} Assigned`,
             value: metrics.tasksAssigned,
             icon: FiLayers,
             glow: "hover:shadow-[0_4px_20px_rgba(99,102,241,0.15)]",
@@ -1165,7 +1165,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("All"),
           },
           {
-            label: "Pending",
+            label: `${getRelativeDateLabel(selectedDate)} Pending`,
             value: metrics.pending,
             icon: FiClock,
             glow: "hover:shadow-[0_4px_20px_rgba(245,158,11,0.15)]",
@@ -1178,7 +1178,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("Pending"),
           },
           {
-            label: "In Progress",
+            label: `${getRelativeDateLabel(selectedDate)} In Progress`,
             value: metrics.inProgress,
             icon: FiPlay,
             glow: "hover:shadow-[0_4px_20px_rgba(14,165,233,0.15)]",
@@ -1191,7 +1191,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("In Progress"),
           },
           {
-            label: "On Hold",
+            label: `${getRelativeDateLabel(selectedDate)} On Hold`,
             value: metrics.onHold,
             icon: FiPauseCircle,
             glow: "hover:shadow-[0_4px_20px_rgba(217,70,239,0.15)]",
@@ -1204,7 +1204,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("On Hold"),
           },
           {
-            label: "In Review",
+            label: `${getRelativeDateLabel(selectedDate)} In Review`,
             value: metrics.inReview,
             icon: FiEye,
             glow: "hover:shadow-[0_4px_20px_rgba(99,102,241,0.15)]",
@@ -1217,7 +1217,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("IN-REVIEW"),
           },
           {
-            label: "Completed",
+            label: `${getRelativeDateLabel(selectedDate)} Completed`,
             value: metrics.completed,
             icon: FiCheckCircle,
             glow: "hover:shadow-[0_4px_20px_rgba(16,185,129,0.15)]",
@@ -1230,7 +1230,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("Completed"),
           },
           {
-            label: "Overdue",
+            label: `${getRelativeDateLabel(selectedDate)} Overdue`,
             value: metrics.overdue,
             icon: FiAlertCircle,
             glow: "hover:shadow-[0_4px_20px_rgba(244,63,94,0.15)]",
@@ -1243,7 +1243,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("Overdue"),
           },
           {
-            label: "Rejected",
+            label: `${getRelativeDateLabel(selectedDate)} Rejected`,
             value: metrics.rejected,
             icon: FiXCircle,
             glow: "hover:shadow-[0_4px_20px_rgba(239,68,68,0.15)]",
@@ -1252,7 +1252,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             valueColor: "text-slate-100 dark:text-white",
             iconBg:
               "bg-red-100 dark:bg-red-950/60 border border-red-200 dark:border-red-500/20",
-            iconColor: "text-red-600 dark:text-red-400",
+            iconColor: "text-red-650 dark:text-red-400",
             onClick: () => handleMetricClick("Rejected"),
           },
         ].map((m, i) => {
@@ -1366,7 +1366,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             let countText = "text-slate-700 dark:text-slate-300";
 
             const lowerCol = col.toLowerCase();
-            const isOverdueCol = lowerCol === "overdue";
+            const isOverdueCol = lowerCol === "overall overdue";
 
             if (isOverdueCol) {
               colBg = "bg-red-500 dark:bg-red-650";
@@ -1421,17 +1421,23 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
             const columnTasks = tasksByColumn[col] || [];
 
-            // Split overdue tasks into previous and upcoming
+            // Split overdue tasks into previous, today, and tomorrow
             const previousOverdue = isOverdueCol
               ? columnTasks.filter((t) => {
                   const days = getDaysRemaining(t.dueDate);
                   return days !== null && days < 0;
                 })
               : [];
-            const upcomingOverdue = isOverdueCol
+            const todayOverdue = isOverdueCol
               ? columnTasks.filter((t) => {
                   const days = getDaysRemaining(t.dueDate);
                   return days !== null && days === 0;
+                })
+              : [];
+            const tomorrowOverdue = isOverdueCol
+              ? columnTasks.filter((t) => {
+                  const days = getDaysRemaining(t.dueDate);
+                  return days !== null && days === 1;
                 })
               : [];
 
@@ -1480,23 +1486,46 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                         </div>
                       </div>
 
-                      {/* Upcoming Overdue */}
+                      {/* Today Overdue */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between px-2 py-1 bg-amber-100/40 dark:bg-amber-950/20 border border-amber-200/30 dark:border-amber-900/30 rounded-lg">
                           <span className="text-[9px] font-extrabold uppercase text-amber-600 dark:text-amber-400 tracking-wider">
-                            Upcoming Overdue
+                            Today Overdue
                           </span>
                           <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded">
-                            {upcomingOverdue.length}
+                            {todayOverdue.length}
                           </span>
                         </div>
                         <div className="space-y-2">
                           <AnimatePresence>
-                            {upcomingOverdue.length > 0 ? (
-                              upcomingOverdue.map((task) => renderTaskCard(task))
+                            {todayOverdue.length > 0 ? (
+                              todayOverdue.map((task) => renderTaskCard(task))
                             ) : (
                               <p className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-2">
                                 No tasks due today
+                              </p>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+
+                      {/* Tomorrow Overdue */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-2 py-1 bg-orange-100/40 dark:bg-orange-950/20 border border-orange-200/30 dark:border-orange-900/30 rounded-lg">
+                          <span className="text-[9px] font-extrabold uppercase text-orange-600 dark:text-orange-400 tracking-wider">
+                            Tomorrow Overdue
+                          </span>
+                          <span className="text-[9px] font-black text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/50 px-1.5 py-0.5 rounded">
+                            {tomorrowOverdue.length}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <AnimatePresence>
+                            {tomorrowOverdue.length > 0 ? (
+                              tomorrowOverdue.map((task) => renderTaskCard(task))
+                            ) : (
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-2">
+                                No tasks due tomorrow
                               </p>
                             )}
                           </AnimatePresence>
