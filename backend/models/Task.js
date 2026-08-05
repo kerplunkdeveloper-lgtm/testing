@@ -319,7 +319,7 @@ const isSameDay = (d1, d2) => {
   }
 };
 
-TaskSchema.pre("save", function (next) {
+TaskSchema.pre("save", function () {
   if (isSameDay(this.startDate, this.dueDate)) {
     this.priority = "Top High";
   }
@@ -330,7 +330,6 @@ TaskSchema.pre("save", function (next) {
       }
     });
   }
-  next();
 });
 
 module.exports = mongoose.model("Task", TaskSchema);

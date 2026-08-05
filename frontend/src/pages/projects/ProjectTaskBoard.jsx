@@ -51,7 +51,9 @@ import {
 import { updateProject } from "../../features/projects/projectSlice";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import ProjectIcon from "../../components/common/ProjectIcon";
-import ClientBadge, { getClientBranding } from "../../components/common/ClientBadge";
+import ClientBadge, {
+  getClientBranding,
+} from "../../components/common/ClientBadge";
 import { getClientIconComponent } from "../../utils/clientHelpers";
 import { calculateBusinessMs } from "../../utils/businessHours";
 
@@ -1284,16 +1286,22 @@ const ClientDropdown = ({
               ? "cursor-pointer hover:shadow-sm"
               : "cursor-not-allowed"
           } h-[24px] w-[110px]`}
-          style={branding.hasCustomColor ? {
-            backgroundColor: `${branding.color}15`,
-            borderColor: `${branding.color}30`,
-            color: branding.color
-          } : {}}
+          style={
+            branding.hasCustomColor
+              ? {
+                  backgroundColor: `${branding.color}15`,
+                  borderColor: `${branding.color}30`,
+                  color: branding.color,
+                }
+              : {}
+          }
         >
           <div className="flex items-center justify-center shrink-0">
             <IconComponent size={8.5} />
           </div>
-          <span className="truncate flex-1 leading-tight">{selectedClientObj.companyName}</span>
+          <span className="truncate flex-1 leading-tight">
+            {selectedClientObj.companyName}
+          </span>
         </div>
       );
     }
@@ -2191,7 +2199,15 @@ const ProjectTaskBoard = ({
       setInlineAddingTaskSection(targetSection);
     } catch (err) {
       console.error("Failed to add task inline:", err);
-      toast.error("Failed to create task");
+      const serverMsg =
+        err?.data?.message ||
+        err?.message ||
+        (err?.data ? JSON.stringify(err.data) : "");
+      toast.error(
+        serverMsg
+          ? `Failed to create task: ${serverMsg}`
+          : "Failed to create task",
+      );
     }
   };
 
@@ -3557,11 +3573,13 @@ const ProjectTaskBoard = ({
                       }}
                     />
                     <td
+                      colSpan={12}
                       className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 md:sticky z-10 min-w-[250px] md:min-w-[400px]"
                       style={{
                         left: showSelectionColumn ? "140px" : "100px",
                         backgroundColor: "inherit",
                         ...bBottom,
+                        ...bRight
                       }}
                     >
                       <div className="flex items-center gap-2 w-full pl-6">
@@ -3623,9 +3641,11 @@ const ProjectTaskBoard = ({
                                 setTimeout(() => {
                                   if (inlineSectionName.trim()) {
                                     handleInlineAddSection(inlineSectionName);
+                                    setInlineSectionName("");
+                                    setInlineAddingSectionUnder(null);
+                                  } else {
+                                    setInlineAddingSectionUnder(null);
                                   }
-                                  setInlineSectionName("");
-                                  setInlineAddingSectionUnder(null);
                                 }, 150);
                               }}
                               onKeyDown={(e) => {
@@ -3634,11 +3654,11 @@ const ProjectTaskBoard = ({
                                   setInlineAddingSectionUnder(null);
                                 }
                               }}
-                              className="w-full bg-transparent text-[11px] font-semibold text-slate-800 dark:text-white outline-none border-b-2 border-indigo-500 dark:border-indigo-400 pb-1 placeholder-slate-450 dark:placeholder-slate-555 transition-all focus:border-indigo-650"
+                              className="w-full bg-transparent text-[10px] font-semibold text-slate-800 dark:text-white outline-none border-b-2 border-indigo-500 dark:border-indigo-400 pb-0.5 placeholder-slate-450 dark:placeholder-slate-555 transition-all focus:border-indigo-650"
                             />
                           </form>
                         ) : (
-                          <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400 dark:text-slate-500 select-none">
+                          <div className="flex items-center gap-0.5 text-[8px] font-bold text-slate-400 dark:text-slate-550 select-none">
                             <button
                               type="button"
                               onClick={() => {
@@ -3646,12 +3666,12 @@ const ProjectTaskBoard = ({
                                 setInlineAddingSectionUnder(null);
                                 setInlineTaskTitle("");
                               }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-[#3b82f6] transition-all cursor-pointer font-bold"
+                              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-955/30 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-[#3b82f6] transition-all cursor-pointer font-bold"
                             >
-                              <FiPlus size={13} className="stroke-[3]" />
+                              <FiPlus size={8} className="stroke-[3]" />
                               <span>Add Task</span>
                             </button>
-                            <span className="mx-2 text-slate-350 dark:text-slate-700">
+                            <span className="mx-1 text-slate-350 dark:text-slate-700">
                               |
                             </span>
                             <button
@@ -3661,20 +3681,15 @@ const ProjectTaskBoard = ({
                                 setInlineAddingTaskSection(null);
                                 setInlineSectionName("");
                               }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-500 dark:text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 transition-all cursor-pointer font-bold"
+                              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-955/30 text-slate-500 dark:text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 transition-all cursor-pointer font-bold"
                             >
-                              <FiPlus size={13} className="stroke-[3]" />
+                              <FiPlus size={8} className="stroke-[3]" />
                               <span>Add Task List</span>
                             </button>
                           </div>
                         )}
                       </div>
                     </td>
-                    <td
-                      colSpan={11}
-                      className="px-3 py-1 border-b border-slate-300 dark:border-slate-700"
-                      style={{ ...bBottom, ...bRight }}
-                    />
                   </tr>
                 );
               };
@@ -3783,42 +3798,6 @@ const ProjectTaskBoard = ({
                               >
                                 Task Name
                               </th>
-                              {/* Client Column */}
-                              {!hiddenColumns.client && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  Client
-                                </th>
-                              )}
-                              {/* Created By Column */}
-                              {!hiddenColumns.createdBy && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[100px]">
-                                  Owner
-                                </th>
-                              )}
-                              {/* Start Date Column */}
-                              {!hiddenColumns.startDate && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[90px]">
-                                  Start Date
-                                </th>
-                              )}
-                              {/* End Date Column */}
-                              {!hiddenColumns.endDate && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[90px]">
-                                  End Date
-                                </th>
-                              )}
-                              {/* Assignee Column */}
-                              {!hiddenColumns.assignee && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[150px]">
-                                  Assignee
-                                </th>
-                              )}
-                              {/* Content Type Column */}
-                              {!hiddenColumns.contentType && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[100px]">
-                                  Content Type
-                                </th>
-                              )}
                               {/* Content Copy Column */}
                               {!hiddenColumns.contentCopy && (
                                 <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[140px] md:min-w-[180px] w-auto group relative">
@@ -3863,6 +3842,43 @@ const ProjectTaskBoard = ({
                                   </div>
                                 </th>
                               )}
+                              {/* Client Column */}
+                              {!hiddenColumns.client && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
+                                  Client
+                                </th>
+                              )}
+                              {/* Created By Column */}
+                              {!hiddenColumns.createdBy && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[100px]">
+                                  Owner
+                                </th>
+                              )}
+                              {/* Start Date Column */}
+                              {!hiddenColumns.startDate && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[90px]">
+                                  Start Date
+                                </th>
+                              )}
+                              {/* End Date Column */}
+                              {!hiddenColumns.endDate && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[90px]">
+                                  End Date
+                                </th>
+                              )}
+                              {/* Assignee Column */}
+                              {!hiddenColumns.assignee && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[150px]">
+                                  Assignee
+                                </th>
+                              )}
+                              {/* Content Type Column */}
+                              {!hiddenColumns.contentType && (
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[100px]">
+                                  Content Type
+                                </th>
+                              )}
+
                               {/* Priority Column */}
                               {!hiddenColumns.priority && (
                                 <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
@@ -4377,7 +4393,7 @@ const ProjectTaskBoard = ({
                                                 onClick={(e) =>
                                                   e.stopPropagation()
                                                 }
-                                                className="font-bold text-[10px] uppercase tracking-wider text-slate-705 dark:text-slate-355 hover:bg-slate-100 dark:hover:bg-slate-800 rounded px-1.5 py-0.5 outline-none bg-transparent focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-blue-500 max-w-[200px] sm:max-w-[400px] border-none cursor-text truncate transition-all"
+                                                className="font-bold text-[10px] uppercase tracking-wider text-slate-705 dark:text-slate-355 hover:bg-slate-100 dark:hover:bg-slate-800 rounded px-1.5 py-0.5 outline-none bg-transparent focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-blue-500 flex-1 border-none cursor-text truncate transition-all"
                                               />
 
                                               <span className="bg-blue-100/60 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 border border-blue-200/40 dark:border-blue-800/30 font-bold px-2 py-0.5 rounded-full text-[10px] select-none">
@@ -4800,6 +4816,34 @@ const ProjectTaskBoard = ({
                                                         </div>
                                                       </td>
 
+                                                      {/* Content Copy */}
+                                                      <td
+                                                        className={`px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 ${hiddenColumns.contentCopy ? "hidden" : ""}`}
+                                                      >
+                                                        <div
+                                                          onClick={(e) =>
+                                                            e.stopPropagation()
+                                                          }
+                                                          className="w-full"
+                                                        >
+                                                          <ContentCopyInput
+                                                            value={
+                                                              task.contentCopy
+                                                            }
+                                                            onChange={(
+                                                              newVal,
+                                                            ) =>
+                                                              handleTaskFieldChange(
+                                                                task._id,
+                                                                {
+                                                                  contentCopy:
+                                                                    newVal,
+                                                                },
+                                                              )
+                                                            }
+                                                          />
+                                                        </div>
+                                                      </td>
                                                       {/* Client Column */}
                                                       {!hiddenColumns.client && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 font-medium">
@@ -5022,7 +5066,7 @@ const ProjectTaskBoard = ({
                                                           </div>
                                                         </td>
                                                       )}
- 
+
                                                       {/* End Date */}
                                                       {!hiddenColumns.endDate && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
@@ -5354,34 +5398,7 @@ const ProjectTaskBoard = ({
                                                           </div>
                                                         </td>
                                                       )}
-                                                      {/* Content Copy */}
-                                                      <td
-                                                        className={`px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 ${hiddenColumns.contentCopy ? "hidden" : ""}`}
-                                                      >
-                                                        <div
-                                                          onClick={(e) =>
-                                                            e.stopPropagation()
-                                                          }
-                                                          className="w-full"
-                                                        >
-                                                          <ContentCopyInput
-                                                            value={
-                                                              task.contentCopy
-                                                            }
-                                                            onChange={(
-                                                              newVal,
-                                                            ) =>
-                                                              handleTaskFieldChange(
-                                                                task._id,
-                                                                {
-                                                                  contentCopy:
-                                                                    newVal,
-                                                                },
-                                                              )
-                                                            }
-                                                          />
-                                                        </div>
-                                                      </td>
+
 
                                                       {/* Priority */}
                                                       {!hiddenColumns.priority && (
@@ -5966,6 +5983,37 @@ const ProjectTaskBoard = ({
                                                                 </div>
                                                               </td>
 
+                                                              {/* Content Copy Column */}
+                                                              <td
+                                                                className={`px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 ${hiddenColumns.contentCopy ? "hidden" : ""}`}
+                                                              >
+                                                                <div
+                                                                  onClick={(
+                                                                    e,
+                                                                  ) =>
+                                                                    e.stopPropagation()
+                                                                  }
+                                                                  className="w-full"
+                                                                >
+                                                                  <ContentCopyInput
+                                                                    value={
+                                                                      sub.contentCopy
+                                                                    }
+                                                                    onChange={(
+                                                                      newVal,
+                                                                    ) =>
+                                                                      handleSubtaskFieldChange(
+                                                                        task,
+                                                                        sub._id,
+                                                                        {
+                                                                          contentCopy:
+                                                                            newVal,
+                                                                        },
+                                                                      )
+                                                                    }
+                                                                  />
+                                                                </div>
+                                                              </td>
                                                               {/* 2. Client Column */}
                                                               {!hiddenColumns.client && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
@@ -6126,7 +6174,9 @@ const ProjectTaskBoard = ({
                                                                     {sub.startDate ? (
                                                                       <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-800/80 hover:border-blue-400 dark:hover:border-blue-500/70 text-blue-855 dark:text-blue-200 text-[9.5px] font-bold bg-blue-100/90 dark:bg-blue-955/75 transition-all shadow-sm">
                                                                         <FiCalendar
-                                                                          size={9.5}
+                                                                          size={
+                                                                            9.5
+                                                                          }
                                                                           className="text-blue-600 dark:text-blue-450 shrink-0"
                                                                         />
                                                                         <span className="whitespace-nowrap">
@@ -6160,7 +6210,9 @@ const ProjectTaskBoard = ({
                                                                             className="ml-1 text-blue-505 hover:text-rose-600 dark:text-blue-450 dark:hover:text-rose-455 relative z-10 transition-colors cursor-pointer"
                                                                           >
                                                                             <FiX
-                                                                              size={9}
+                                                                              size={
+                                                                                9
+                                                                              }
                                                                             />
                                                                           </button>
                                                                         )}
@@ -6168,10 +6220,14 @@ const ProjectTaskBoard = ({
                                                                     ) : (
                                                                       <div className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-blue-300 dark:border-blue-800/80 text-blue-605 dark:text-blue-400/90 hover:border-blue-400 hover:text-blue-755 dark:hover:text-blue-305 dark:hover:border-blue-600/80 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-955/50 transition-all text-[8px] font-bold">
                                                                         <FiCalendar
-                                                                          size={9.5}
+                                                                          size={
+                                                                            9.5
+                                                                          }
                                                                         />
                                                                         <span>
-                                                                          + Start Date
+                                                                          +
+                                                                          Start
+                                                                          Date
                                                                         </span>
                                                                       </div>
                                                                     )}
@@ -6210,7 +6266,7 @@ const ProjectTaskBoard = ({
                                                                   </div>
                                                                 </td>
                                                               )}
- 
+
                                                               {/* 4. End Date Column */}
                                                               {!hiddenColumns.endDate && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
@@ -6236,7 +6292,9 @@ const ProjectTaskBoard = ({
                                                                     {sub.dueDate ? (
                                                                       <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-750/80 hover:border-rose-400 dark:hover:border-rose-500/70 text-rose-850 dark:text-rose-200 text-[9.5px] font-bold bg-rose-100/90 dark:bg-rose-955/75 transition-all shadow-sm">
                                                                         <FiCalendar
-                                                                          size={9.5}
+                                                                          size={
+                                                                            9.5
+                                                                          }
                                                                           className="text-rose-600 dark:text-rose-400 shrink-0"
                                                                         />
                                                                         <span className="whitespace-nowrap">
@@ -6270,7 +6328,9 @@ const ProjectTaskBoard = ({
                                                                             className="ml-1 text-rose-505 hover:text-rose-650 dark:text-rose-455 dark:hover:text-rose-455 relative z-10 transition-colors cursor-pointer"
                                                                           >
                                                                             <FiX
-                                                                              size={9}
+                                                                              size={
+                                                                                9
+                                                                              }
                                                                             />
                                                                           </button>
                                                                         )}
@@ -6278,10 +6338,13 @@ const ProjectTaskBoard = ({
                                                                     ) : (
                                                                       <div className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-rose-300 dark:border-rose-800/80 text-rose-605 dark:text-rose-400/90 hover:border-rose-400 hover:text-rose-750 dark:hover:text-rose-300 dark:hover:border-rose-600/80 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/50 transition-all text-[8px] font-bold">
                                                                         <FiCalendar
-                                                                          size={9.5}
+                                                                          size={
+                                                                            9.5
+                                                                          }
                                                                         />
                                                                         <span>
-                                                                          + End Date
+                                                                          + End
+                                                                          Date
                                                                         </span>
                                                                       </div>
                                                                     )}
@@ -6561,37 +6624,7 @@ const ProjectTaskBoard = ({
                                                                   </div>
                                                                 </td>
                                                               )}
-                                                              {/* Content Copy Column */}
-                                                              <td
-                                                                className={`px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 ${hiddenColumns.contentCopy ? "hidden" : ""}`}
-                                                              >
-                                                                <div
-                                                                  onClick={(
-                                                                    e,
-                                                                  ) =>
-                                                                    e.stopPropagation()
-                                                                  }
-                                                                  className="w-full"
-                                                                >
-                                                                  <ContentCopyInput
-                                                                    value={
-                                                                      sub.contentCopy
-                                                                    }
-                                                                    onChange={(
-                                                                      newVal,
-                                                                    ) =>
-                                                                      handleSubtaskFieldChange(
-                                                                        task,
-                                                                        sub._id,
-                                                                        {
-                                                                          contentCopy:
-                                                                            newVal,
-                                                                        },
-                                                                      )
-                                                                    }
-                                                                  />
-                                                                </div>
-                                                              </td>
+
 
                                                               {/* 7. Priority Column */}
                                                               {!hiddenColumns.priority && (

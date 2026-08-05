@@ -757,7 +757,7 @@ select.badge-priority-top-high {
   right: 2px !important;
   bottom: 2px !important;
   background: #e11d48 !important; /* bg-rose-600 */
-  border-radius: 13px !important; /* 15px - 2px */
+  border-radius: 5px !important; /* 15px - 2px */
   z-index: -1 !important;
 }
 
