@@ -23,9 +23,9 @@ export function calculateBusinessMs(startDate, endDate, startHour = 9, endHour =
   while (current < end) {
     const day = current.getDay();
      
-    // If weekend, skip to next Monday startHour AM
-    if (day === 0 || day === 6) { // 0 = Sunday, 6 = Saturday
-      current.setDate(current.getDate() + (day === 0 ? 1 : 2));
+    // If Sunday, skip to next Monday startHour AM
+    if (day === 0) { // 0 = Sunday
+      current.setDate(current.getDate() + 1);
       current.setHours(startHour, 0, 0, 0);
       continue;
     }

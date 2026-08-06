@@ -2111,10 +2111,10 @@ const Dashboardmain = () => {
         user?.role !== "admin" &&
         user?.role !== "operationmanager" &&
         user?.department?.toLowerCase() !== "social media manager" && (
-        <div className="w-full mt-4">
-          <GraphicDesignerDeadlines user={user} />
-        </div>
-      )}
+          <div className="w-full mt-4">
+            <GraphicDesignerDeadlines user={user} />
+          </div>
+        )}
 
       {/* user details list name and email */}
       {(user?.role === "admin" || user?.role === "operationmanager") && (

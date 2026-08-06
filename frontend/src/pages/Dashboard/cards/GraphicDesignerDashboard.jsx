@@ -1145,7 +1145,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         </div>
       </div>
       {/* Premium Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3 lg:gap-2 relative z-10">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 lg:gap-2 relative z-10">
         {[
           {
             label:
@@ -1311,7 +1311,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       </div>
       {/* Today's Interruptions */}
       <div className="mb-8 relative z-10">
-        <div className="bg-slate-50 dark:bg-slate-100 p-5 rounded-3xl backdrop-blur-md shadow-lg">
+        <div className="sidebar-bg p-5 rounded-3xl backdrop-blur-md shadow-lg">
           <div className="flex flex-col md:flex-row md:items-center gap-6">
             <div className="flex-shrink-0 min-w-[150px] border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 pb-4 md:pb-0 md:pr-6">
               <h3 className="text-xs font-black tracking-widest text-slate-500 dark:text-slate-400 mb-2 uppercase flex items-center gap-2">
@@ -1563,8 +1563,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       </div>
       <div className="relative z-10 scroll-mt-6" ref={performanceTableRef}>
         {/* Team Performance */}
-        <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm dark:shadow-2xl">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-transparent flex justify-between items-center">
+        <div className="sidebar-bg dark:sidebar-bg backdrop-blur-xl rounded-2xl  overflow-hidden shadow-sm dark:shadow-2xl">
+          <div className="p-4 border-b  bg-slate-50 dark:bg-transparent flex justify-between items-center">
             <h3 className="text-sm font-bold text-slate-800 dark:text-white tracking-widest ">
               {targetDept} Performance
             </h3>
@@ -1598,22 +1598,22 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                   <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider text-slate-500 dark:text-slate-400 uppercase">
                     {targetDept}
                   </th>
-                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-slate-500 text-white dark:bg-slate-700 dark:text-white">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-slate-500 text-white dark:bg-slate-700 dark:text-slate-500">
                     Assigned
                   </th>
-                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-red-500 text-white dark:bg-red-650 dark:text-white">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-red-500 text-white dark:bg-red-650 dark:text-slate-500">
                     Pending
                   </th>
-                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-violet-500 text-white dark:bg-violet-600 dark:text-white">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-violet-500 text-white dark:bg-violet-600 dark:text-slate-500">
                     In Progress
                   </th>
-                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-fuchsia-500 text-white dark:bg-fuchsia-600 dark:text-white">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-fuchsia-500 text-white dark:bg-fuchsia-600 dark:text-slate-500">
                     On Hold
                   </th>
                   <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-yellow-400 text-slate-950 dark:bg-yellow-500 dark:text-slate-950">
                     In Review
                   </th>
-                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider uppercase bg-emerald-500 text-white dark:bg-emerald-600 dark:text-slate-500">
                     Completed
                   </th>
                   <th className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-slate-700 text-[9px] font-black tracking-wider text-slate-500 dark:text-slate-400 uppercase">
@@ -1652,19 +1652,19 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-medium text-slate-700 dark:text-slate-200">
                       {tp.assigned}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-red-100 text-red-850 dark:bg-red-950/40 dark:text-red-400">
+                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-red-500 text-red-850 dark:bg-red-700 dark:text-red-400">
                       {tp.pending}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-violet-100 text-violet-850 dark:bg-violet-950/40 dark:text-violet-400">
+                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-purple-500 text-violet-850 dark:bg-purple-700 dark:text-violet-400">
                       {tp.inProgress}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-fuchsia-100 text-fuchsia-850 dark:bg-fuchsia-950/40 dark:text-fuchsia-400">
+                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-fuchsia-500 text-fuchsia-850 dark:bg-fuchsia-700 dark:text-fuchsia-400">
                       {tp.onHold}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-yellow-100 text-yellow-850 dark:bg-yellow-950/40 dark:text-yellow-450">
+                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-yellow-500 text-yellow-850 dark:bg-yellow-700 dark:text-yellow-450">
                       {tp.inReview}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-emerald-100 text-emerald-850 dark:bg-emerald-950/40 dark:text-emerald-400">
+                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-emerald-500 text-emerald-850 dark:bg-emerald-700 dark:text-emerald-400">
                       {tp.completed}
                     </td>
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] text-slate-650 dark:text-slate-200">
@@ -1803,7 +1803,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         </div>
       </div>{" "}
       {/* Delayed Projects & Bottlenecks */}
-      <div className="bg-white dark:bg-[#0f172a]/90 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-700/80 overflow-hidden shadow-sm dark:shadow-xl relative z-10">
+      <div className="sidebar-bg backdrop-blur-md rounded-2xl  overflow-hidden shadow-sm dark:shadow-xl relative z-10">
         <div className="p-5 border-b border-slate-200 dark:border-slate-700/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50 dark:bg-transparent">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-rose-100 dark:bg-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400">

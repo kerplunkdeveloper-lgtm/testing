@@ -3342,7 +3342,7 @@ const ProjectTaskBoard = ({
     <div className="space-y-6 w-full max-w-8xl mx-auto px-2 md:px-0 relative">
       {/* WORKSPACE HEADER & PROGRESS */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mt-4 mb-4 pb-4 border-b border-slate-100 dark:border-white/5">
-        <div className="flex items-center gap-3 min-w-0 w-full lg:w-1/4 order-1 lg:order-none">
+        <div className="flex items-center gap-3 min-w-0 w-full lg:flex-1 order-1 lg:order-none">
           <div className="space-y-2 w-full">
             <div className="flex items-center gap-3">
               <div>
@@ -3454,7 +3454,7 @@ const ProjectTaskBoard = ({
         </div>
 
         {/* Right Side: Filter & Sort Popover Dropdowns */}
-        <div className="flex items-center justify-between lg:justify-end gap-2 w-full lg:w-1/4 order-3 lg:order-none relative">
+        <div className="flex items-center justify-between lg:justify-end gap-2 w-full lg:flex-1 order-3 lg:order-none relative">
           {activeTab === "List" ? (
             <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
               {/* Status Filter Dropdown */}
@@ -3462,7 +3462,7 @@ const ProjectTaskBoard = ({
                 <button
                   type="button"
                   onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 whitespace-nowrap ${
                     isStatusFilterOpen || statusFilter !== "All"
                       ? "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-transparent text-blue-600 dark:text-blue-400"
                       : "bg-white dark:bg-[#111] border-slate-200/80 dark:border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
@@ -3511,7 +3511,7 @@ const ProjectTaskBoard = ({
                 <button
                   type="button"
                   onClick={() => setIsDateFilterOpen(!isDateFilterOpen)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 whitespace-nowrap ${
                     isDateFilterOpen || dateFilter !== "All Time"
                       ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-transparent text-emerald-600 dark:text-emerald-400"
                       : "bg-white dark:bg-[#111] border-slate-200/80 dark:border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
@@ -3569,7 +3569,7 @@ const ProjectTaskBoard = ({
                   onClick={() => {
                     setIsColsOpen(!isColsOpen);
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 whitespace-nowrap ${
                     isColsOpen || Object.values(hiddenColumns).some(Boolean)
                       ? "bg-blue-50 dark:bg-[#3b82f6]/10 border-blue-200 dark:border-transparent text-blue-600 dark:text-[#3b82f6]"
                       : "bg-white dark:bg-[#111] border-slate-200/80 dark:border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
@@ -3672,6 +3672,25 @@ const ProjectTaskBoard = ({
                 selectionModeSections,
               ).some(Boolean);
 
+              const visibleColsAfterTaskName = [
+                !hiddenColumns.contentCopy,
+                !hiddenColumns.client,
+                !hiddenColumns.createdBy,
+                !hiddenColumns.startDate,
+                !hiddenColumns.endDate,
+                !hiddenColumns.assignee,
+                !hiddenColumns.contentType,
+                !hiddenColumns.priority,
+                !hiddenColumns.status,
+                !hiddenColumns.revision,
+                !hiddenColumns.totalHours,
+                !hiddenColumns.approvalInfo,
+                true, // Actions column is always visible
+              ].filter(Boolean).length;
+
+              const totalVisibleColumns =
+                (showSelectionColumn ? 1 : 0) + 3 + visibleColsAfterTaskName;
+
               const renderInlineCreateRow = (sectionName, sColor = null) => {
                 const isTaskInputActive =
                   inlineAddingTaskSection === sectionName;
@@ -3729,13 +3748,11 @@ const ProjectTaskBoard = ({
                       }}
                     />
                     <td
-                      colSpan={12}
                       className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 md:sticky z-10 min-w-[250px] md:min-w-[400px]"
                       style={{
                         left: showSelectionColumn ? "140px" : "100px",
                         backgroundColor: "inherit",
                         ...bBottom,
-                        ...bRight
                       }}
                     >
                       <div className="flex items-center gap-2 w-full pl-6">
@@ -3814,7 +3831,7 @@ const ProjectTaskBoard = ({
                             />
                           </form>
                         ) : (
-                          <div className="flex items-center gap-0.5 text-[8px] font-bold text-slate-400 dark:text-slate-550 select-none">
+                          <div className="flex items-center gap-2 text-[12px] font-bold text-slate-450 dark:text-slate-400 select-none">
                             <button
                               type="button"
                               onClick={() => {
@@ -3822,12 +3839,12 @@ const ProjectTaskBoard = ({
                                 setInlineAddingSectionUnder(null);
                                 setInlineTaskTitle("");
                               }}
-                              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-955/30 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-[#3b82f6] transition-all cursor-pointer font-bold"
+                              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-955/30 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-[#3b82f6] transition-all cursor-pointer font-bold"
                             >
-                              <FiPlus size={8} className="stroke-[3]" />
+                              <FiPlus size={12} className="stroke-[3]" />
                               <span>Add Task</span>
                             </button>
-                            <span className="mx-1 text-slate-350 dark:text-slate-700">
+                            <span className="mx-1.5 text-slate-350 dark:text-slate-705">
                               |
                             </span>
                             <button
@@ -3837,15 +3854,24 @@ const ProjectTaskBoard = ({
                                 setInlineAddingTaskSection(null);
                                 setInlineSectionName("");
                               }}
-                              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-955/30 text-slate-500 dark:text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 transition-all cursor-pointer font-bold"
+                              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-955/30 text-slate-500 hover:text-indigo-650 dark:text-slate-400 dark:hover:text-indigo-400 transition-all cursor-pointer font-bold"
                             >
-                              <FiPlus size={8} className="stroke-[3]" />
+                              <FiPlus size={12} className="stroke-[3]" />
                               <span>Add Task List</span>
                             </button>
                           </div>
                         )}
                       </div>
                     </td>
+                    <td
+                      colSpan={visibleColsAfterTaskName}
+                      className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 bg-transparent"
+                      style={{
+                        backgroundColor: "inherit",
+                        ...bBottom,
+                        ...bRight,
+                      }}
+                    />
                   </tr>
                 );
               };
@@ -4192,9 +4218,22 @@ const ProjectTaskBoard = ({
                                         {...provided.draggableProps}
                                         className="text-[11px]"
                                       >
+                                        {sectionIndex > 0 && (
+                                          <tr className="pointer-events-none select-none">
+                                            <td
+                                              colSpan={totalVisibleColumns}
+                                              style={{
+                                                height: "20px",
+                                                padding: 0,
+                                                border: "none",
+                                                backgroundColor: "transparent",
+                                              }}
+                                            />
+                                          </tr>
+                                        )}
                                         {/* SECTION HEADER ROW */}
                                         <tr
-                                          className={`theme-bg-accent-ultrasubtle border-b border-slate-300 dark:border-slate-700 select-none group/secrow transition-colors ${
+                                          className={`theme-bg-accent-ultrasubtle  border-b border-slate-300 dark:border-slate-700 select-none group/secrow transition-colors ${
                                             openSectionMenu === sectionName
                                               ? "relative z-50"
                                               : ""
@@ -4202,7 +4241,7 @@ const ProjectTaskBoard = ({
                                         >
                                           {showSelectionColumn && (
                                             <td
-                                              className={`px-3 py-1 border-r border-b border-slate-300 dark:border-slate-700 text-center w-10 md:sticky md:left-0 bg-slate-50 dark:bg-[#16161b] relative ${
+                                              className={`px-3 py-1 border-r border-b border-slate-300 dark:border-slate-700 text-center w-10 md:sticky md:left-0 sidebar-bg  relative ${
                                                 openSectionMenu === sectionName
                                                   ? "z-50"
                                                   : "z-30"
@@ -4246,7 +4285,7 @@ const ProjectTaskBoard = ({
                                           )}
                                           {/* Chevron + 3-dots Column */}
                                           <td
-                                            className={`px-2 py-1 border-r border-b border-slate-300 dark:border-slate-700 md:sticky bg-slate-50 dark:bg-[#16161b] relative ${
+                                            className={`px-2 py-1 border-r border-b border-slate-300 dark:border-slate-700 md:sticky sidebar-bg relative ${
                                               openSectionMenu === sectionName
                                                 ? "z-50"
                                                 : "z-30"
@@ -4390,7 +4429,7 @@ const ProjectTaskBoard = ({
                                           </td>
                                           {/* ID Column */}
                                           <td
-                                            className="px-3 py-1 border-r border-b border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[60px] max-w-[60px] w-[60px] md:sticky z-30 bg-slate-50 dark:bg-[#16161b]"
+                                            className="px-3 py-1 border-r border-b border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[60px] max-w-[60px] w-[60px] md:sticky z-30 sidebar-bg"
                                             style={{
                                               left: showSelectionColumn
                                                 ? "80px"
@@ -4399,7 +4438,7 @@ const ProjectTaskBoard = ({
                                           />
                                           {/* Task Name Column */}
                                           <td
-                                            className="px-3 py-1 border-r border-b border-slate-300 dark:border-slate-700 md:sticky z-30 bg-slate-50 dark:bg-[#16161b]"
+                                            className="px-3 py-1 border-r border-b border-slate-300 dark:border-slate-700 md:sticky z-30 sidebar-bg"
                                             style={{
                                               left: showSelectionColumn
                                                 ? "140px"
@@ -4664,8 +4703,8 @@ const ProjectTaskBoard = ({
                                           </td>
                                           {/* Empty Column Cells merged into one to remove vertical gridlines */}
                                           <td
-                                            colSpan={11}
-                                            className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#16161b]"
+                                            colSpan={visibleColsAfterTaskName}
+                                            className="px-3 py-1 border-b border-slate-300 dark:border-slate-700 sidebar-bg"
                                             style={{
                                               borderRight: `2.5px solid ${sColor.hex}`,
                                             }}

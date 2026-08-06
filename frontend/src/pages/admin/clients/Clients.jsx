@@ -116,6 +116,13 @@ const MultiSelect = ({
   icon: Icon,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery("");
+    }
+  }, [isOpen]);
 
   const toggleOption = (val) => {
     if (selectedValues.includes(val)) {
@@ -125,19 +132,29 @@ const MultiSelect = ({
     }
   };
 
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery) return options;
+    const query = searchQuery.toLowerCase();
+    return options.filter(
+      (opt) =>
+        (opt.label || "").toLowerCase().includes(query) ||
+        (opt.subLabel || "").toLowerCase().includes(query)
+    );
+  }, [options, searchQuery]);
+
   // Group options if 'group' property exists
-  const hasGrouping = options.some((o) => o.group);
+  const hasGrouping = filteredOptions.some((o) => o.group);
 
   const groupedOptions = useMemo(() => {
-    if (!hasGrouping) return { "": options };
+    if (!hasGrouping) return { "": filteredOptions };
 
-    return options.reduce((acc, opt) => {
+    return filteredOptions.reduce((acc, opt) => {
       const g = opt.group || "Others";
       if (!acc[g]) acc[g] = [];
       acc[g].push(opt);
       return acc;
     }, {});
-  }, [options, hasGrouping]);
+  }, [filteredOptions, hasGrouping]);
 
   return (
     <div className="relative">
@@ -150,7 +167,7 @@ const MultiSelect = ({
         className="w-full min-h-10 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-black px-3.5 flex flex-wrap gap-1.5 items-center cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-[#3b82f6]/20 focus:border-blue-500 dark:focus:border-[#3b82f6] transition-all"
       >
         {selectedValues.length === 0 ? (
-          <span className="text-xs text-slate-400 dark:text-slate-500 font-semibold">
+          <span className="text-xs text-slate-400 dark:text-slate-550 font-semibold">
             {placeholder}
           </span>
         ) : (
@@ -160,8 +177,29 @@ const MultiSelect = ({
             return (
               <span
                 key={val}
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-550/5 text-blue-600 border border-blue-200/50 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900/40"
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-550/5 text-blue-600 border border-blue-200/50 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900/40"
               >
+                {opt && opt.avatarUrl !== undefined && (
+                  <div className="shrink-0 -ml-1">
+                    {opt.avatarUrl ? (
+                      <img
+                        src={opt.avatarUrl}
+                        alt={displayLabel}
+                        className="w-4 h-4 rounded-full object-cover border border-slate-200/80 dark:border-slate-800"
+                      />
+                    ) : (
+                      <div
+                        className={`w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-black ${
+                          getUserColor(val).bg
+                        } ${getUserColor(val).text} border ${
+                          getUserColor(val).border
+                        }`}
+                      >
+                        {displayLabel ? displayLabel.charAt(0).toUpperCase() : "?"}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {displayLabel}
                 <button
                   type="button"
@@ -201,46 +239,100 @@ const MultiSelect = ({
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto p-1.5 space-y-1">
-            {Object.entries(groupedOptions).map(([groupName, items]) => (
-              <div key={groupName} className="space-y-0.5">
-                {groupName && (
-                  <div className="px-3 py-1 text-[9px] font-black text-indigo-600 dark:text-[#3b82f6] uppercase tracking-wider bg-indigo-50/40 dark:bg-white/[0.02] rounded-md mb-1 mt-1 font-bold">
-                    {groupName}
-                  </div>
-                )}
-                {items.map((opt) => {
-                  const isSelected = selectedValues.includes(opt.value);
-                  return (
-                    <div
-                      key={opt.value}
-                      onClick={() => toggleOption(opt.value)}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-                        isSelected
-                          ? "bg-indigo-500/5 text-indigo-600 dark:bg-[#3b82f6]/5 dark:text-[#3b82f6]"
-                          : "hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-705 dark:text-slate-300"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => {}}
-                        className="rounded text-indigo-600 dark:text-[#3b82f6] focus:ring-indigo-500 w-3.5 h-3.5 border-slate-350 dark:border-slate-700 bg-transparent cursor-pointer"
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-bold text-[11px]">
-                          {opt.label}
-                        </span>
-                        {opt.subLabel && (
-                          <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
-                            {opt.subLabel}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Search Input Box */}
+            <div className="sticky top-0 bg-white dark:bg-slate-900 pb-1.5 pt-0.5 px-1 z-10 border-b border-slate-100 dark:border-slate-800 mb-1 flex items-center gap-2">
+              <FiSearch className="text-slate-400 shrink-0" size={13} />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-slate-50 dark:bg-black text-xs px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 outline-none focus:border-blue-500 text-slate-700 dark:text-white transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchQuery("");
+                  }}
+                  className="text-slate-450 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                >
+                  <FiX size={12} />
+                </button>
+              )}
+            </div>
+
+            {filteredOptions.length === 0 ? (
+              <div className="py-4 text-center text-slate-400 dark:text-slate-550 text-xs italic">
+                No results found
               </div>
-            ))}
+            ) : (
+              Object.entries(groupedOptions).map(([groupName, items]) => (
+                <div key={groupName} className="space-y-0.5">
+                  {groupName && (
+                    <div className="px-3 py-1 text-[9px] font-black text-indigo-600 dark:text-[#3b82f6] uppercase tracking-wider bg-indigo-50/40 dark:bg-white/[0.02] rounded-md mb-1 mt-1 font-bold">
+                      {groupName}
+                    </div>
+                  )}
+                  {items.map((opt) => {
+                    const isSelected = selectedValues.includes(opt.value);
+                    return (
+                      <div
+                        key={opt.value}
+                        onClick={() => toggleOption(opt.value)}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-indigo-500/5 text-indigo-600 dark:bg-[#3b82f6]/5 dark:text-[#3b82f6]"
+                            : "hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-705 dark:text-slate-300"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="rounded text-indigo-600 dark:text-[#3b82f6] focus:ring-indigo-500 w-3.5 h-3.5 border-slate-350 dark:border-slate-700 bg-transparent cursor-pointer"
+                        />
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {opt.avatarUrl !== undefined && (
+                            <div className="shrink-0">
+                              {opt.avatarUrl ? (
+                                <img
+                                  src={opt.avatarUrl}
+                                  alt={opt.label}
+                                  className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-800"
+                                />
+                              ) : (
+                                <div
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-white font-black text-[9px] ${
+                                    getUserColor(opt.value).bg
+                                  } ${getUserColor(opt.value).text} border ${
+                                    getUserColor(opt.value).border
+                                  }`}
+                                >
+                                  {opt.label ? opt.label.charAt(0).toUpperCase() : "?"}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-bold text-[11px] truncate">
+                              {opt.label}
+                            </span>
+                            {opt.subLabel && (
+                              <span className="text-[9px] text-slate-400 dark:text-slate-550 font-medium truncate">
+                                {opt.subLabel}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
+            )}
           </div>
         </>
       )}
@@ -878,7 +970,11 @@ const Clients = () => {
                                         (u) => u._id === (member._id || member),
                                       );
                                       const avatarUrl =
-                                        fullUser?.profile?.profileImage?.url;
+                                        fullUser?.profile?.profileImage?.url ||
+                                        fullUser?.profileImage?.url ||
+                                        fullUser?.profile?.avatar ||
+                                        fullUser?.avatar ||
+                                        "";
                                       const dept = fullUser?.department || "";
 
                                       const uCol = getUserColor(
@@ -890,9 +986,22 @@ const Clients = () => {
                                       return (
                                         <div
                                           key={member._id || member}
-                                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-slate-800 shadow-sm transition-transform hover:scale-105 w-max max-w-full overflow-hidden"
+                                          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200/50 dark:border-slate-700/50 transition-transform hover:scale-105 w-max max-w-full overflow-hidden"
                                           title={member.name || member.email}
                                         >
+                                          {avatarUrl ? (
+                                            <img
+                                              src={avatarUrl}
+                                              alt={member.name || member.email}
+                                              className="w-4 h-4 rounded-full object-cover border border-slate-100 dark:border-slate-900"
+                                            />
+                                          ) : (
+                                            <div
+                                              className={`w-4 h-4 rounded-full flex items-center justify-center text-[7.5px] font-black ${uCol.bg} ${uCol.text} border ${uCol.border}`}
+                                            >
+                                              {initial}
+                                            </div>
+                                          )}
                                           <div className="flex items-center gap-1.5">
                                             <span className="text-[9.5px] font-bold text-slate-800 dark:text-slate-400 truncate max-w-[85px]">
                                               {member.name || member.email}
@@ -918,7 +1027,11 @@ const Clients = () => {
                                           (singleMember._id || singleMember),
                                       );
                                       const avatarUrl =
-                                        fullUser?.profile?.profileImage?.url;
+                                        fullUser?.profile?.profileImage?.url ||
+                                        fullUser?.profileImage?.url ||
+                                        fullUser?.profile?.avatar ||
+                                        fullUser?.avatar ||
+                                        "";
                                       const dept = fullUser?.department || "";
 
                                       const uCol = getUserColor(
@@ -931,12 +1044,25 @@ const Clients = () => {
                                         : "?";
                                       return (
                                         <div
-                                          className="flex items-center gap-1.5 px-2.5 py-1  bg-white dark:bg-[#0B1120] shadow-sm transition-transform hover:scale-105 w-max max-w-full overflow-hidden"
+                                          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white dark:bg-[#0B1120] border border-slate-200/50 dark:border-slate-750/50 shadow-sm transition-transform hover:scale-105 w-max max-w-full overflow-hidden"
                                           title={
                                             singleMember.name ||
                                             singleMember.email
                                           }
                                         >
+                                          {avatarUrl ? (
+                                            <img
+                                              src={avatarUrl}
+                                              alt={singleMember.name || singleMember.email}
+                                              className="w-4 h-4 rounded-full object-cover border border-slate-100 dark:border-slate-900"
+                                            />
+                                          ) : (
+                                            <div
+                                              className={`w-4 h-4 rounded-full flex items-center justify-center text-[7.5px] font-black ${uCol.bg} ${uCol.text} border ${uCol.border}`}
+                                            >
+                                              {initial}
+                                            </div>
+                                          )}
                                           <div className="flex items-center gap-1.5">
                                             <span className="text-[9.5px] font-bold text-slate-800 dark:text-slate-400 truncate max-w-[85px]">
                                               {singleMember.name ||
@@ -1260,7 +1386,7 @@ const Clients = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-5  flex items-center justify-center p-3"
+            className="fixed inset-0 z-5 bg-black/30 backdrop-blur-sm flex items-center justify-center p-3"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
@@ -1692,6 +1818,7 @@ const Clients = () => {
                             value: u._id,
                             label: u.name,
                             subLabel: u.email,
+                            avatarUrl: u.profile?.profileImage?.url || u.profileImage?.url || u.profile?.avatar || u.avatar || "",
                             group: u.department
                               ? u.department.toUpperCase()
                               : "UNASSIGNED",

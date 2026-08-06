@@ -150,6 +150,14 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
       return false;
     }
 
+    // Hide My Reports for Social Media Manager department
+    if (
+      item.name === "My Reports" &&
+      currentUser?.department === "Social Media Manager"
+    ) {
+      return false;
+    }
+
     // Hide Chat when admin is impersonating another user
     if (item.name === "Chat" && originalAdminUser) {
       return false;
@@ -907,9 +915,8 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
 
             const renderPortfoliosList = () => {
               const canSeeMyProject =
-                currentUser?.role?.toLowerCase() === "managingpartner" ||
-                currentUser?.role?.toLowerCase() === "operationmanager" ||
-                currentUser?.department?.toLowerCase() === "social media manager";
+                currentUser?.role?.toLowerCase() === "admin" ||
+                currentUser?.role?.toLowerCase() === "operationmanager";
 
               return (
                 <>

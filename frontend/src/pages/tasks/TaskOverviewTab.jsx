@@ -6,6 +6,7 @@ import {
   FiCalendar,
   FiFilter,
   FiChevronDown,
+  FiChevronLeft,
   FiColumns,
   FiCheckSquare,
   FiX,
@@ -1237,37 +1238,50 @@ const TaskOverviewTab = ({
     <>
       <div className="bg-white dark:bg-[#11131e] overflow-hidden flex flex-col h-[calc(100vh-160px)]">
         <div className="px-10 flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 pt-1 border-b border-slate-100 dark:border-white/5 relative z-30 shrink-0">
-          {/* client display */}
-          <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700 dark:text-slate-300">
-            <span>Client:</span>
-            {overviewClientFilter === "All" ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
-                <FiBriefcase size={8} />
-                All
-              </span>
-            ) : (
-              <ClientBadge
-                client={clients?.find((c) => c._id === overviewClientFilter)}
-                size="sm"
-                className="!text-[8px] !px-1.5 !py-0.5"
-              />
-            )}
-          </div>
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            {/* Back Button */}
+            <button
+              onClick={() => navigate(`/${user?.role || "team"}?scroll=metrics`)}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-705 dark:text-slate-400 dark:hover:text-slate-205 transition-colors cursor-pointer rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 border border-slate-200 dark:border-white/5 shadow-2xs shrink-0"
+            >
+              <FiChevronLeft size={14} className="stroke-[3]" />
+              <span>Back</span>
+            </button>
 
-          {/* status display  */}
-          <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700 dark:text-slate-300">
-            <span>Status:</span>
-            {overviewStatusFilter === "All" ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
-                <FiBriefcase size={8} />
-                All
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
-                <FiBriefcase size={8} />
-                {overviewStatusFilter}
-              </span>
-            )}
+            <span className="text-slate-200 dark:text-slate-800">|</span>
+
+            {/* client display */}
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700 dark:text-slate-300">
+              <span>Client:</span>
+              {overviewClientFilter === "All" ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
+                  <FiBriefcase size={8} />
+                  All
+                </span>
+              ) : (
+                <ClientBadge
+                  client={clients?.find((c) => c._id === overviewClientFilter)}
+                  size="sm"
+                  className="!text-[8px] !px-1.5 !py-0.5"
+                />
+              )}
+            </div>
+
+            {/* status display  */}
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700 dark:text-slate-300">
+              <span>Status:</span>
+              {overviewStatusFilter === "All" ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
+                  <FiBriefcase size={8} />
+                  All
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
+                  <FiBriefcase size={8} />
+                  {overviewStatusFilter}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2.5 w-full sm:w-auto">

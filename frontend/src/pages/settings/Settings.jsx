@@ -110,11 +110,13 @@ const Settings = () => {
   const [loadingHours, setLoadingHours] = useState(true);
   const [savingHours, setSavingHours] = useState(false);
 
+  const canChangeOfficeHours = user?.role === "admin" || user?.role === "operationmanager";
+
   useEffect(() => {
     dispatch(getProfile());
   }, [dispatch, user]);
 
-  useEffect(() => {
+  useEffect(() => { 
     const fetchOfficeHours = async () => {
       try {
         const response = await axiosInstance.get("/settings/office-hours");
@@ -382,14 +384,21 @@ const Settings = () => {
                   <h3 className="text-sm font-bold theme-text-primary uppercase tracking-wider">
                     Office Working Hours
                   </h3>
+                  {!canChangeOfficeHours && (
+                    <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/60 px-2 py-0.5 rounded-md border theme-border">
+                      Read-Only
+                    </span>
+                  )}
                 </div>
-                <button
-                  onClick={handleSaveHours}
-                  disabled={savingHours || loadingHours}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-[11px] tracking-wide shadow-md shadow-emerald-500/10 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {savingHours ? "Saving..." : "Save Changes"}
-                </button>
+                {canChangeOfficeHours && (
+                  <button
+                    onClick={handleSaveHours}
+                    disabled={savingHours || loadingHours}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-[11px] tracking-wide shadow-md shadow-emerald-500/10 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {savingHours ? "Saving..." : "Save Changes"}
+                  </button>
+                )}
               </div>
 
               {loadingHours ? (
@@ -403,9 +412,10 @@ const Settings = () => {
                         Start Workday
                       </label>
                       <select
+                        disabled={!canChangeOfficeHours}
                         value={startHour}
                         onChange={(e) => setStartHour(Number(e.target.value))}
-                        className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold theme-text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
+                        className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold theme-text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6] disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {Array.from({ length: 24 }).map((_, i) => (
                           <option key={i} value={i}>
@@ -424,9 +434,10 @@ const Settings = () => {
                         End Workday
                       </label>
                       <select
+                        disabled={!canChangeOfficeHours}
                         value={endHour}
                         onChange={(e) => setEndHour(Number(e.target.value))}
-                        className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold theme-text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
+                        className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold theme-text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6] disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {Array.from({ length: 24 }).map((_, i) => (
                           <option key={i} value={i}>
@@ -449,10 +460,10 @@ const Settings = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-[11px] font-black theme-text-primary">
-                        Weekends & Holidays
+                        Sundays & Holidays
                       </h4>
                       <p className="text-[10px] theme-text-secondary mt-0.5">
-                        Closed (Saturdays & Sundays are excluded from productivity tracking)
+                        Closed (Sundays are excluded from productivity tracking)
                       </p>
                     </div>
                   </div>
