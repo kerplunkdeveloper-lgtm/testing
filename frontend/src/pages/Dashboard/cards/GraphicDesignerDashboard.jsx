@@ -39,6 +39,7 @@ import {
   FiBriefcase,
   FiTrendingUp,
   FiXCircle,
+  FiX,
   FiFileText,
   FiPlay,
   FiEye,
@@ -820,7 +821,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   };
 
   const filteredModalTasks = useMemo(() => {
-    return designerTasksList.filter((task) => {
+    const filtered = designerTasksList.filter((task) => {
       if (taskTab !== "all") {
         const cat = getTaskCategory(task.status);
         if (cat !== taskTab) return false;
@@ -841,6 +842,23 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         return titleMatch || projectMatch;
       }
       return true;
+    });
+
+    const orderMap = {
+      pending: 1,
+      assigned: 1,
+      inprogress: 2,
+      onhold: 3,
+      inreview: 4,
+      completed: 5,
+    };
+
+    return [...filtered].sort((a, b) => {
+      const catA = getTaskCategory(a.status);
+      const catB = getTaskCategory(b.status);
+      const orderA = orderMap[catA] || 99;
+      const orderB = orderMap[catB] || 99;
+      return orderA - orderB;
     });
   }, [designerTasksList, taskTab, taskSearch, projects]);
 
@@ -2040,72 +2058,77 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
               className="relative z-10 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-6xl h-[85vh] overflow-hidden flex flex-col"
             >
               {/* Header */}
-              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between shrink-0">
-                <div className="flex items-center justify-between gap-3">
+              <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3">
                   {activeDesigner?.profileImage ? (
                     <img
                       src={activeDesigner.profileImage}
                       alt={activeDesigner.name}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-indigo-500/20"
+                      className="w-9 h-9 rounded-full object-cover border border-indigo-500/20"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-extrabold">
+                    <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-black">
                       {getInitials(activeDesigner?.name)}
                     </div>
                   )}
                   <div>
-                    <h3 className="text-base font-black text-slate-800 dark:text-white tracking-wide">
+                    <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-white tracking-wide">
                       {activeDesigner?.name}'s Performance Details
                     </h3>
-                    <p className="text-[12px] text-red-500 dark:text-red-500 font-bold uppercase tracking-widest mt-0.5">
-                      Today No.of Task Assigned : {activeDesigner?.assigned}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-350 font-black text-[9px] border border-slate-200 dark:border-slate-750">
+                        Today: {format(new Date(), "dd MMM yyyy")}
+                      </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-red-50/70 dark:bg-red-950/20 text-red-655 dark:text-red-400 font-black text-[9px] border border-red-150 dark:border-red-900/20">
+                        Today Assigned: {activeDesigner?.assigned || 0}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* status filter venum */}
-                <div className="flex items-center gap-4">
-                  <span>status filter:</span>
-                  <select
-                    value={taskTab}
-                    onChange={(e) => setTaskTab(e.target.value)}
-                    className="px-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl text-slate-700 dark:text-white placeholder-slate-450 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 transition-all shadow-inner"
-                  >
-                    <option value="all">All</option>
-                    <option value="pending">Pending</option>
-                    <option value="inprogress">In Progress</option>
-                    <option value="onhold">On Hold</option>
-                    <option value="inreview">In Review</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
+                <div className="flex items-center flex-wrap gap-2.5 sm:gap-3 ml-12 sm:ml-0">
+                  {/* status filter venum */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9.5px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-widest">Filter:</span>
+                    <select
+                      value={taskTab}
+                      onChange={(e) => setTaskTab(e.target.value)}
+                      className="px-2 py-1 text-[11px] font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-lg text-slate-705 dark:text-white placeholder-slate-450 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all shadow-sm cursor-pointer"
+                    >
+                      <option value="all">All</option>
+                      <option value="pending">Pending</option>
+                      <option value="inprogress">In Progress</option>
+                      <option value="onhold">On Hold</option>
+                      <option value="inreview">In Review</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
 
-                {/* overdue details */}
-                <div className="flex items-center gap-4">
+                  {/* overdue details */}
                   <span
-                    className={`px-1.5 py-0.5 text-[17px] font-black uppercase rounded-md border ${
+                    className={`px-1.5 py-0.5 text-[10px] font-black uppercase rounded-lg border ${
                       (activeDesigner?.overdue || 0) > 0
-                        ? "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400 border-red-300 dark:border-red-900/30 animate-pulse shadow-sm shadow-red-500/20"
-                        : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-900/30"
+                        ? "bg-red-50 text-red-655 border-red-200 dark:bg-red-950/30 dark:text-red-450 dark:border-red-900/30 animate-pulse shadow-sm"
+                        : "bg-rose-50 text-rose-700 border-rose-250 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900/30"
                     }`}
                   >
-                    OverDue : {activeDesigner?.overdue || 0}
+                    Overdue: {activeDesigner?.overdue || 0}
                   </span>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewTasksModal({
-                      open: false,
-                      designerId: null,
-                      designerName: "",
-                    })
-                  }
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-850 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 transition-all cursor-pointer"
-                >
-                  <FiXCircle size={22} />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setViewTasksModal({
+                        open: false,
+                        designerId: null,
+                        designerName: "",
+                      })
+                    }
+                    className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 transition-all cursor-pointer shrink-0"
+                  >
+                    <FiX size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Modal Body Container */}
@@ -2231,23 +2254,23 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                         </p>
                       </div>
                     ) : (
-                      <div className="border border-slate-200 dark:border-slate-850 rounded-2xl overflow-hidden shadow-sm bg-white dark:bg-slate-900/20">
-                        <table className="w-full text-left border-collapse">
+                      <div className="border border-slate-200 dark:border-slate-850 rounded-2xl overflow-x-auto shadow-sm bg-white dark:bg-slate-900/20 custom-scrollbar">
+                        <table className="w-full text-left border-collapse min-w-[1050px]">
                           <thead>
                             <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-850">
-                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                              <th className="py-3 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
                                 Task Title
                               </th>
-                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                              <th className="py-3 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
                                 Client
                               </th>
-                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                              <th className="py-3 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
                                 Created By
                               </th>
-                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                              <th className="py-3 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
                                 Priority
                               </th>
-                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                              <th className="py-3 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
                                 {taskTab === "assigned"
                                   ? "Assigned Date"
                                   : taskTab === "pending"
@@ -2262,11 +2285,11 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                             ? "Completed At"
                                             : "Due Date"}
                               </th>
-                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
+                              <th className="py-3 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase">
                                 Status
                               </th>
-                              <th className="py-2.5 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase text-center">
-                                Approve Info
+                              <th className="py-3 px-4 text-[11px] font-black tracking-widest text-slate-500 dark:text-slate-455 uppercase text-center">
+                                Approval Timeline
                               </th>
                             </tr>
                           </thead>
@@ -2336,23 +2359,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                               return (
                                 <tr
                                   key={task._id}
-                                  className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors"
+                                  className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-all duration-155 border-b border-slate-100 dark:border-slate-850 last:border-b-0"
                                 >
-                                  <td className="py-2.5 px-4 text-xs font-bold text-slate-800 dark:text-white max-w-xs break-words">
-                                    <div className="flex flex-col gap-1">
-                                      <span>{task.title}</span>
-                                      {(task.reviewStartedAt ||
-                                        task.completedAt ||
-                                        task.approvedAt) && (
-                                        <span className="inline-flex items-center gap-1 w-fit text-[9px] font-black uppercase bg-emerald-50 dark:bg-emerald-500/10 text-emerald-650 dark:text-emerald-450 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
-                                          Has Approve Info
-                                        </span>
-                                      )}
-                                    </div>
+                                  <td className="py-2 px-3 text-xs font-black text-slate-850 dark:text-slate-100 max-w-xs break-words">
+                                    <span className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">{task.title}</span>
                                   </td>
-                                  <td className="py-2.5 px-4">
+                                  <td className="py-2 px-3">
                                     <span
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${(() => {
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-bold shadow-sm ${(() => {
                                         const colors = [
                                           "bg-indigo-50 text-indigo-750 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900/30",
                                           "bg-emerald-50 text-emerald-750 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30",
@@ -2379,13 +2393,13 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                       })()}`}
                                     >
                                       <FiBriefcase
-                                        size={10}
+                                        size={9}
                                         className="opacity-80"
                                       />
                                       {clientName}
                                     </span>
                                   </td>
-                                  <td className="py-2.5 px-4">
+                                  <td className="py-2 px-3">
                                     {(() => {
                                       const creatorObj =
                                         task.createdBy &&
@@ -2419,30 +2433,30 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                             <img
                                               src={creatorImage}
                                               alt={creatorName}
-                                              className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                                              className="w-4.5 h-4.5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
                                             />
                                           ) : (
-                                            <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-750 dark:text-slate-300 flex items-center justify-center text-[8px] font-black ring-1 ring-slate-300 shrink-0">
+                                            <div className="w-4.5 h-4.5 rounded-full bg-slate-205 dark:bg-slate-750 text-slate-750 dark:text-slate-300 flex items-center justify-center text-[7.5px] font-black ring-1 ring-slate-300 shrink-0">
                                               {getInitials(creatorName)}
                                             </div>
                                           )}
-                                          <span className="text-xs font-bold text-slate-700 dark:text-slate-350">
+                                          <span className="text-[10px] font-bold text-slate-700 dark:text-slate-350">
                                             {creatorName}
                                           </span>
                                         </div>
                                       );
                                     })()}
                                   </td>
-                                  <td className="py-2.5 px-4">
+                                  <td className="py-2 px-3">
                                     {task.priority && (
                                       <span
-                                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${getPriorityStyle(task.priority)}`}
+                                        className={`px-1.5 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider shadow-sm ${getPriorityStyle(task.priority)}`}
                                       >
                                         {task.priority}
                                       </span>
                                     )}
                                   </td>
-                                  <td className="py-2.5 px-4 text-xs text-slate-500 dark:text-slate-400">
+                                  <td className="py-2 px-3 text-xs text-slate-500 dark:text-slate-400">
                                     {(() => {
                                       let targetDate = null;
                                       if (taskTab === "assigned")
@@ -2472,12 +2486,40 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
                                       if (!targetDate)
                                         return (
-                                          <span className="text-slate-400 font-medium italic text-[11.5px]">
+                                          <span className="text-slate-400 font-medium italic text-[11px]">
                                             -
                                           </span>
                                         );
                                       try {
                                         const dateObj = parseISO(targetDate);
+                                        const taskStatus = (task.status || "").toLowerCase();
+
+                                        if (taskStatus === "completed" || taskStatus.includes("approve")) {
+                                          return (
+                                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-650 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/30 shadow-sm transition-all hover:scale-[1.02]">
+                                              <FiCheckCircle size={10} className="shrink-0 text-emerald-500 animate-pulse" />
+                                              <span className="tracking-wide text-[9px]">Done</span>
+                                              <span className="w-[1px] h-2.5 bg-emerald-300 dark:bg-emerald-800" />
+                                              <span className="text-[9px] font-semibold opacity-90">
+                                                {format(dateObj, "MMM dd, h:mm a")}
+                                              </span>
+                                            </div>
+                                          );
+                                        }
+
+                                        if (taskStatus.includes("review") || taskStatus.includes("revision")) {
+                                          return (
+                                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50/90 dark:bg-amber-950/40 text-amber-650 dark:text-amber-400 border border-amber-200 dark:border-amber-900/30 shadow-sm transition-all hover:scale-[1.02]">
+                                              <FiClock size={10} className="shrink-0 text-amber-505 animate-spin" style={{ animationDuration: '4s' }} />
+                                              <span className="tracking-wide text-[9px]">In Review</span>
+                                              <span className="w-[1px] h-2.5 bg-amber-300 dark:bg-amber-800" />
+                                              <span className="text-[9px] font-semibold opacity-90">
+                                                {format(dateObj, "MMM dd, h:mm a")}
+                                              </span>
+                                            </div>
+                                          );
+                                        }
+
                                         const isDueToday = isToday(dateObj);
                                         if (isDueToday) {
                                           return (
@@ -2499,23 +2541,23 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                                   animation: brightBlink 1s infinite ease-in-out;
                                                 }
                                               `}</style>
-                                              <div className="relative p-[1.5px] overflow-hidden rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-500 flex items-center justify-center w-fit shadow-md bright-warning-blink">
+                                              <div className="relative p-[1px] overflow-hidden rounded-lg bg-gradient-to-r from-red-500 via-rose-500 to-red-500 flex items-center justify-center w-fit shadow-sm bright-warning-blink">
                                                 <div
                                                   className="absolute inset-0 bg-gradient-to-r from-red-500 via-rose-500 to-red-500 animate-spin"
                                                   style={{
                                                     animationDuration: "2s",
                                                   }}
                                                 />
-                                                <div className="relative bg-red-500 px-2 py-0.5 rounded-[11px] flex items-center gap-1.5 z-10 text-white font-extrabold text-[10px] tracking-wide border-transparent">
+                                                <div className="relative bg-red-500 px-1.5 py-0.5 rounded-[7px] flex items-center gap-1 z-10 text-white font-extrabold text-[9px] tracking-wide border-transparent">
                                                   <FiClock
-                                                    size={11}
+                                                    size={9}
                                                     className="text-white animate-bounce"
                                                   />
                                                   <span>
                                                     Today -{" "}
                                                     {format(
                                                       dateObj,
-                                                      "MMM dd, yyyy h:mm a",
+                                                      "MMM dd, h:mm a",
                                                     )}
                                                   </span>
                                                 </div>
@@ -2527,14 +2569,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                         const getRelativeBadge = () => {
                                           if (isYesterday(dateObj)) {
                                             return (
-                                              <span className="px-1.5 py-0.5 text-[9.5px] font-black uppercase bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded-md border border-rose-200 dark:border-rose-900/30">
+                                              <span className="px-1 py-0.5 text-[8.5px] font-black uppercase bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded-md border border-rose-200 dark:border-rose-900/30">
                                                 Yesterday
                                               </span>
                                             );
                                           }
                                           if (isTomorrow(dateObj)) {
                                             return (
-                                              <span className="px-1.5 py-0.5 text-[9.5px] font-black uppercase bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 rounded-md border border-sky-200 dark:border-sky-900/30">
+                                              <span className="px-1 py-0.5 text-[8.5px] font-black uppercase bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 rounded-md border border-sky-200 dark:border-sky-900/30">
                                                 Tomorrow
                                               </span>
                                             );
@@ -2543,15 +2585,15 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                         };
 
                                         return (
-                                          <span className="flex items-center gap-1 flex-wrap text-xs">
+                                          <span className="flex items-center gap-1 flex-wrap text-[10.5px]">
                                             <span className="flex items-center gap-1">
                                               <FiClock
-                                                size={11}
+                                                size={10}
                                                 className="text-slate-400"
                                               />
                                               {format(
                                                 dateObj,
-                                                "MMM dd, yyyy h:mm a",
+                                                "MMM dd, h:mm a",
                                               )}
                                             </span>
                                             {getRelativeBadge()}
@@ -2566,39 +2608,113 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                       }
                                     })()}
                                   </td>
-                                  <td className="py-2.5 px-4">
+                                  <td className="py-2 px-3">
                                     <span
-                                      className={`px-2 py-0.5 rounded-md text-[12px] font-black uppercase tracking-widest ${getStatusBadgeStyle(task.status)}`}
+                                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm ${getStatusBadgeStyle(task.status)}`}
                                     >
                                       {task.status || "Pending"}
                                     </span>
                                   </td>
-                                  <td className="py-2.5 px-4 text-center">
-                                    {task.reviewStartedAt ||
-                                    task.completedAt ||
-                                    task.approvedAt ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setApprovalModal({
-                                            open: true,
-                                            designerName:
-                                              viewTasksModal.designerName ||
-                                              activeDesigner?.name ||
-                                              "Designer",
-                                            tasks: [task],
-                                          });
-                                        }}
-                                        className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-650 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/50 transition-all cursor-pointer inline-flex items-center justify-center"
-                                        title="View approval details"
-                                      >
-                                        <FiArrowRight size={14} />
-                                      </button>
-                                    ) : (
-                                      <span className="text-slate-400 dark:text-slate-600 font-bold">
-                                        —
-                                      </span>
-                                    )}
+                                  <td className="py-2 px-3 text-center">
+                                    {(() => {
+                                      if (
+                                        !task.reviewStartedAt &&
+                                        !task.completedAt &&
+                                        !task.approvedAt
+                                      ) {
+                                        return (
+                                          <span className="text-slate-400 dark:text-slate-600 font-bold">
+                                            —
+                                          </span>
+                                        );
+                                      }
+
+                                      const totalWaitMs =
+                                        task.approvalWaitingMs ||
+                                        (task.reviewStartedAt && task.completedAt
+                                          ? calculateBusinessMs(
+                                              task.reviewStartedAt,
+                                              task.completedAt,
+                                            )
+                                          : 0);
+
+                                      let tookText = "";
+                                      if (totalWaitMs > 0) {
+                                        const totalSecs = Math.floor(
+                                          totalWaitMs / 1000,
+                                        );
+                                        const h = Math.floor(totalSecs / 3600);
+                                        const m = Math.floor((totalSecs % 3600) / 60);
+                                        const s = totalSecs % 60;
+                                        tookText =
+                                          h > 0
+                                            ? `Took ${h}h ${m}m ${s}s`
+                                            : `Took ${m}m ${s}s`;
+                                      }
+
+                                      const formatApprovalDate = (dateStr) => {
+                                        if (!dateStr) return null;
+                                        try {
+                                          const d = parseISO(dateStr);
+                                          return {
+                                            dayMonth: format(d, "dd MMM"),
+                                            time: format(d, "hh:mm a"),
+                                            relative: formatDistanceToNow(d) + " ago",
+                                          };
+                                        } catch (e) {
+                                          return null;
+                                        }
+                                      };
+
+                                      const startInfo = formatApprovalDate(
+                                        task.reviewStartedAt,
+                                      );
+                                      const endInfo = formatApprovalDate(
+                                        task.completedAt,
+                                      );
+
+                                      return (
+                                        <div className="flex flex-col items-center gap-1 py-0.5 select-none text-[11px] text-center w-full">
+                                          {/* Duration Badge */}
+                                          {tookText ? (
+                                            <span className="inline-flex items-center gap-1 text-[9.5px] font-black px-2.5 py-0.5 bg-violet-100 dark:bg-violet-950/40 text-violet-750 dark:text-violet-450 border border-violet-200 dark:border-violet-800/30 rounded-full shadow-inner">
+                                              <span className="w-1 h-1 rounded-full bg-violet-500 animate-pulse" />
+                                              {tookText}
+                                            </span>
+                                          ) : (
+                                            <span className="text-[10px] text-slate-400 font-bold">—</span>
+                                          )}
+
+                                          {/* Times Flow */}
+                                          <div className="flex items-center justify-center gap-1.5 text-[10.5px] font-extrabold mt-0.5">
+                                            <div className="flex flex-col items-center">
+                                              <span className="text-[8px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest leading-none mb-0.5">Start</span>
+                                              <span className="text-slate-800 dark:text-slate-100 leading-tight">
+                                                {startInfo ? `${startInfo.dayMonth}, ${startInfo.time}` : "—"}
+                                              </span>
+                                            </div>
+                                            
+                                            <span className="text-slate-300 dark:text-slate-700 font-normal mt-2">→</span>
+                                            
+                                            <div className="flex flex-col items-center">
+                                              <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest leading-none mb-0.5">End</span>
+                                              <span className="text-slate-850 dark:text-slate-100 leading-tight">
+                                                {endInfo ? (
+                                                  startInfo?.dayMonth === endInfo.dayMonth ? endInfo.time : `${endInfo.dayMonth}, ${endInfo.time}`
+                                                ) : "—"}
+                                              </span>
+                                            </div>
+                                          </div>
+
+                                          {/* Relatives */}
+                                          {endInfo?.relative && (
+                                            <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">
+                                              Approved {endInfo.relative}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
                                   </td>
                                 </tr>
                               );
