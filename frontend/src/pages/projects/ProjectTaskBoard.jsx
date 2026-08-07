@@ -104,6 +104,8 @@ const ApprovalTimeDisplay = React.memo(({
   completedAt,
   approvalWaitingMs,
   status,
+  lastReviewStartedAt,
+  reviewCycles,
 }) => {
   const [liveElapsed, setLiveElapsed] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
@@ -145,7 +147,14 @@ const ApprovalTimeDisplay = React.memo(({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showPopup]);
 
-  if (!reviewStartedAt && !approvalWaitingMs) {
+  const effectiveReviewStart =
+    reviewStartedAt ||
+    lastReviewStartedAt ||
+    (reviewCycles && reviewCycles.length > 0
+      ? reviewCycles[reviewCycles.length - 1]?.startedAt
+      : null);
+
+  if (!effectiveReviewStart && !approvalWaitingMs) {
     return (
       <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
     );
@@ -176,7 +185,7 @@ const ApprovalTimeDisplay = React.memo(({
 
   const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
   const isInReview = status === "In Review";
-  const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
+  const revInfo = effectiveReviewStart ? formatDateTime(effectiveReviewStart) : null;
   const doneInfo = completedAt ? formatDateTime(completedAt) : null;
 
   const handleToggle = (e) => {
@@ -5994,6 +6003,12 @@ const ProjectTaskBoard = ({
                                                               task.approvalWaitingMs
                                                             }
                                                             status={task.status}
+                                                            lastReviewStartedAt={
+                                                              task.lastReviewStartedAt
+                                                            }
+                                                            reviewCycles={
+                                                              task.reviewCycles
+                                                            }
                                                           />
                                                         </td>
                                                       )}
@@ -7254,6 +7269,12 @@ const ProjectTaskBoard = ({
                                                                     status={
                                                                       sub.status
                                                                     }
+                                                                    lastReviewStartedAt={
+                                                                      sub.lastReviewStartedAt
+                                                                    }
+                                                                    reviewCycles={
+                                                                      sub.reviewCycles
+                                                                    }
                                                                   />
                                                                 </td>
                                                               )}
@@ -8300,38 +8321,51 @@ const ProjectTaskBoard = ({
                       </h3>
                     </div>
                     <div className="relative z-10 flex flex-col gap-2.5 text-[10px] mt-2.5">
-                      {selectedTask.reviewStartedAt ? (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[8px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest">
-                            Review Start
-                          </span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">
-                            {new Date(
-                              selectedTask.reviewStartedAt,
-                            ).toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "short",
-                            })}{" "}
-                            ·{" "}
-                            {new Date(
-                              selectedTask.reviewStartedAt,
-                            ).toLocaleTimeString("en-US", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            })}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                            Review Start
-                          </span>
-                          <span className="font-semibold text-slate-400 dark:text-slate-550">
-                            Not started
-                          </span>
-                        </div>
-                      )}
+                      {(() => {
+                        const drawerEffectiveReviewStart =
+                          selectedTask.reviewStartedAt ||
+                          selectedTask.lastReviewStartedAt ||
+                          (selectedTask.reviewCycles && selectedTask.reviewCycles.length > 0
+                            ? selectedTask.reviewCycles[selectedTask.reviewCycles.length - 1]?.startedAt
+                            : null);
+
+                        if (drawerEffectiveReviewStart) {
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[8px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest">
+                                Review Start
+                              </span>
+                              <span className="font-bold text-slate-700 dark:text-slate-200">
+                                {new Date(
+                                  drawerEffectiveReviewStart,
+                                ).toLocaleDateString("en-GB", {
+                                  day: "2-digit",
+                                  month: "short",
+                                })}{" "}
+                                ·{" "}
+                                {new Date(
+                                  drawerEffectiveReviewStart,
+                                ).toLocaleTimeString("en-US", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                })}
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                              Review Start
+                            </span>
+                            <span className="font-semibold text-slate-400 dark:text-slate-550">
+                              Not started
+                            </span>
+                          </div>
+                        );
+                      })()}
 
                       {selectedTask.completedAt ? (
                         <div className="flex flex-col gap-0.5">

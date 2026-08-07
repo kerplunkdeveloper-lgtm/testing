@@ -356,6 +356,8 @@ const ApprovalTimeDisplay = React.memo(({
   completedAt,
   approvalWaitingMs,
   status,
+  lastReviewStartedAt,
+  reviewCycles,
 }) => {
   const [liveElapsed, setLiveElapsed] = useState(0);
 
@@ -376,7 +378,14 @@ const ApprovalTimeDisplay = React.memo(({
     return () => clearInterval(interval);
   }, [reviewStartedAt, status]);
 
-  if (!reviewStartedAt && !approvalWaitingMs) {
+  const effectiveReviewStart =
+    reviewStartedAt ||
+    lastReviewStartedAt ||
+    (reviewCycles && reviewCycles.length > 0
+      ? reviewCycles[reviewCycles.length - 1]?.startedAt
+      : null);
+
+  if (!effectiveReviewStart && !approvalWaitingMs) {
     return (
       <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
     );
@@ -407,7 +416,7 @@ const ApprovalTimeDisplay = React.memo(({
 
   const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
   const isInReview = status === "In Review";
-  const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
+  const revInfo = effectiveReviewStart ? formatDateTime(effectiveReviewStart) : null;
   const doneInfo = completedAt ? formatDateTime(completedAt) : null;
 
   return (
@@ -3714,6 +3723,8 @@ const MyTasksTab = ({
                       completedAt={selectedTask.completedAt}
                       approvalWaitingMs={selectedTask.approvalWaitingMs}
                       status={selectedTask.status}
+                      lastReviewStartedAt={selectedTask.lastReviewStartedAt}
+                      reviewCycles={selectedTask.reviewCycles}
                     />
                   </div>
                 )}

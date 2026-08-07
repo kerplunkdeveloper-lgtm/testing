@@ -2775,8 +2775,15 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                   </td>
                                   <td className="py-2 px-3 text-center">
                                     {(() => {
+                                      const effectiveReviewStart =
+                                        task.reviewStartedAt ||
+                                        task.lastReviewStartedAt ||
+                                        (task.reviewCycles && task.reviewCycles.length > 0
+                                          ? task.reviewCycles[task.reviewCycles.length - 1]?.startedAt
+                                          : null);
+
                                       if (
-                                        !task.reviewStartedAt &&
+                                        !effectiveReviewStart &&
                                         !task.completedAt &&
                                         !task.approvedAt
                                       ) {
@@ -2789,10 +2796,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
                                       const totalWaitMs =
                                         task.approvalWaitingMs ||
-                                        (task.reviewStartedAt &&
+                                        (effectiveReviewStart &&
                                         task.completedAt
                                           ? calculateBusinessMs(
-                                              task.reviewStartedAt,
+                                              effectiveReviewStart,
                                               task.completedAt,
                                             )
                                           : 0);
@@ -2829,7 +2836,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                       };
 
                                       const startInfo = formatApprovalDate(
-                                        task.reviewStartedAt,
+                                        effectiveReviewStart,
                                       );
                                       const endInfo = formatApprovalDate(
                                         task.completedAt,
@@ -3069,11 +3076,18 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                               const assigneeName =
                                 assigneeObj?.name || "Unassigned";
 
+                              const effectiveReviewStart =
+                                task.reviewStartedAt ||
+                                task.lastReviewStartedAt ||
+                                (task.reviewCycles && task.reviewCycles.length > 0
+                                  ? task.reviewCycles[task.reviewCycles.length - 1]?.startedAt
+                                  : null);
+
                               const totalWaitMs =
                                 task.approvalWaitingMs ||
-                                (task.reviewStartedAt && task.completedAt
+                                (effectiveReviewStart && task.completedAt
                                   ? calculateBusinessMs(
-                                      task.reviewStartedAt,
+                                      effectiveReviewStart,
                                       task.completedAt,
                                     )
                                   : 0);
@@ -3107,7 +3121,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                               };
 
                               const startInfo = formatApprovalDate(
-                                task.reviewStartedAt,
+                                effectiveReviewStart,
                               );
                               const endInfo = formatApprovalDate(
                                 task.completedAt,

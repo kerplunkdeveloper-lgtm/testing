@@ -110,6 +110,10 @@ const SubtaskSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  lastReviewStartedAt: {
+    type: Date,
+    default: null,
+  },
   completedAt: {
     type: Date,
     default: null,
@@ -260,6 +264,10 @@ const TaskSchema = new mongoose.Schema(
       default: 0,
     },
     reviewStartedAt: {
+      type: Date,
+      default: null,
+    },
+    lastReviewStartedAt: {
       type: Date,
       default: null,
     },

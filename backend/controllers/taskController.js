@@ -423,6 +423,7 @@ if (req.body.status && req.body.status !== previousStatus) {
        durationMs
      };
      req.body.reviewCycles = [...(task.reviewCycles || []), newCycle];
+     req.body.lastReviewStartedAt = reviewStart;
      req.body.reviewStartedAt = null;
   }
 
@@ -552,7 +553,9 @@ if (req.body.status && req.body.status !== previousStatus) {
         req.body.pausedAt = Date.now();
       }
       if (!task.reviewStartedAt || !wasInReview) {
-        req.body.reviewStartedAt = Date.now();
+        const nowMs = Date.now();
+        req.body.reviewStartedAt = nowMs;
+        req.body.lastReviewStartedAt = nowMs;
       }
       break;
   }
@@ -617,6 +620,7 @@ if (req.body.subtasks) {
            durationMs
          };
          sub.reviewCycles = [...(prevSub.reviewCycles || []), newCycle];
+         sub.lastReviewStartedAt = reviewStart;
          sub.reviewStartedAt = null;
       }
 
@@ -731,7 +735,9 @@ if (req.body.subtasks) {
             sub.pausedAt = Date.now();
           }
           if (!prevSub.reviewStartedAt || !wasSubInReview) {
-            sub.reviewStartedAt = Date.now();
+            const nowMs = Date.now();
+            sub.reviewStartedAt = nowMs;
+            sub.lastReviewStartedAt = nowMs;
           }
           break;
       }

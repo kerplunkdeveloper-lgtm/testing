@@ -331,7 +331,14 @@ const formatBusinessDuration = (ms) => {
   return `${m}m ${s}s`;
 };
 const ApprovalTimeDisplay = React.memo(
-  ({ reviewStartedAt, completedAt, approvalWaitingMs, status }) => {
+  ({
+    reviewStartedAt,
+    completedAt,
+    approvalWaitingMs,
+    status,
+    lastReviewStartedAt,
+    reviewCycles,
+  }) => {
     const [liveElapsed, setLiveElapsed] = useState(0);
     const [showPopup, setShowPopup] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0 });
@@ -370,7 +377,14 @@ const ApprovalTimeDisplay = React.memo(
         document.removeEventListener("mousedown", handleClickOutside);
     }, [showPopup]);
 
-    if (!reviewStartedAt && !approvalWaitingMs) {
+    const effectiveReviewStart =
+      reviewStartedAt ||
+      lastReviewStartedAt ||
+      (reviewCycles && reviewCycles.length > 0
+        ? reviewCycles[reviewCycles.length - 1]?.startedAt
+        : null);
+
+    if (!effectiveReviewStart && !approvalWaitingMs) {
       return (
         <span className="text-slate-350 dark:text-slate-655 text-[9.5px]">—</span>
       );
@@ -401,7 +415,7 @@ const ApprovalTimeDisplay = React.memo(
 
     const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
     const isInReview = status === "In Review";
-    const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
+    const revInfo = effectiveReviewStart ? formatDateTime(effectiveReviewStart) : null;
     const doneInfo = completedAt ? formatDateTime(completedAt) : null;
 
     const handleToggle = (e) => {
@@ -2511,6 +2525,8 @@ const TaskOverviewTab = ({
                               completedAt={task.completedAt}
                               approvalWaitingMs={task.approvalWaitingMs}
                               status={task.status}
+                              lastReviewStartedAt={task.lastReviewStartedAt}
+                              reviewCycles={task.reviewCycles}
                             />
                           </td>
                         )}
