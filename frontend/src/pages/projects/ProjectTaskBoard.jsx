@@ -4161,7 +4161,7 @@ const ProjectTaskBoard = ({
                               )}
                               {/* Content Type Column */}
                               {!hiddenColumns.contentType && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[100px]">
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[160px] w-[180px]">
                                   Content Type
                                 </th>
                               )}
@@ -5558,7 +5558,7 @@ const ProjectTaskBoard = ({
 
                                                       {/* Content Type Column */}
                                                       {!hiddenColumns.contentType && (
-                                                        <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
+                                                        <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 min-w-[160px] w-[180px]">
                                                           <div
                                                             onClick={(e) =>
                                                               e.stopPropagation()
@@ -6794,7 +6794,7 @@ const ProjectTaskBoard = ({
 
                                                               {/* 6. Content Type Column */}
                                                               {!hiddenColumns.contentType && (
-                                                                <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
+                                                                <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700 min-w-[160px] w-[180px]">
                                                                   <div
                                                                     onClick={(
                                                                       e,
@@ -6848,7 +6848,7 @@ const ProjectTaskBoard = ({
                                                                             );
                                                                           }
                                                                         }}
-                                                                        className={`badge-select ${
+                                                                        className={`badge-select w-full min-w-[140px] ${
                                                                           sub.contentType ===
                                                                           "VIDEO"
                                                                             ? "badge-type-video"

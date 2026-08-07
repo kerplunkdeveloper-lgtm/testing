@@ -28,6 +28,7 @@ import {
   FiAlertTriangle,
   FiUser,
   FiSearch,
+  FiDownload,
 } from "react-icons/fi";
 import {
   useUpdateTaskMutation,
@@ -966,16 +967,13 @@ const MyTasksTab = ({
         );
       }
       if (
+        statusFilter === "Active Tasks" ||
+        statusFilter === "Pending,In Progress,In Review,Correction,On Hold" ||
         statusFilter === "Pending,In Progress,In Review,On Hold" ||
         statusFilter === "Pending,In Progress,In Review"
       ) {
         const s = (task.status || "Pending").toUpperCase();
-        return (
-          s === "PENDING" ||
-          s === "IN PROGRESS" ||
-          s === "IN REVIEW" ||
-          s === "ON HOLD"
-        );
+        return s !== "COMPLETED" && s !== "REJECTED";
       }
       return task.status === statusFilter;
     });
@@ -1702,72 +1700,231 @@ const MyTasksTab = ({
     return Object.entries(assignersMap).map(([id, name]) => ({ id, name }));
   }, [activeTasksList]);
 
+  const handleExportExcel = () => {
+    const tasksToExport = sortedTasks && sortedTasks.length > 0 ? sortedTasks : activeTasksList;
+    if (!tasksToExport || tasksToExport.length === 0) {
+      toast.error("No tasks data available to export");
+      return;
+    }
+
+    const headers = [
+      "ID",
+      "Priority",
+      "Task Name",
+      "Content Copy",
+      "Client",
+      "Content-type",
+      "Status",
+      "Blocker",
+      "Inprogress time taken",
+      "Blocker time",
+      "Time tracker",
+      "Revision",
+      "Start Date",
+      "DUE DATE",
+      "Assigned By",
+      "Approval Info",
+      "Created Time",
+    ];
+
+    const formatSecs = (secs) => {
+      if (!secs || secs <= 0) return "0m 0s";
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      return `${h > 0 ? `${h}h ` : ""}${m}m ${s}s`;
+    };
+
+    const computeTaskTimes = (task) => {
+      if (!task.actualStartTime) {
+        return { activeStr: "Not started", blockerStr: "0m 0s", totalStr: "0m 0s" };
+      }
+      const start = new Date(task.actualStartTime).getTime();
+      let end;
+      if (task.actualEndTime) {
+        end = new Date(task.actualEndTime).getTime();
+      } else if (
+        task.pausedAt &&
+        ["On Hold", "Rejected", "In Review", "Correction"].includes(task.status)
+      ) {
+        end = new Date(task.pausedAt).getTime();
+      } else {
+        end = Date.now();
+      }
+
+      let totalPauseMs = 0;
+      if (task.blockerHistory && task.blockerHistory.length > 0) {
+        task.blockerHistory.forEach((item) => {
+          if (item.pausedAt) {
+            const p = new Date(item.pausedAt).getTime();
+            let r = item.resumedAt ? new Date(item.resumedAt).getTime() : Date.now();
+            if (r > end) r = end;
+            if (r >= p) totalPauseMs += r - p;
+          }
+        });
+      }
+
+      if (task.isBlocked && task.blockerPausedAt) {
+        const pauseStart = new Date(task.blockerPausedAt).getTime();
+        if (pauseStart < end) totalPauseMs += end - pauseStart;
+      }
+
+      const totalElapsedMs = end - start - (task.totalPausedMs || 0) - totalPauseMs;
+      const activeSecs = Math.max(0, Math.floor(totalElapsedMs / 1000));
+      const blockedSecs = Math.max(0, Math.floor(totalPauseMs / 1000));
+
+      return {
+        activeStr: formatSecs(activeSecs),
+        blockerStr: formatSecs(blockedSecs),
+        totalStr: formatSecs(activeSecs + blockedSecs),
+      };
+    };
+
+    const computeApprovalStr = (task) => {
+      const effectiveReviewStart =
+        task.reviewStartedAt ||
+        task.lastReviewStartedAt ||
+        (task.reviewCycles && task.reviewCycles.length > 0
+          ? task.reviewCycles[task.reviewCycles.length - 1]?.startedAt
+          : null);
+
+      if (!effectiveReviewStart && !task.approvalWaitingMs) return "—";
+
+      let durationMs = task.approvalWaitingMs || 0;
+      if (task.status === "In Review" && effectiveReviewStart) {
+        durationMs += Math.max(0, Date.now() - new Date(effectiveReviewStart).getTime());
+      }
+      if (!durationMs || durationMs <= 0) return "—";
+      const totalSecs = Math.floor(durationMs / 1000);
+      return formatSecs(totalSecs);
+    };
+
+    const rows = tasksToExport.map((task) => {
+      const displayId = getTaskDisplayId ? getTaskDisplayId(task) : task._id || "";
+      const projId = task.project?._id || task.project;
+      const projectObj = (projects || []).find((p) => p._id === projId);
+      const clientRaw = task.project?.client?.companyName
+        ? task.project.client
+        : projectObj?.client || task.project?.client;
+      const clientName = clientRaw?.companyName || "No Client";
+
+      const createdBy = task.createdBy?.name || "Unknown";
+      const startDate = task.startDate ? formatDate(task.startDate) : "—";
+      const dueDate = task.dueDate ? formatDate(task.dueDate) : "—";
+      const createdTime = task.createdAt ? new Date(task.createdAt).toLocaleString() : "—";
+      const blockerStr = task.isBlocked ? (task.blockerReason || "Blocked") : "—";
+      const contentCopy = task.contentCopy || task.copy || "—";
+      const revisionCount = task.reviewCycles?.length || 0;
+
+      const { activeStr, blockerStr: blockerTimeStr, totalStr } = computeTaskTimes(task);
+      const approvalStr = computeApprovalStr(task);
+
+      return [
+        displayId,
+        task.priority || "Medium",
+        task.title || "",
+        contentCopy,
+        clientName,
+        task.contentType || "NONE",
+        task.status || "Pending",
+        blockerStr,
+        activeStr,
+        blockerTimeStr,
+        totalStr,
+        revisionCount,
+        startDate,
+        dueDate,
+        createdBy,
+        approvalStr,
+        createdTime,
+      ];
+    });
+
+    const csvContent =
+      "\uFEFF" +
+      [headers, ...rows]
+        .map((e) => e.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    const todayStr = new Date().toISOString().split("T")[0];
+    link.setAttribute("download", `My_Tasks_${todayStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("My Tasks data exported to Excel!");
+  };
+
   return (
     <>
       {/* UNIFIED HEADER & CONTROLS */}
-      <div className="flex px-4 xl:px-8 py-3 flex-col lg:flex-row items-center justify-between gap-4 bg-white dark:bg-[#11131e] relative z-30 border-b border-slate-100 dark:border-slate-800/60">
+      <div className="flex px-4 xl:px-6 py-2.5 items-center justify-between gap-3 bg-white dark:bg-[#11131e] relative z-30 border-b border-slate-100 dark:border-slate-800/60 flex-wrap xl:flex-nowrap">
         {/* Left: Search Bar */}
-        <div className="relative w-full lg:w-64 shrink-0">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none" />
+        <div className="relative w-40 sm:w-90 shrink-0">
+         
           <input
             type="text"
-            placeholder="Search..."
+            placeholder="Search tasks..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200 shadow-2xs transition-all"
+            className="w-full px-3 py-1.5 text-[11px] font-semibold rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200 shadow-2xs transition-all"
           />
           {searchTerm && (
             <button
               type="button"
               onClick={() => setSearchTerm("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
             >
-              <FiX size={12} />
+              <FiX size={11} />
             </button>
           )}
         </div>
 
         {/* Center: View Toggle */}
-        <div className="flex bg-slate-50 dark:bg-black p-1 rounded-xl shrink-0 justify-center">
+        <div className="flex bg-slate-100/80 dark:bg-black/40 p-0.5 rounded-xl shrink-0 items-center justify-center">
           <button
             onClick={() => setViewType("list")}
-            className={`flex items-center justify-center gap-2 px-5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
               viewType === "list"
-                ? "bg-white dark:bg-[#11131e] text-blue-600 dark:text-[#3b82f6] shadow-sm border theme-border-accent"
+                ? "bg-white dark:bg-[#11131e] text-blue-600 dark:text-[#3b82f6] shadow-xs border border-slate-200/60 dark:border-white/10"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
-            <FiList size={14} /> List
+            <FiList size={12} /> List
           </button>
           <button
             onClick={() => setViewType("kanban")}
-            className={`flex items-center justify-center gap-2 px-5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
               viewType === "kanban"
-                ? "bg-white dark:bg-[#11131e] text-blue-600 dark:text-[#3b82f6] shadow-sm border theme-border-accent"
+                ? "bg-white dark:bg-[#11131e] text-blue-600 dark:text-[#3b82f6] shadow-xs border border-slate-200/60 dark:border-white/10"
                 : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
-            <FiGrid size={14} /> Kanban
+            <FiGrid size={12} /> Kanban
           </button>
         </div>
 
-        {/* Right: Individual Filter Dropdowns */}
-        <div className="flex items-center justify-end gap-2.5 flex-wrap w-full lg:w-auto">
+        {/* Right: Individual Filter Dropdowns & Export Button */}
+        <div className="flex items-center justify-end gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
           {/* Date Filter Dropdown */}
-          <div className="relative" ref={dateDropdownRef}>
+          <div className="relative shrink-0" ref={dateDropdownRef}>
             <button
               type="button"
               onClick={() => setShowDateDropdown((prev) => !prev)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+              className={`py-1.5 px-2.5 flex items-center justify-center gap-1 rounded-xl border text-[11px] font-extrabold transition-all shadow-2xs cursor-pointer ${
                 dateFilter !== "All"
-                  ? "bg-emerald-50/80 border-emerald-300 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-500/40 dark:text-emerald-300 font-extrabold"
+                  ? "bg-emerald-50/80 border-emerald-300 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-500/40 dark:text-emerald-300 font-black"
                   : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-emerald-500/50"
               }`}
             >
-              <FiFilter className="text-emerald-500 text-xs" />
+              <FiFilter className="text-emerald-500 text-[11px]" />
               <span>{dateFilter === "All" ? "Filter Date" : dateFilter}</span>
               <FiChevronDown
-                size={13}
+                size={11}
                 className={`text-slate-400 transition-transform duration-200 ${
                   showDateDropdown ? "rotate-180" : ""
                 }`}
@@ -1814,83 +1971,34 @@ const MyTasksTab = ({
             </AnimatePresence>
           </div>
 
-          {/* Status Filter Dropdown */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all outline-none cursor-pointer shadow-2xs ${
-              statusFilter !== "All"
-                ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-300 font-extrabold"
+          {/* Offcanvas Filter Drawer Button */}
+          <button
+            type="button"
+            onClick={() => setFilterPanelOpen(true)}
+            className={`py-1.5 px-2.5 flex items-center justify-center gap-1.5 rounded-xl border text-[11px] font-extrabold transition-all shadow-2xs cursor-pointer ${
+              priorityFilter !== "All" || projectFilter !== "All" || statusFilter !== "All" || clientFilter !== "All" || dateFilter !== "All" || assignerFilter !== "All"
+                ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-300 font-black"
                 : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-blue-500/50"
             }`}
+            title="Open full offcanvas filter panel"
           >
-            <option value="All">Status: All</option>
-            <option value="Pending">⏳ Pending</option>
-            <option value="In Progress">⚡ In Progress</option>
-            <option value="In Review">🔍 In Review</option>
-            <option value="Correction">🛠️ Correction</option>
-            <option value="On Hold">⏸️ On Hold</option>
-            <option value="Completed">✅ Completed</option>
-            <option value="Rejected">❌ Rejected</option>
-          </select>
+            <FiFilter className="text-blue-500 text-[11px]" />
+            <span>Filter</span>
+            {(priorityFilter !== "All" || projectFilter !== "All" || statusFilter !== "All" || clientFilter !== "All" || dateFilter !== "All" || assignerFilter !== "All") && (
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            )}
+          </button>
 
-          {/* Client Filter Dropdown */}
-          <select
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all outline-none cursor-pointer shadow-2xs max-w-[150px] truncate ${
-              clientFilter !== "All"
-                ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-300 font-extrabold"
-                : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-blue-500/50"
-            }`}
+          {/* Export Excel Button */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="py-1.5 px-2.5 flex items-center justify-center gap-1 rounded-xl border border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 text-[11px] font-black cursor-pointer transition-all shadow-2xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 shrink-0"
+            title="Export table data to Excel"
           >
-            <option value="All">Client: All</option>
-            {uniqueClients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Assigned By Filter Dropdown */}
-          <select
-            value={assignerFilter}
-            onChange={(e) => setAssignerFilter(e.target.value)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all outline-none cursor-pointer shadow-2xs max-w-[160px] truncate ${
-              assignerFilter !== "All"
-                ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-300 font-extrabold"
-                : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-blue-500/50"
-            }`}
-          >
-            <option value="All">Assigned By: All</option>
-            {uniqueAssigners.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Reset Filters button */}
-          {(statusFilter !== "All" ||
-            clientFilter !== "All" ||
-            assignerFilter !== "All" ||
-            dateFilter !== "All" ||
-            searchTerm !== "") && (
-            <button
-              type="button"
-              onClick={() => {
-                setStatusFilter("All");
-                setClientFilter("All");
-                setAssignerFilter("All");
-                setDateFilter("All");
-                setSearchTerm("");
-              }}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 transition-all cursor-pointer flex items-center gap-1"
-              title="Reset all filters"
-            >
-              <FiX size={13} /> Reset
-            </button>
-          )}
+            <FiDownload size={12} className="text-emerald-600 dark:text-emerald-400" />
+            <span>Export Excel</span>
+          </button>
         </div>
       </div>
 
@@ -1974,8 +2082,8 @@ const MyTasksTab = ({
                         color: "bg-slate-400",
                       },
                       {
-                        name: "Pending,In Progress,In Review,Correction,On Hold",
-                        label: "Pending / In Progress / In Review / Correction / On Hold",
+                        name: "Active Tasks",
+                        label: "⚡ Active Tasks",
                         color: "bg-indigo-500",
                       },
                       {

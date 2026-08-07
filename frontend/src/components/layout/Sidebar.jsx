@@ -915,8 +915,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
 
             const renderPortfoliosList = () => {
               const canSeeMyProject =
-                currentUser?.role?.toLowerCase() === "admin" ||
-                currentUser?.role?.toLowerCase() === "operationmanager";
+                currentUser?.role?.toLowerCase() === "admin";
 
               return (
                 <>

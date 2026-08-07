@@ -658,9 +658,7 @@ const Dashboardmain = () => {
   const { users } = useSelector((state) => state.users);
 
   // Goals logic
-  const { data: goals = [] } = useGetGoalsQuery(undefined, {
-    skip: user?.role !== "admin",
-  });
+  const { data: goals = [] } = useGetGoalsQuery();
   const [createGoal] = useCreateGoalMutation();
   const [updateGoal] = useUpdateGoalMutation();
   const [deleteGoal] = useDeleteGoalMutation();
@@ -1618,6 +1616,20 @@ const Dashboardmain = () => {
       </div>
     );
   };
+  const roleNorm = (user?.role || "").toLowerCase().replace(/[\s_]+/g, "");
+  const desigNorm = (
+    user?.designation ||
+    user?.department ||
+    user?.profile?.department ||
+    ""
+  ).toLowerCase();
+  const canSeeGoalsAndProjects =
+    roleNorm === "admin" ||
+    roleNorm === "operationmanager" ||
+    roleNorm === "socialmediamanager" ||
+    desigNorm.includes("social media") ||
+    desigNorm.includes("operation manager") ||
+    desigNorm.includes("admin");
 
   return (
     <div className="space-y-4 pb-6 ">
@@ -1625,10 +1637,11 @@ const Dashboardmain = () => {
       {/* GREETING */}
       <WelcomeUser />
 
-      {/* Admin - task shortcut  */}
-      {user?.role === "admin" && (
+      {/* Goal tasks & My Projects shortcut - shown ONLY for Admin, Operation Manager, and Social Media Manager */}
+      {canSeeGoalsAndProjects && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2 relative z-10">
-          <div className="sidebar-bg rounded-xl border border-slate-200 dark:border-white/5 shadow-xs p-6 flex flex-col min-h-[400px] relative">
+          {/* My Goals tasks card */}
+          <div className="sidebar-bg rounded-xl border border-slate-200 dark:border-white/5 shadow-xs p-6 flex flex-col min-h-[400px] relative w-full">
             {/* Header: Avatar, Title, Lock, and Dots menu */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -1680,7 +1693,7 @@ const Dashboardmain = () => {
                     className={`text-[13px] font-medium pb-2 cursor-pointer relative transition-colors ${
                       isActive
                         ? "text-slate-900 dark:text-slate-500 font-semibold"
-                        : "text-slate-450 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-400"
+                        : "text-slate-455 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-400"
                     }`}
                   >
                     {tab.label}
@@ -1734,7 +1747,7 @@ const Dashboardmain = () => {
                               <FiCheck size={11} className="stroke-[3]" />
                             </div>
                           ) : (
-                            <div className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-300 dark:text-slate-700 hover:border-slate-450 transition-all">
+                            <div className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-300 dark:text-slate-700 hover:border-slate-455 transition-all">
                               <FiCheck
                                 size={11}
                                 className="text-slate-100 dark:text-[#1e1e1e]"
@@ -1870,7 +1883,7 @@ const Dashboardmain = () => {
                         setGoalPage((prev) => Math.max(prev - 1, 1))
                       }
                       disabled={goalPage === 1}
-                      className="w-7 h-7 rounded-lg border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-450 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-white/5 transition-all cursor-pointer"
+                      className="w-7 h-7 rounded-lg border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-455 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-white/5 transition-all cursor-pointer"
                     >
                       &lt;
                     </button>
@@ -1918,7 +1931,7 @@ const Dashboardmain = () => {
             )}
           </div>
 
-          {/* MY PROJECTS card matching reference image */}
+          {/* MY PROJECTS card */}
           <div className="sidebar-bg rounded-xl border border-slate-200 dark:border-white/5 shadow-xs p-6 flex flex-col min-h-[400px]">
             {/* Header: Title and Go to project page link */}
             <div className="flex items-center justify-between mb-6">
