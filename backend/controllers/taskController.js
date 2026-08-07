@@ -148,6 +148,31 @@ exports.getTasks = async (req, res) => {
         select: "name email profile",
         populate: { path: "profile", select: "profileImage" }
       })
+      .populate({
+        path: "feedbacks.addedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "correctionHistory.requestedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "rejectionHistory.rejectedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.correctionHistory.requestedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.rejectionHistory.rejectedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
       .lean();
 
     res.status(200).json({
@@ -241,6 +266,31 @@ exports.createTask = async (req, res) => {
       .populate({
         path: "attachments.uploadedBy",
         select: "name email profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "feedbacks.addedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "correctionHistory.requestedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "rejectionHistory.rejectedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.correctionHistory.requestedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.rejectionHistory.rejectedBy",
+        select: "name email department profile",
         populate: { path: "profile", select: "profileImage" }
       });
 
@@ -400,6 +450,14 @@ if (req.body.status && req.body.status !== previousStatus) {
           calculateBusinessMs(task.pausedAt, Date.now());
       }
 
+      if (previousStatus === "Correction") {
+        const currentHist = task.correctionHistory ? JSON.parse(JSON.stringify(task.correctionHistory)) : [];
+        if (currentHist.length > 0) {
+          currentHist[currentHist.length - 1].resumedAt = new Date();
+          req.body.correctionHistory = currentHist;
+        }
+      }
+
       req.body.pausedAt = null;
       break;
 
@@ -430,10 +488,58 @@ if (req.body.status && req.body.status !== previousStatus) {
       }
       break;
 
-    case "Rejected":
+    case "Correction":
+      const nextRev = (task.revisions || 0) + 1;
+      req.body.revisions = nextRev;
       if (!task.pausedAt) {
         req.body.pausedAt = Date.now();
       }
+      const corrReason = req.body.correctionReason || req.body.reason || "Corrections requested";
+      const corrEntry = {
+        revision: nextRev,
+        reason: corrReason,
+        requestedBy: req.user._id,
+        requestedAt: new Date(),
+      };
+      req.body.correctionHistory = [...(task.correctionHistory || []), corrEntry];
+      const corrFeedback = {
+        type: "Correction",
+        text: corrReason,
+        addedBy: req.user._id,
+        addedAt: new Date(),
+      };
+      req.body.feedbacks = [...(task.feedbacks || []), corrFeedback];
+      break;
+
+    case "Rejected":
+      if (!task.actualEndTime) {
+        req.body.actualEndTime = Date.now();
+      }
+      req.body.completedAt = Date.now();
+      req.body.pausedAt = null;
+
+      const rejReason = req.body.rejectionReason || req.body.reason || "Task rejected";
+      const rejEntry = {
+        reason: rejReason,
+        rejectedBy: req.user._id,
+        rejectedAt: new Date(),
+      };
+      if (req.body.rejectionHistory && Array.isArray(req.body.rejectionHistory)) {
+        req.body.rejectionHistory = req.body.rejectionHistory.map((item) => ({
+          ...item,
+          rejectedBy: item.rejectedBy || req.user._id,
+          rejectedAt: item.rejectedAt || new Date(),
+        }));
+      } else {
+        req.body.rejectionHistory = [...(task.rejectionHistory || []), rejEntry];
+      }
+      const rejFeedback = {
+        type: "Rejected",
+        text: rejReason,
+        addedBy: req.user._id,
+        addedAt: new Date(),
+      };
+      req.body.feedbacks = [...(task.feedbacks || []), rejFeedback];
       break;
 
     case "In Review":
@@ -449,10 +555,6 @@ if (req.body.status && req.body.status !== previousStatus) {
         req.body.reviewStartedAt = Date.now();
       }
       break;
-  }
-
-  if (req.body.status === "Rejected" && previousStatus !== "Rejected") {
-    req.body.revisions = (task.revisions || 0) + 1;
   }
 }
     // .........................................Time tracking logic for subtasks...........................................    
@@ -487,10 +589,6 @@ for (const sub of req.body.subtasks || []) {
     }
   }
 }
-
-
-
-
 
 
 
@@ -546,6 +644,14 @@ if (req.body.subtasks) {
               calculateBusinessMs(prevSub.pausedAt, Date.now());
           }
 
+          if (prevSub.status === "Correction") {
+            const currentSubHist = prevSub.correctionHistory ? JSON.parse(JSON.stringify(prevSub.correctionHistory)) : [];
+            if (currentSubHist.length > 0) {
+              currentSubHist[currentSubHist.length - 1].resumedAt = new Date();
+              sub.correctionHistory = currentSubHist;
+            }
+          }
+
           sub.pausedAt = null;
           sub.autoPaused = false;
           break;
@@ -577,9 +683,41 @@ if (req.body.subtasks) {
           }
           break;
 
-        case "Rejected":
+        case "Correction":
+          const nextSubRev = (prevSub.revisions || 0) + 1;
+          sub.revisions = nextSubRev;
           if (!prevSub.pausedAt) {
             sub.pausedAt = Date.now();
+          }
+          const subCorrReason = sub.correctionReason || sub.reason || "Corrections requested";
+          sub.correctionHistory = [
+            ...(prevSub.correctionHistory || []),
+            {
+              revision: nextSubRev,
+              reason: subCorrReason,
+              requestedBy: req.user._id,
+              requestedAt: new Date(),
+            }
+          ];
+          break;
+
+        case "Rejected":
+          if (!prevSub.actualEndTime && !sub.actualEndTime) {
+            sub.actualEndTime = Date.now();
+          }
+          sub.completedAt = Date.now();
+          sub.pausedAt = null;
+
+          const subRejReason = sub.rejectionReason || sub.reason || "Subtask rejected";
+          if (!sub.rejectionHistory) {
+            sub.rejectionHistory = [
+              ...(prevSub.rejectionHistory || []),
+              {
+                reason: subRejReason,
+                rejectedBy: req.user._id,
+                rejectedAt: new Date(),
+              }
+            ];
           }
           break;
 
@@ -657,6 +795,31 @@ if (req.body.subtasks) {
       .populate({
         path: "attachments.uploadedBy",
         select: "name email profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "feedbacks.addedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "correctionHistory.requestedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "rejectionHistory.rejectedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.correctionHistory.requestedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.rejectionHistory.rejectedBy",
+        select: "name email department profile",
         populate: { path: "profile", select: "profileImage" }
       });
 

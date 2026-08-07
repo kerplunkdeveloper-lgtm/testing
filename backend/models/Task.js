@@ -127,6 +127,34 @@ const SubtaskSchema = new mongoose.Schema({
   ],
 
 
+  correctionHistory: [
+    {
+      revision: {
+        type: Number,
+        default: 1,
+      },
+      reason: {
+        type: String,
+        default: "",
+      },
+      requestedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      requestedAt: {
+        type: Date,
+        default: Date.now,
+      },
+      resumedAt: {
+        type: Date,
+        default: null,
+      },
+      completedAt: {
+        type: Date,
+        default: null,
+      },
+    }
+  ],
   rejectionHistory: [
     {
       reason: String,
@@ -151,6 +179,11 @@ const TaskSchema = new mongoose.Schema(
     },
     feedbacks: [
       {
+        type: {
+          type: String,
+          enum: ["Review", "Correction", "Rejected"],
+          default: "Review",
+        },
         text: String,
         addedAt: {
           type: Date,
@@ -295,6 +328,34 @@ const TaskSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",
     },
+    correctionHistory: [
+      {
+        revision: {
+          type: Number,
+          default: 1,
+        },
+        reason: {
+          type: String,
+          default: "",
+        },
+        requestedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        requestedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        resumedAt: {
+          type: Date,
+          default: null,
+        },
+        completedAt: {
+          type: Date,
+          default: null,
+        },
+      }
+    ],
     rejectionHistory: [
       {
         reason: String,

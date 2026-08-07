@@ -53,6 +53,7 @@ import {
 import { updateProject } from "../../features/projects/projectSlice";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import ProjectIcon from "../../components/common/ProjectIcon";
+import CorrectionModal from "../../components/CorrectionModal";
 import ClientBadge, {
   getClientBranding,
 } from "../../components/common/ClientBadge";
@@ -67,6 +68,18 @@ const formatBusinessDuration = (ms) => {
   const s = totalSeconds % 60;
   if (h > 0) return `${h}h ${m}m ${s}s`;
   return `${m}m ${s}s`;
+};
+
+const getStatusWithEmoji = (status) => {
+  const s = (status || "").toLowerCase();
+  if (s === "pending" || s === "to do") return "⏳ Pending";
+  if (s.includes("progress")) return "⚡ In Progress";
+  if (s.includes("review")) return "🔍 In Review";
+  if (s.includes("correction")) return "🛠️ Correction";
+  if (s === "completed" || s.includes("approve") || s === "done") return "✅ Completed";
+  if (s.includes("hold")) return "⏸️ On Hold";
+  if (s.includes("reject")) return "❌ Rejected";
+  return `⏳ ${status || "Pending"}`;
 };
 
 export const isSameDate = (d1, d2) => {
@@ -1708,6 +1721,10 @@ const ProjectTaskBoard = ({
   const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
   const [taskToReject, setTaskToReject] = useState(null); // { taskId, subtaskId, previousStatus, taskObj }
 
+  // Correction Modal State
+  const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
+  const [taskToCorrect, setTaskToCorrect] = useState(null); // { taskId, subtaskId, previousStatus, taskObj }
+
   // Helper to format date range beautifully (e.g. Jun 2 - 4)
   const formatDateRange = (startStr, endStr) => {
     if (!startStr && !endStr) return "";
@@ -2567,6 +2584,19 @@ const ProjectTaskBoard = ({
       }
     }
 
+    // Intercept correction status
+    if (fields.status === "Correction") {
+      const taskObj = localTasks.find((t) => t._id === taskId);
+      setTaskToCorrect({
+        taskId,
+        subtaskId: null,
+        previousStatus: taskObj?.status,
+        taskObj,
+      });
+      setCorrectionModalOpen(true);
+      return;
+    }
+
     // Intercept rejection status
     if (fields.status === "Rejected") {
       const taskObj = localTasks.find((t) => t._id === taskId);
@@ -2987,6 +3017,19 @@ const ProjectTaskBoard = ({
       }
     }
 
+    // Intercept correction status
+    if (updatedFields.status === "Correction") {
+      const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
+      setTaskToCorrect({
+        taskId: task._id,
+        subtaskId,
+        previousStatus: subtaskObj?.status,
+        taskObj: task,
+      });
+      setCorrectionModalOpen(true);
+      return;
+    }
+
     // Intercept rejection status
     if (updatedFields.status === "Rejected") {
       const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
@@ -3111,20 +3154,20 @@ const ProjectTaskBoard = ({
   const handleRejectSubmit = async (reason) => {
     if (!taskToReject) return;
 
-    const rejectionData = {
+    const rejItem = {
       reason,
-      rejectedBy: currentUser?._id,
+      rejectedBy: currentUser?._id || currentUser?.id || currentUser,
       rejectedAt: new Date().toISOString(),
     };
 
     if (taskToReject.subtaskId) {
       // Subtask Rejection
       const task = taskToReject.taskObj;
-      const subtaskObj = task.subtasks?.find(
+      const subtask = task.subtasks?.find(
         (s) => s._id === taskToReject.subtaskId,
       );
-      const currentHistory = subtaskObj?.rejectionHistory || [];
-      const updatedHistory = [...currentHistory, rejectionData];
+      const currentHistory = subtask?.rejectionHistory || [];
+      const updatedHistory = [...currentHistory, rejItem];
 
       const updatedSubtasks = task.subtasks.map((sub) =>
         sub._id === taskToReject.subtaskId
@@ -3145,7 +3188,7 @@ const ProjectTaskBoard = ({
       // Task Rejection
       const task = taskToReject.taskObj;
       const currentHistory = task?.rejectionHistory || [];
-      const updatedHistory = [...currentHistory, rejectionData];
+      const updatedHistory = [...currentHistory, rejItem];
 
       // Optimistic update
       setLocalTasks((prev) =>
@@ -3181,6 +3224,44 @@ const ProjectTaskBoard = ({
 
     setRejectionModalOpen(false);
     setTaskToReject(null);
+  };
+
+  // Handle Submission of Correction Modal
+  const handleCorrectionSubmit = async (reason) => {
+    if (!taskToCorrect) return;
+
+    if (taskToCorrect.subtaskId) {
+      const task = taskToCorrect.taskObj;
+      const updatedSubtasks = (task.subtasks || []).map((sub) =>
+        sub._id === taskToCorrect.subtaskId
+          ? { ...sub, status: "Correction", correctionReason: reason }
+          : sub,
+      );
+
+      try {
+        await updateTaskMutation({
+          id: task._id,
+          taskData: { subtasks: updatedSubtasks },
+        }).unwrap();
+        toast.success("Subtask sent for Correction");
+      } catch (err) {
+        console.error("Failed to send subtask for correction:", err);
+      }
+    } else {
+      const task = taskToCorrect.taskObj;
+      try {
+        await updateTaskMutation({
+          id: task._id,
+          taskData: { status: "Correction", correctionReason: reason },
+        }).unwrap();
+        toast.success("Task sent for Correction");
+      } catch (err) {
+        console.error("Failed to send task for correction:", err);
+      }
+    }
+
+    setCorrectionModalOpen(false);
+    setTaskToCorrect(null);
   };
 
   // Insert new subtask on Enter key press
@@ -4176,11 +4257,29 @@ const ProjectTaskBoard = ({
                             }
                             return sectionsToRender.map(
                               (sectionName, sectionIndex) => {
-                                const sectionTasks = sortedTasks.filter(
-                                  (t) =>
-                                    t.section === sectionName ||
-                                    (!t.section && sectionName === "General"),
-                                );
+                                const STATUS_ORDER = {
+                                  "Pending": 1,
+                                  "To Do": 1,
+                                  "In Progress": 2,
+                                  "On Hold": 3,
+                                  "In Review": 4,
+                                  "IN-REVIEW": 4,
+                                  "Correction": 5,
+                                  "Completed": 6,
+                                  "Done": 6,
+                                  "Rejected": 7,
+                                };
+                                const sectionTasks = sortedTasks
+                                  .filter(
+                                    (t) =>
+                                      t.section === sectionName ||
+                                      (!t.section && sectionName === "General"),
+                                  )
+                                  .sort((a, b) => {
+                                    const orderA = STATUS_ORDER[a.status] || 99;
+                                    const orderB = STATUS_ORDER[b.status] || 99;
+                                    return orderA - orderB;
+                                  });
                                 const isSectionCollapsed =
                                   !!collapsedSections[sectionName];
 
@@ -4738,19 +4837,31 @@ const ProjectTaskBoard = ({
                                                 const canToggle =
                                                   isAdminOrManager ||
                                                   task.assignedTo?._id ===
-                                                    currentUser?._id ||
+                                                  currentUser?._id ||
                                                   task.assignedTo ===
                                                     currentUser?._id;
 
                                                 const isSelected =
                                                   selectedTaskId === task._id;
+                                                const isRejected =
+                                                  task.status === "Rejected";
+                                                const isInReview =
+                                                  task.status === "In Review";
+                                                const isInProgress =
+                                                  task.status === "In Progress";
                                                 const rowBg = isSelected
                                                   ? "bg-blue-50 dark:bg-[#1e293b]"
-                                                  : isCompleted
-                                                    ? "bg-slate-50 text-slate-400 dark:bg-[#18181f] dark:text-slate-550"
-                                                    : taskIndex % 2 === 0
-                                                      ? "bg-white dark:bg-[#111115] text-slate-800 dark:text-slate-100"
-                                                      : "bg-slate-50 dark:bg-[#16161b] text-slate-800 dark:text-slate-100";
+                                                  : isRejected
+                                                    ? "!bg-[#fde8e8] text-rose-950 dark:!bg-[#2c1214] dark:text-rose-200 opacity-80 pointer-events-none !border-rose-300 dark:!border-rose-800/60"
+                                                    : isCompleted
+                                                      ? "!bg-[#e6f4ea] text-emerald-950 dark:!bg-[#0c2919] dark:text-emerald-200"
+                                                      : isInReview
+                                                        ? "!bg-[#fef3c7] text-yellow-950 dark:!bg-[#2e2305] dark:text-yellow-200"
+                                                        : isInProgress
+                                                          ? "!bg-[#f3e8ff] text-purple-950 dark:!bg-[#261342] dark:text-purple-200"
+                                                          : taskIndex % 2 === 0
+                                                            ? "bg-white dark:bg-[#111115] text-slate-800 dark:text-slate-100"
+                                                            : "bg-slate-50 dark:bg-[#16161b] text-slate-800 dark:text-slate-100";
 
                                                 return (
                                                   <React.Fragment
@@ -4916,7 +5027,7 @@ const ProjectTaskBoard = ({
                                                             } ${
                                                               isCompleted
                                                                 ? "bg-emerald-500 border-emerald-500 text-white"
-                                                                : "border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-[#3b82f6] text-transparent hover:text-slate-400 dark:hover:text-[#3b82f6]"
+                                                                : "border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-[#3b82f6] text-transparent hover:text-slate-400 dark:hover:text-slate-400 dark:hover:text-[#3b82f6]"
                                                             }`}
                                                           >
                                                             <FiCheck size={9} />
@@ -5698,7 +5809,7 @@ const ProjectTaskBoard = ({
                                                         </td>
                                                       )}
 
-                                                      {/* Status */}
+                                                      {/* Status Column */}
                                                       {!hiddenColumns.status && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
                                                           <div
@@ -5708,7 +5819,9 @@ const ProjectTaskBoard = ({
                                                           >
                                                             {isAdminOrManager &&
                                                             task.status !==
-                                                              "Completed" ? (
+                                                              "Completed" &&
+                                                            task.status !==
+                                                              "Rejected" ? (
                                                               <select
                                                                 value={
                                                                   task.status ||
@@ -5739,47 +5852,57 @@ const ProjectTaskBoard = ({
                                                                             "IN-Review"
                                                                         ? "badge-status-in-review"
                                                                         : task.status ===
-                                                                            "On Hold"
-                                                                          ? "badge-status-on-hold"
+                                                                            "Correction"
+                                                                          ? "badge-status-correction"
                                                                           : task.status ===
-                                                                              "Rejected"
-                                                                            ? "badge-status-rejected"
-                                                                            : "badge-status-pending"
+                                                                              "On Hold"
+                                                                            ? "badge-status-on-hold"
+                                                                            : task.status ===
+                                                                                "Rejected"
+                                                                              ? "badge-status-rejected"
+                                                                              : "badge-status-pending"
                                                                 }`}
                                                               >
                                                                 {task.status ===
-                                                                "In Review" ? (
+                                                                "In Review" ||
+                                                                task.status ===
+                                                                  "IN-REVIEW" ? (
                                                                   <>
                                                                     <option value="In Review">
-                                                                      In Review
+                                                                      🔍 In Review
+                                                                    </option>
+                                                                    <option value="Correction">
+                                                                      🛠️ Correction
                                                                     </option>
                                                                     <option value="Completed">
-                                                                      Completed
+                                                                      ✅ Completed
                                                                     </option>
                                                                     <option value="Rejected">
-                                                                      Rejected
+                                                                      ❌ Rejected
                                                                     </option>
                                                                   </>
                                                                 ) : (
                                                                   <>
                                                                     <option value="Pending">
-                                                                      Pending
+                                                                      ⏳ Pending
                                                                     </option>
                                                                     <option value="In Progress">
-                                                                      In
-                                                                      Progress
+                                                                      ⚡ In Progress
                                                                     </option>
                                                                     <option value="In Review">
-                                                                      In Review
+                                                                      🔍 In Review
+                                                                    </option>
+                                                                    <option value="Correction">
+                                                                      🛠️ Correction
                                                                     </option>
                                                                     <option value="Completed">
-                                                                      Completed
+                                                                      ✅ Completed
                                                                     </option>
                                                                     <option value="On Hold">
-                                                                      On Hold
+                                                                      ⏸️ On Hold
                                                                     </option>
                                                                     <option value="Rejected">
-                                                                      Rejected
+                                                                      ❌ Rejected
                                                                     </option>
                                                                   </>
                                                                 )}
@@ -5805,11 +5928,7 @@ const ProjectTaskBoard = ({
                                                                             : "badge-status-pending"
                                                                 }`}
                                                               >
-                                                                {task.status ===
-                                                                "In Review"
-                                                                  ? "In Review"
-                                                                  : task.status ||
-                                                                    "Pending"}
+                                                                {getStatusWithEmoji(task.status)}
                                                               </span>
                                                             )}
                                                           </div>
@@ -5947,10 +6066,25 @@ const ProjectTaskBoard = ({
                                                               currentUser?._id ||
                                                             sub.assignedTo ===
                                                               currentUser?._id;
+                                                          const isSubRejected =
+                                                            sub.status ===
+                                                            "Rejected";
+                                                          const isSubInReview =
+                                                            sub.status ===
+                                                            "In Review";
+                                                          const isSubInProgress =
+                                                            sub.status ===
+                                                            "In Progress";
                                                           const rowBgSub =
-                                                            isSubCompleted
-                                                              ? "bg-slate-50 text-slate-405 dark:bg-[#18181f] dark:text-slate-550 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-                                                              : "bg-yellow-100 dark:bg-[#16161b] text-slate-855 dark:text-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]";
+                                                            isSubRejected
+                                                              ? "!bg-[#fde8e8] text-rose-950 dark:!bg-[#2c1214] dark:text-rose-200 opacity-80 pointer-events-none !border-rose-300 dark:!border-rose-800/60 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+                                                              : isSubCompleted
+                                                                ? "!bg-[#e6f4ea] text-emerald-950 dark:!bg-[#0c2919] dark:text-emerald-200 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+                                                                : isSubInReview
+                                                                  ? "!bg-[#fef3c7] text-yellow-950 dark:!bg-[#2e2305] dark:text-yellow-200 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+                                                                  : isSubInProgress
+                                                                    ? "!bg-[#f3e8ff] text-purple-950 dark:!bg-[#261342] dark:text-purple-200 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+                                                                    : "bg-amber-50 dark:bg-[#16161b] text-slate-855 dark:text-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]";
 
                                                           return (
                                                             <tr
@@ -6932,7 +7066,11 @@ const ProjectTaskBoard = ({
                                                                       e.stopPropagation()
                                                                     }
                                                                   >
-                                                                    {isAdminOrManager ? (
+                                                                    {isAdminOrManager &&
+                                                                    sub.status !==
+                                                                      "Completed" &&
+                                                                    sub.status !==
+                                                                      "Rejected" ? (
                                                                       <select
                                                                         value={
                                                                           sub.status ||
@@ -6963,49 +7101,57 @@ const ProjectTaskBoard = ({
                                                                                   "In Review"
                                                                                 ? "badge-status-in-review"
                                                                                 : sub.status ===
-                                                                                    "On Hold"
-                                                                                  ? "badge-status-on-hold"
+                                                                                    "Correction"
+                                                                                  ? "badge-status-correction"
                                                                                   : sub.status ===
-                                                                                      "Rejected"
-                                                                                    ? "badge-status-rejected"
-                                                                                    : "badge-status-pending"
+                                                                                      "On Hold"
+                                                                                    ? "badge-status-on-hold"
+                                                                                    : sub.status ===
+                                                                                        "Rejected"
+                                                                                      ? "badge-status-rejected"
+                                                                                      : "badge-status-pending"
                                                                         }`}
                                                                       >
                                                                         {sub.status ===
-                                                                        "In Review" ? (
+                                                                        "In Review" ||
+                                                                        sub.status ===
+                                                                          "IN-REVIEW" ? (
                                                                           <>
                                                                             <option value="In Review">
-                                                                              In Review
+                                                                              🔍 In Review
+                                                                            </option>
+                                                                            <option value="Correction">
+                                                                              🛠️ Correction
                                                                             </option>
                                                                             <option value="Completed">
-                                                                              Completed
+                                                                              ✅ Completed
                                                                             </option>
                                                                             <option value="Rejected">
-                                                                              Rejected
+                                                                              ❌ Rejected
                                                                             </option>
                                                                           </>
                                                                         ) : (
                                                                           <>
                                                                             <option value="Pending">
-                                                                              Pending
+                                                                              ⏳ Pending
                                                                             </option>
                                                                             <option value="In Progress">
-                                                                              In
-                                                                              Progress
+                                                                              ⚡ In Progress
                                                                             </option>
-                                                                            <option value="IN-REVIEW">
-                                                                              In
-                                                                              Review
+                                                                            <option value="In Review">
+                                                                              🔍 In Review
+                                                                            </option>
+                                                                            <option value="Correction">
+                                                                              🛠️ Correction
                                                                             </option>
                                                                             <option value="Completed">
-                                                                              Completed
+                                                                              ✅ Completed
                                                                             </option>
                                                                             <option value="On Hold">
-                                                                              On
-                                                                              Hold
+                                                                              ⏸️ On Hold
                                                                             </option>
                                                                             <option value="Rejected">
-                                                                              Rejected
+                                                                              ❌ Rejected
                                                                             </option>
                                                                           </>
                                                                         )}
@@ -7035,15 +7181,7 @@ const ProjectTaskBoard = ({
                                                                                     : "badge-status-pending"
                                                                         }`}
                                                                       >
-                                                                        {sub.status ===
-                                                                          "IN-REVIEW" ||
-                                                                        sub.status ===
-                                                                          "In Review" ||
-                                                                        sub.status ===
-                                                                          "IN-Review"
-                                                                          ? "In Review"
-                                                                          : sub.status ||
-                                                                            "Pending"}
+                                                                        {getStatusWithEmoji(sub.status)}
                                                                       </span>
                                                                     )}
                                                                   </div>
@@ -7207,8 +7345,8 @@ const ProjectTaskBoard = ({
                 {[
                   "Pending",
                   "In Progress",
-                  "IN-REVIEW",
                   "On Hold",
+                  "IN-REVIEW",
                   "Completed",
                   "Rejected",
                 ].map((statusName) => {
@@ -7254,6 +7392,12 @@ const ProjectTaskBoard = ({
                           >
                             {columnTasks.map((task, index) => {
                               const isCompleted = task.status === "Completed";
+                              const isTaskRejected =
+                                task.status === "Rejected";
+                              const isInReview =
+                                task.status === "In Review" ||
+                                task.status === "IN-REVIEW" ||
+                                task.status === "IN-Review";
                               return (
                                 <Draggable
                                   key={task._id}
@@ -7269,10 +7413,16 @@ const ProjectTaskBoard = ({
                                       onClick={() =>
                                         setSelectedTaskId(task._id)
                                       }
-                                      className={`bg-white dark:bg-[#111111] p-2.5 rounded-xl border cursor-pointer space-y-2 relative group select-none ${
-                                        snapshot.isDragging
-                                          ? "shadow-2xl ring-2 ring-blue-500 dark:ring-[#3b82f6] scale-[1.03] z-50 border-blue-300 dark:border-[#3b82f6]"
-                                          : "border-slate-150 dark:border-white/5 hover:shadow-md hover:border-slate-200 dark:hover:border-[#3b82f6]/50 transition-shadow transition-colors"
+                                      className={`p-2.5 rounded-xl border space-y-2 relative group select-none ${
+                                        isTaskRejected
+                                          ? "!bg-[#fde8e8] dark:!bg-[#2c1214] !border-rose-300 dark:!border-rose-800/60 opacity-80 pointer-events-none"
+                                          : isCompleted
+                                            ? "!bg-[#e6f4ea] dark:!bg-[#0c2919] !border-emerald-200 dark:!border-emerald-800/50 cursor-pointer"
+                                            : isInReview
+                                              ? "!bg-[#fef3c7] dark:!bg-[#2e2305] !border-yellow-300 dark:!border-yellow-800/60 cursor-pointer"
+                                              : snapshot.isDragging
+                                                ? "bg-white dark:bg-[#111111] shadow-2xl ring-2 ring-blue-500 dark:ring-[#3b82f6] scale-[1.03] z-50 border-blue-300 dark:border-[#3b82f6] cursor-pointer"
+                                                : "bg-white dark:bg-[#111111] border-slate-150 dark:border-white/5 hover:shadow-md hover:border-slate-200 dark:hover:border-[#3b82f6]/50 transition-shadow transition-colors cursor-pointer"
                                       }`}
                                     >
                                       <div className="flex items-start gap-2">
@@ -8101,8 +8251,8 @@ const ProjectTaskBoard = ({
                                 (item.rejectedBy?._id || item.rejectedBy),
                             );
                             const userName =
-                              userObj?.name ||
                               item.rejectedBy?.name ||
+                              userObj?.name ||
                               "Unknown User";
                             return (
                               <div
@@ -8554,6 +8704,19 @@ const ProjectTaskBoard = ({
         onSubmit={handleRejectSubmit}
         task={taskToReject?.taskObj}
         subtaskId={taskToReject?.subtaskId}
+        users={users}
+      />
+
+      <CorrectionModal
+        isOpen={correctionModalOpen}
+        onClose={() => {
+          setCorrectionModalOpen(false);
+          setTaskToCorrect(null);
+        }}
+        onSubmit={handleCorrectionSubmit}
+        task={taskToCorrect?.taskObj}
+        subtaskId={taskToCorrect?.subtaskId}
+        users={users}
       />
     </div>
   );

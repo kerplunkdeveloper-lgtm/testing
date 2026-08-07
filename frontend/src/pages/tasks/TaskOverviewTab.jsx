@@ -28,6 +28,8 @@ import {
 import ClientBadge from "../../components/common/ClientBadge";
 import { calculateBusinessMs } from "../../utils/businessHours";
 import toast from "react-hot-toast";
+import CorrectionModal from "../../components/CorrectionModal";
+import RejectionModal from "../../components/RejectionModal";
 
 const isSameDate = (d1, d2) => {
   if (!d1 || !d2) return false;
@@ -44,6 +46,18 @@ const isSameDate = (d1, d2) => {
   } catch (e) {
     return false;
   }
+};
+
+const getStatusWithEmoji = (status) => {
+  const s = (status || "").toLowerCase();
+  if (s === "pending" || s === "to do") return "⏳ Pending";
+  if (s.includes("progress")) return "⚡ In Progress";
+  if (s.includes("review")) return "🔍 In Review";
+  if (s.includes("correction")) return "🛠️ Correction";
+  if (s === "completed" || s.includes("approve") || s === "done") return "✅ Completed";
+  if (s.includes("hold")) return "⏸️ On Hold";
+  if (s.includes("reject")) return "❌ Rejected";
+  return `⏳ ${status || "Pending"}`;
 };
 
 const SimpleTimeTracker = ({
@@ -71,7 +85,7 @@ const SimpleTimeTracker = ({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "In Review"].includes(status)
+        ["On Hold", "Rejected", "In Review", "Correction"].includes(status)
       ) {
         end = new Date(pausedAt).getTime();
       } else {
@@ -203,7 +217,7 @@ const TimeTrackerBox = ({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "In Review"].includes(status)
+        ["On Hold", "Rejected", "In Review", "Correction"].includes(status)
       ) {
         end = new Date(pausedAt).getTime();
       } else {
@@ -800,8 +814,23 @@ const TaskOverviewTab = ({
     }
   };
 
+  const [correctionModalData, setCorrectionModalData] = useState(null);
+  const [rejectionModalData, setRejectionModalData] = useState(null);
+
   const handleTaskFieldChange = async (taskId, fields) => {
     const sanitizedFields = { ...fields };
+
+    if (sanitizedFields.status === "Correction") {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      setCorrectionModalData({ taskId, taskObj: currentTaskObj });
+      return;
+    }
+
+    if (sanitizedFields.status === "Rejected") {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      setRejectionModalData({ taskId, taskObj: currentTaskObj });
+      return;
+    }
 
     if (sanitizedFields.status === "In Review") {
       const currentTaskObj = tasks?.find((t) => t._id === taskId);
@@ -955,6 +984,10 @@ const TaskOverviewTab = ({
       case "In Review":
         return {
           bg: "!bg-sky-50 !text-sky-700 !border-sky-200 dark:!bg-sky-500/20 dark:!text-sky-350 dark:!border-sky-500/40",
+        };
+      case "Correction":
+        return {
+          bg: "!bg-orange-50 !text-orange-700 !border-orange-200 dark:!bg-orange-500/20 dark:!text-orange-350 dark:!border-orange-500/40",
         };
       case "Rejected":
         return {
@@ -1142,6 +1175,27 @@ const TaskOverviewTab = ({
           text: "text-amber-700 dark:text-amber-400",
           bg: "bg-amber-50/60 dark:bg-amber-950/20",
           border: "border-amber-100 dark:border-amber-950",
+        };
+      case "In Review":
+        return {
+          dot: "bg-yellow-500 dark:bg-yellow-400",
+          text: "text-yellow-800 dark:text-yellow-300 font-black",
+          bg: "bg-yellow-100/90 dark:bg-yellow-950/40",
+          border: "border-yellow-300 dark:border-yellow-800",
+        };
+      case "Correction":
+        return {
+          dot: "bg-orange-500 dark:bg-orange-400",
+          text: "text-orange-800 dark:text-orange-300 font-black",
+          bg: "bg-orange-100/90 dark:bg-orange-950/40",
+          border: "border-orange-300 dark:border-orange-800",
+        };
+      case "Rejected":
+        return {
+          dot: "bg-rose-500 dark:bg-rose-400",
+          text: "text-rose-950 dark:text-rose-200 font-black",
+          bg: "bg-rose-100/90 dark:bg-rose-950/60",
+          border: "border-rose-300 dark:border-rose-800",
         };
       case "Completed":
       case "Done":
@@ -1857,6 +1911,7 @@ const TaskOverviewTab = ({
                       "Pending",
                       "In Progress",
                       "In Review",
+                      "Correction",
                       "On Hold",
                       "Completed",
                       "Rejected",
@@ -2221,28 +2276,38 @@ const TaskOverviewTab = ({
                     (currentPage - 1) * itemsPerPage,
                     currentPage * itemsPerPage,
                   )
-                  .map((task) => {
+                  .map((task, idx) => {
                     const isCompleted = task.status === "Completed";
-                    const pStyle = getPriorityStyle(task.priority || "Medium");
-                    const sStyle = getStatusStyle(task.status, task.isBlocked);
+                    const isRejected = task.status === "Rejected";
+                    const isInReview = task.status === "In Review";
+                    const isInProgress = task.status === "In Progress";
 
                     const projId = task.project?._id || task.project;
-                    const projectObj = projects.find((p) => p._id === projId);
-                    const clientRaw =
-                      projectObj?.client || task.project?.client;
+                    const projectObj = (projects || []).find((p) => p._id === projId);
+                    const clientRaw = task.project?.client?.companyName
+                      ? task.project.client
+                      : projectObj?.client || task.project?.client;
                     const clientId = clientRaw?._id || clientRaw;
                     const clientObj =
-                      clients?.find((c) => c._id === clientId) ||
+                      (clients || []).find((c) => c._id === clientId) ||
                       (typeof clientRaw === "object" ? clientRaw : null);
-                    const clientName = clientObj?.companyName || "N/A";
+                    const clientName = clientObj?.companyName || "No Client";
+                    const sStyle = getStatusStyle(task.status || "Pending", task.isBlocked);
+                    const pStyle = getPriorityStyle(task.priority || "Medium");
 
                     return (
                       <tr
-                        key={task._id}
-                        className={`hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer border-b border-slate-200 dark:border-white/10 ${
-                          isCompleted
-                            ? "bg-slate-50/20 text-slate-400 dark:text-slate-500"
-                            : "text-slate-800 dark:text-slate-100"
+                        key={task._id || `task-ov-${idx}`}
+                        className={`transition-colors border-b border-slate-200 dark:border-white/10 ${
+                          isRejected
+                            ? "!bg-[#fde8e8] text-rose-950 dark:!bg-[#2c1214] dark:text-rose-200 opacity-80 pointer-events-none"
+                            : isCompleted
+                              ? "!bg-[#e6f4ea] text-emerald-950 dark:!bg-[#0c2919] dark:text-emerald-200 hover:bg-emerald-200/60 dark:hover:bg-[#133a25] cursor-pointer"
+                              : isInReview
+                                ? "!bg-[#fef3c7] text-yellow-950 dark:!bg-[#2e2305] dark:text-yellow-200 hover:bg-amber-200/60 dark:hover:bg-[#3d2f07] cursor-pointer"
+                                : isInProgress
+                                  ? "!bg-[#f3e8ff] text-purple-950 dark:!bg-[#261342] dark:text-purple-200 hover:bg-purple-200/60 dark:hover:bg-[#381c60] cursor-pointer"
+                                  : "text-slate-800 dark:text-slate-100 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] cursor-pointer"
                         }`}
                         onClick={() => setSelectedTaskId(task._id)}
                       >
@@ -2391,7 +2456,7 @@ const TaskOverviewTab = ({
                               <span
                                 className={`w-1 h-1 rounded-full ${sStyle.dot}`}
                               />
-                              {task.status || "Pending"}
+                              {getStatusWithEmoji(task.status)}
                             </span>
                           </td>
                         )}
@@ -2585,7 +2650,7 @@ const TaskOverviewTab = ({
 
       <AnimatePresence>
         {selectedTask && (
-          <div className="fixed inset-0 z-50 flex justify-end">
+          <div key={`drawer-${selectedTask._id}`} className="fixed inset-0 z-50 flex justify-end">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2649,12 +2714,17 @@ const TaskOverviewTab = ({
 
                     <div className="space-y-1">
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
-                        Status
+                        Status Field
                       </span>
                       {selectedTask.status === "Completed" ? (
                         <div className="px-2.5 py-1 text-[10px] font-black rounded-full border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 flex items-center gap-1.5 shadow-sm uppercase tracking-wider w-fit">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Completed
+                          ✅ Completed
+                        </div>
+                      ) : selectedTask.status === "Rejected" ? (
+                        <div className="px-2.5 py-1 text-[10px] font-black rounded-full border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 flex items-center gap-1.5 shadow-sm uppercase tracking-wider w-fit">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          ❌ Rejected
                         </div>
                       ) : (
                         <select
@@ -2673,17 +2743,20 @@ const TaskOverviewTab = ({
                                   ? "badge-status-in-review"
                                   : selectedTask.status === "On Hold"
                                     ? "badge-status-on-hold"
-                                    : selectedTask.status === "Rejected"
-                                      ? "badge-status-rejected"
-                                      : "badge-status-pending"
+                                    : selectedTask.status === "Correction"
+                                      ? "badge-status-correction"
+                                      : selectedTask.status === "Rejected"
+                                        ? "badge-status-rejected"
+                                        : "badge-status-pending"
                           }`}
                         >
-                          <option value="Pending">Pending</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="In Review">In Review</option>
-                          <option value="Completed">Completed</option>
-                          <option value="On Hold">On Hold</option>
-                          <option value="Rejected">Rejected</option>
+                          <option value="Pending">⏳ Pending</option>
+                          <option value="In Progress">⚡ In Progress</option>
+                          <option value="In Review">🔍 In Review</option>
+                          <option value="Correction">🛠️ Correction</option>
+                          <option value="Completed">✅ Completed</option>
+                          <option value="On Hold">⏸️ On Hold</option>
+                          <option value="Rejected">❌ Rejected</option>
                         </select>
                       )}
                     </div>
@@ -2748,7 +2821,7 @@ const TaskOverviewTab = ({
       <AnimatePresence>
         {/* SUBMIT FOR REVIEW CONFIRMATION MODAL */}
         {reviewModalData && (
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
+          <div key="review-confirmation-modal" className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2835,6 +2908,45 @@ const TaskOverviewTab = ({
             </motion.div>
           </div>
         )}
+        {/* CORRECTION MODAL */}
+        <CorrectionModal
+          isOpen={!!correctionModalData}
+          onClose={() => setCorrectionModalData(null)}
+          onSubmit={async (reason) => {
+            if (!correctionModalData) return;
+            try {
+              await updateTaskTrigger({
+                id: correctionModalData.taskId,
+                taskData: { status: "Correction", correctionReason: reason },
+              }).unwrap();
+              toast.success("Task sent for Correction");
+            } catch (err) {
+              toast.error("Failed to send task for correction");
+            }
+            setCorrectionModalData(null);
+          }}
+          task={correctionModalData?.taskObj}
+        />
+
+        {/* REJECTION MODAL */}
+        <RejectionModal
+          isOpen={!!rejectionModalData}
+          onClose={() => setRejectionModalData(null)}
+          onSubmit={async (reason) => {
+            if (!rejectionModalData) return;
+            try {
+              await updateTaskTrigger({
+                id: rejectionModalData.taskId,
+                taskData: { status: "Rejected", rejectionReason: reason },
+              }).unwrap();
+              toast.success("Task marked as Rejected");
+            } catch (err) {
+              toast.error("Failed to reject task");
+            }
+            setRejectionModalData(null);
+          }}
+          task={rejectionModalData?.taskObj}
+        />
       </AnimatePresence>
     </>
   );

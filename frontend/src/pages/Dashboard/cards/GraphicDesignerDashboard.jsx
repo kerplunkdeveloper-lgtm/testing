@@ -142,6 +142,7 @@ import {
   FiCalendar,
   FiChevronLeft,
   FiChevronRight,
+  FiEdit3,
 } from "react-icons/fi";
 
 const getPriorityStyle = (priority) => {
@@ -373,12 +374,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     let inReview = 0;
     let overdue = 0;
     let rejected = 0;
+    let corrections = 0;
     let totalRevisions = 0;
 
     designerTasks.forEach((task) => {
       const status = task.status?.toLowerCase() || "";
       if (status === "completed" || status.includes("approve")) completed++;
       else if (status.includes("reject")) rejected++;
+      else if (status.includes("correction")) corrections++;
       else if (status.includes("hold")) onHold++;
       else if (status.includes("progress")) inProgress++;
       else if (status.includes("review") || status.includes("revision"))
@@ -405,6 +408,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       inProgress,
       onHold,
       inReview,
+      corrections,
       overdue,
       rejected,
       totalRevisions,
@@ -1249,7 +1253,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         </div>
       </div>
       {/* Premium Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 lg:gap-2 relative z-10">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-2 relative z-10">
         {[
           {
             label:
@@ -1339,6 +1343,19 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("IN-REVIEW"),
           },
           {
+            label: `${getRelativeDateLabel(selectedDate)} Correction`,
+            value: metrics.corrections,
+            icon: FiEdit3,
+            glow: "hover:shadow-[0_4px_20px_rgba(245,158,11,0.15)]",
+            bg: "bg-gradient-to-br from-amber-500 to-amber-600 dark:from-amber-700 dark:to-amber-800 border border-amber-200/50 dark:border-amber-900/30",
+            labelColor: "text-white dark:text-white",
+            valueColor: "text-slate-100 dark:text-white",
+            iconBg:
+              "bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-500/20",
+            iconColor: "text-amber-600 dark:text-amber-400",
+            onClick: () => handleMetricClick("Correction"),
+          },
+          {
             label: `${getRelativeDateLabel(selectedDate)} Completed`,
             value: metrics.completed,
             icon: FiCheckCircle,
@@ -1414,7 +1431,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         })}
       </div>
       {/* Today's Interruptions */}
-      <div className="mb-8 relative z-10">
+      <div ref={performanceTableRef} className="mb-8 relative z-10">
         <div className="sidebar-bg p-5 rounded-3xl backdrop-blur-md shadow-lg">
           <div className="flex flex-col md:flex-row md:items-center gap-6">
             <div className="flex-shrink-0 min-w-[150px] border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 pb-4 md:pb-0 md:pr-6">

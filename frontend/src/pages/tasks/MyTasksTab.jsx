@@ -24,6 +24,10 @@ import {
   FiCopy,
   FiMessageSquare,
   FiEdit,
+  FiEdit3,
+  FiAlertTriangle,
+  FiUser,
+  FiSearch,
 } from "react-icons/fi";
 import {
   useUpdateTaskMutation,
@@ -34,6 +38,8 @@ import toast from "react-hot-toast";
 import ClientBadge from "../../components/common/ClientBadge";
 import { getClientIconComponent } from "../../utils/clientHelpers";
 import { calculateBusinessMs } from "../../utils/businessHours";
+import CorrectionModal from "../../components/CorrectionModal";
+import RejectionModal from "../../components/RejectionModal";
 
 const isSameDate = (d1, d2) => {
   if (!d1 || !d2) return false;
@@ -77,7 +83,7 @@ const TimeTracker = ({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "In Review"].includes(
+        ["On Hold", "Rejected", "In Review", "Correction"].includes(
           status,
         )
       ) {
@@ -219,7 +225,7 @@ const SingleTimeDisplay = React.memo(({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "In Review"].includes(
+        ["On Hold", "Rejected", "In Review", "Correction"].includes(
           status,
         )
       ) {
@@ -598,6 +604,7 @@ const MyTasksTab = ({
   setDateFilter: setDateFilterProp,
 }) => {
   const navigate = useNavigate();
+  const users = useSelector((state) => state.auth?.users || []);
 
   const [updateTaskTrigger] = useUpdateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
@@ -619,6 +626,7 @@ const MyTasksTab = ({
   }, [statusParam]);
 
   const [clientFilter, setClientFilter] = useState("All");
+  const [assignerFilter, setAssignerFilter] = useState("All");
 
   const [localDateFilter, setLocalDateFilter] = useState(() => {
     try {
@@ -759,6 +767,7 @@ const MyTasksTab = ({
     projectFilter,
     statusFilter,
     clientFilter,
+    assignerFilter,
     dateFilter,
     searchTerm,
   ]);
@@ -786,6 +795,17 @@ const MyTasksTab = ({
         : projectObj?.client || task.project?.client;
       const clientId = clientObj?._id || clientObj?.id;
       const matchesClient = clientFilter === "All" || clientId === clientFilter;
+
+      const matchesAssigner =
+        assignerFilter === "All" ||
+        (() => {
+          const assigner = task.assignedBy || task.createdBy;
+          const uId =
+            assigner?._id ||
+            assigner?.id ||
+            (typeof assigner === "string" ? assigner : null);
+          return uId === assignerFilter;
+        })();
 
       const projectName = projectObj?.name || task.project?.name || "";
       const clientName = clientObj?.companyName || "";
@@ -894,6 +914,7 @@ const MyTasksTab = ({
         matchesPriority &&
         matchesProject &&
         matchesClient &&
+        matchesAssigner &&
         matchesSearch &&
         matchesDate
       );
@@ -1042,8 +1063,23 @@ const MyTasksTab = ({
     );
   };
 
+  const [correctionModalData, setCorrectionModalData] = useState(null);
+  const [rejectionModalData, setRejectionModalData] = useState(null);
+
   const handleTaskFieldChange = async (taskId, fields) => {
     const sanitizedFields = { ...fields };
+
+    if (sanitizedFields.status === "Correction") {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      setCorrectionModalData({ taskId, taskObj: currentTaskObj });
+      return;
+    }
+
+    if (sanitizedFields.status === "Rejected") {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      setRejectionModalData({ taskId, taskObj: currentTaskObj });
+      return;
+    }
 
     if (
       sanitizedFields.status &&
@@ -1279,6 +1315,18 @@ const MyTasksTab = ({
   };
 
   const handleStatusChange = async (taskId, newStatus) => {
+    if (newStatus === "Correction") {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      setCorrectionModalData({ taskId, taskObj: currentTaskObj });
+      return;
+    }
+
+    if (newStatus === "Rejected") {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      setRejectionModalData({ taskId, taskObj: currentTaskObj });
+      return;
+    }
+
     if (
       newStatus &&
       newStatus === "In Review"
@@ -1472,9 +1520,15 @@ const MyTasksTab = ({
         };
       case "In Review":
         return {
-          bg: "!bg-yellow-300 !text-sky-700 !border-sky-200 dark:!bg-yellow-400  dark:!text-black dark:!border-sky-500/40",
-          dot: "bg-sky-500",
+          bg: "!bg-yellow-100/90 !text-yellow-900 !border-yellow-300 dark:!bg-yellow-950/60 dark:!text-yellow-200 dark:!border-yellow-800/60 font-extrabold",
+          dot: "bg-yellow-500",
           icon: FiClock,
+        };
+      case "Correction":
+        return {
+          bg: "!bg-orange-100 !text-orange-800 !border-orange-300 dark:!bg-orange-500/20 dark:!text-orange-300 dark:!border-orange-500/40",
+          dot: "bg-orange-500",
+          icon: FiAlertCircle,
         };
       case "Rejected":
         return {
@@ -1619,51 +1673,89 @@ const MyTasksTab = ({
     return Object.values(clientsMap);
   }, [activeTasksList, projects]);
 
+  const uniqueAssigners = React.useMemo(() => {
+    const assignersMap = {};
+    activeTasksList.forEach((t) => {
+      const assigner = t.assignedBy || t.createdBy;
+      if (assigner) {
+        const uId =
+          assigner._id ||
+          assigner.id ||
+          (typeof assigner === "string" ? assigner : null);
+        const uName =
+          assigner.name ||
+          (typeof assigner === "object" ? assigner.name : "Unknown");
+        if (uId && uName) {
+          assignersMap[uId] = uName;
+        }
+      }
+    });
+    return Object.entries(assignersMap).map(([id, name]) => ({ id, name }));
+  }, [activeTasksList]);
+
   return (
     <>
       {/* UNIFIED HEADER & CONTROLS */}
-      <div className="flex px-10 flex-col xl:flex-row items-center justify-between gap-4 bg-white dark:bg-[#11131e] p-2 relative z-30">
+      <div className="flex px-4 xl:px-8 py-3 flex-col lg:flex-row items-center justify-between gap-4 bg-white dark:bg-[#11131e] relative z-30 border-b border-slate-100 dark:border-slate-800/60">
+        {/* Left: Search Bar */}
+        <div className="relative w-full lg:w-64 shrink-0">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200 shadow-2xs transition-all"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+            >
+              <FiX size={12} />
+            </button>
+          )}
+        </div>
+
         {/* Center: View Toggle */}
-        <div className="flex bg-slate-50 dark:bg-black p-1 rounded-xl shrink-0 w-full xl:w-auto mx-auto justify-center">
+        <div className="flex bg-slate-50 dark:bg-black p-1 rounded-xl shrink-0 justify-center">
           <button
             onClick={() => setViewType("list")}
-            className={`flex items-center justify-center gap-2 px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${viewType === "list" ? "bg-white dark:bg-[#11131e] text-blue-600 dark:text-[#3b82f6] shadow-sm border theme-border-accent" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+            className={`flex items-center justify-center gap-2 px-5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewType === "list"
+                ? "bg-white dark:bg-[#11131e] text-blue-600 dark:text-[#3b82f6] shadow-sm border theme-border-accent"
+                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
           >
             <FiList size={14} /> List
           </button>
           <button
             onClick={() => setViewType("kanban")}
-            className={`flex items-center justify-center gap-2 px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${viewType === "kanban" ? "bg-white dark:bg-[#11131e] text-blue-600 dark:text-[#3b82f6] shadow-sm border theme-border-accent" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+            className={`flex items-center justify-center gap-2 px-5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewType === "kanban"
+                ? "bg-white dark:bg-[#11131e] text-blue-600 dark:text-[#3b82f6] shadow-sm border theme-border-accent"
+                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
           >
             <FiGrid size={14} /> Kanban
           </button>
         </div>
 
-        {/* Right: Filter Action */}
-        <div className="flex items-center justify-end gap-2.5 w-full xl:w-auto">
-          {/* Search bar */}
-          <div className="relative w-full xl:w-64">
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200"
-            />
-          </div>
-
-          {/* Date Quick Filter Pill */}
+        {/* Right: Individual Filter Dropdowns */}
+        <div className="flex items-center justify-end gap-2.5 flex-wrap w-full lg:w-auto">
+          {/* Date Filter Dropdown */}
           <div className="relative" ref={dateDropdownRef}>
             <button
               type="button"
               onClick={() => setShowDateDropdown((prev) => !prev)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl border text-xs font-extrabold transition-all shadow-2xs cursor-pointer ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
                 dateFilter !== "All"
-                  ? "bg-emerald-50/80 border-emerald-300 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-500/40 dark:text-emerald-300"
-                  : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-800 dark:text-slate-200 hover:border-emerald-500/50"
+                  ? "bg-emerald-50/80 border-emerald-300 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-500/40 dark:text-emerald-300 font-extrabold"
+                  : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-emerald-500/50"
               }`}
             >
-              <FiFilter className="text-emerald-500 text-sm" />
+              <FiFilter className="text-emerald-500 text-xs" />
               <span>{dateFilter === "All" ? "Filter Date" : dateFilter}</span>
               <FiChevronDown
                 size={13}
@@ -1713,35 +1805,83 @@ const MyTasksTab = ({
             </AnimatePresence>
           </div>
 
-          <button
-            onClick={() => setFilterPanelOpen(true)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-              priorityFilter !== "All" ||
-              projectFilter !== "All" ||
-              statusFilter !== "All" ||
-              clientFilter !== "All"
-                ? "bg-blue-50 dark:bg-[#3b82f6]/10 border-blue-200 dark:border-[#3b82f6]/30 text-blue-700 dark:text-[#3b82f6]"
-                : "bg-white dark:bg-black border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
+          {/* Status Filter Dropdown */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all outline-none cursor-pointer shadow-2xs ${
+              statusFilter !== "All"
+                ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-300 font-extrabold"
+                : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-blue-500/50"
             }`}
           >
-            <FiFilter size={14} />
-            Filter
-            {(priorityFilter !== "All" ||
-              projectFilter !== "All" ||
-              statusFilter !== "All" ||
-              clientFilter !== "All") && (
-              <span className="flex items-center justify-center bg-blue-600 dark:bg-[#3b82f6] text-white dark:text-black text-[9px] w-4 h-4 rounded-full font-black">
-                {
-                  [
-                    priorityFilter,
-                    projectFilter,
-                    statusFilter,
-                    clientFilter,
-                  ].filter((f) => f !== "All").length
-                }
-              </span>
-            )}
-          </button>
+            <option value="All">Status: All</option>
+            <option value="Pending">⏳ Pending</option>
+            <option value="In Progress">⚡ In Progress</option>
+            <option value="In Review">🔍 In Review</option>
+            <option value="Correction">🛠️ Correction</option>
+            <option value="On Hold">⏸️ On Hold</option>
+            <option value="Completed">✅ Completed</option>
+            <option value="Rejected">❌ Rejected</option>
+          </select>
+
+          {/* Client Filter Dropdown */}
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all outline-none cursor-pointer shadow-2xs max-w-[150px] truncate ${
+              clientFilter !== "All"
+                ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-300 font-extrabold"
+                : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-blue-500/50"
+            }`}
+          >
+            <option value="All">Client: All</option>
+            {uniqueClients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Assigned By Filter Dropdown */}
+          <select
+            value={assignerFilter}
+            onChange={(e) => setAssignerFilter(e.target.value)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all outline-none cursor-pointer shadow-2xs max-w-[160px] truncate ${
+              assignerFilter !== "All"
+                ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-300 font-extrabold"
+                : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-blue-500/50"
+            }`}
+          >
+            <option value="All">Assigned By: All</option>
+            {uniqueAssigners.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Reset Filters button */}
+          {(statusFilter !== "All" ||
+            clientFilter !== "All" ||
+            assignerFilter !== "All" ||
+            dateFilter !== "All" ||
+            searchTerm !== "") && (
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter("All");
+                setClientFilter("All");
+                setAssignerFilter("All");
+                setDateFilter("All");
+                setSearchTerm("");
+              }}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 transition-all cursor-pointer flex items-center gap-1"
+              title="Reset all filters"
+            >
+              <FiX size={13} /> Reset
+            </button>
+          )}
         </div>
       </div>
 
@@ -1825,8 +1965,8 @@ const MyTasksTab = ({
                         color: "bg-slate-400",
                       },
                       {
-                        name: "Pending,In Progress,In Review,On Hold",
-                        label: "Pending / In Progress / In Review / On Hold",
+                        name: "Pending,In Progress,In Review,Correction,On Hold",
+                        label: "Pending / In Progress / In Review / Correction / On Hold",
                         color: "bg-indigo-500",
                       },
                       {
@@ -1843,6 +1983,11 @@ const MyTasksTab = ({
                         name: "In Review",
                         label: "In Review",
                         color: "bg-sky-500",
+                      },
+                      {
+                        name: "Correction",
+                        label: "Correction",
+                        color: "bg-orange-500",
                       },
                       {
                         name: "Completed",
@@ -2109,17 +2254,25 @@ const MyTasksTab = ({
                   ) : (
                     colTasks.map((task) => {
                       const isCompleted = task.status === "Completed";
+                      const isRejected = task.status === "Rejected";
+                      const isInReview = task.status === "In Review";
                       return (
                         <div
                           key={task._id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, task._id)}
+                          draggable={!isRejected}
+                          onDragStart={(e) => !isRejected && handleDragStart(e, task._id)}
                           onDragEnd={() => setDraggedTaskId(null)}
                           onClick={() => handleSelectTaskForDrawer(task._id)}
-                          className={`bg-white dark:bg-[#11131e] shadow-sm hover:shadow-lg dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] rounded-2xl p-5 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-500/60 transition-all cursor-grab active:cursor-grabbing group flex flex-col gap-3 ${
-                            draggedTaskId === task._id
-                              ? "opacity-50 scale-95 border-blue-500"
-                              : ""
+                          className={`shadow-sm rounded-2xl p-5 border transition-all flex flex-col gap-3 ${
+                            isRejected
+                              ? "!bg-[#fde8e8] text-rose-950 dark:!bg-[#2c1214] dark:text-rose-200 opacity-80 pointer-events-none !border-rose-300 dark:!border-rose-800/60"
+                              : isCompleted
+                                ? "!bg-[#e6f4ea] text-emerald-950 dark:!bg-[#0c2919] dark:text-emerald-200 !border-emerald-200 dark:!border-emerald-800/50 hover:shadow-lg cursor-pointer"
+                                : isInReview
+                                  ? "!bg-[#fef3c7] text-yellow-950 dark:!bg-[#2e2305] dark:text-yellow-200 !border-yellow-300 dark:!border-yellow-800/60 hover:shadow-lg cursor-pointer"
+                                  : draggedTaskId === task._id
+                                    ? "opacity-50 scale-95 border-blue-500 bg-white dark:bg-[#11131e]"
+                                    : "bg-white dark:bg-[#11131e] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] border-slate-200 dark:border-slate-800 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-500/60 cursor-grab active:cursor-grabbing group"
                           }`}
                         >
                           <div className="flex justify-between items-start flex-wrap gap-1.5">
@@ -2226,7 +2379,7 @@ const MyTasksTab = ({
         <div className="space-y-4">
           <div className="bg-white dark:bg-[#0f111a] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] overflow-hidden border border-slate-200 dark:border-slate-800/80 transition-all">
             <div className="overflow-x-auto overflow-y-auto h-[calc(100vh-200px)] min-h-[500px] w-full scrollbar-thin">
-              <table className="w-full min-w-[1300px] text-left border-collapse table-auto border border-slate-200/70 dark:border-transparent">
+              <table className="w-full min-w-[1300px] text-left  table-auto ">
                 <thead>
                   <tr className="sticky top-0 z-20  text-center bg-slate-50 dark:bg-[#11131e] text-slate-500 dark:text-slate-400 text-[10.5px] sm:text-[12px] font-medium border-b border-slate-200 dark:border-slate-200 shadow-sm">
                     <ResizableHeader
@@ -2365,6 +2518,9 @@ const MyTasksTab = ({
                   ) : (
                     sortedTasks.map((task) => {
                       const isCompleted = task.status === "Completed";
+                      const isRejected = task.status === "Rejected";
+                      const isInReview = task.status === "In Review";
+                      const isInProgress = task.status === "In Progress";
                       const statusStyle = getStatusStyle(
                         task.status,
                         task.isBlocked,
@@ -2374,12 +2530,18 @@ const MyTasksTab = ({
                       return (
                         <React.Fragment key={task._id}>
                           <tr
-                            className={`hover:bg-slate-50/40 dark:hover:bg-[#1a1d2d] transition-colors group cursor-pointer ${
-                              isCompleted
-                                ? "bg-slate-50/20 text-slate-400 dark:text-slate-500"
-                                : task.priority === "Top High"
-                                  ? "row-priority-top-high text-slate-700 dark:text-slate-200"
-                                  : "text-slate-700 dark:text-slate-200"
+                            className={`transition-colors group ${
+                              isRejected
+                                ? "!bg-[#fde8e8] text-rose-950 dark:!bg-[#2c1214] dark:text-rose-200 opacity-80 pointer-events-none"
+                                : isCompleted
+                                  ? "!bg-[#e6f4ea] text-emerald-950 dark:!bg-[#0c2919] dark:text-emerald-200 hover:bg-emerald-200/60 dark:hover:bg-[#133a25] cursor-pointer"
+                                  : isInReview
+                                    ? "!bg-[#fef3c7] text-yellow-950 dark:!bg-[#2e2305] dark:text-yellow-200 hover:bg-amber-200/60 dark:hover:bg-[#3d2f07] cursor-pointer"
+                                    : isInProgress
+                                      ? "!bg-[#f3e8ff] text-purple-950 dark:!bg-[#261342] dark:text-purple-200 hover:bg-purple-200/60 dark:hover:bg-[#381c60] cursor-pointer"
+                                      : task.priority === "Top High"
+                                        ? "row-priority-top-high text-slate-700 dark:text-slate-200 hover:bg-slate-50/40 dark:hover:bg-[#1a1d2d] cursor-pointer"
+                                        : "text-slate-700 dark:text-slate-200 hover:bg-slate-50/40 dark:hover:bg-[#1a1d2d] cursor-pointer"
                             }`}
                             onClick={() => handleSelectTaskForDrawer(task._id)}
                           >
@@ -2533,7 +2695,7 @@ const MyTasksTab = ({
                               </span>
                             </td>
 
-                            {/* Status Select */}
+                            {/* Status Select Column Field */}
                             <td
                               className="px-3 py-2 border border-slate-200/70 dark:border-transparent w-48 min-w-[180px] text-center"
                               onClick={(e) => e.stopPropagation()}
@@ -2546,12 +2708,31 @@ const MyTasksTab = ({
                               ) : task.status === "Completed" ? (
                                 <div className="px-2.5 py-2 text-[11px] sm:text-[13px] font-extrabold rounded-md border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-200 dark:bg-emerald-500/10 flex items-center justify-center gap-1.5 shadow-sm ">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                  Completed
+                                  ✅ Completed
                                 </div>
                               ) : task.status === "In Review" ? (
                                 <div className="px-2.5 py-2 text-[11px] sm:text-[13px] font-extrabold rounded-md border border-yellow-800 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300 bg-yellow-200 dark:bg-yellow-500/10 flex items-center justify-center gap-1.5 shadow-sm ">
                                   <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                                  In Review
+                                  🔍 In Review
+                                </div>
+                              ) : task.status === "Correction" ? (
+                                <div className="flex flex-col gap-1 items-center">
+                                  <div className="px-2.5 py-1 text-[11px] sm:text-[9.5px] font-extrabold rounded-md border border-orange-300 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-500/10 flex items-center justify-center gap-1.5 shadow-sm">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                                    🛠️ Corrections Required
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusChange(task._id, "In Progress")}
+                                    className="px-2.5 py-0.5 text-[9px] font-extrabold bg-orange-600 hover:bg-orange-700 text-white rounded shadow transition-all cursor-pointer"
+                                  >
+                                    Resume Work
+                                  </button>
+                                </div>
+                              ) : task.status === "Rejected" ? (
+                                <div className="px-2.5 py-2 text-[11px] sm:text-[13px] font-extrabold rounded-md border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 bg-rose-200 dark:bg-rose-500/10 flex items-center justify-center gap-1.5 shadow-sm ">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  ❌ Rejected
                                 </div>
                               ) : (
                                 <div className="relative w-full group">
@@ -2569,40 +2750,40 @@ const MyTasksTab = ({
                                       value="Pending"
                                       className="bg-white dark:bg-gray-500 text-slate-700 dark:text-white"
                                     >
-                                      Pending
+                                      ⏳ Pending
                                     </option>
                                     <option
                                       value="In Progress"
                                       className="bg-white dark:bg-blue-500 text-slate-700 dark:text-white"
                                     >
-                                      In Progress
+                                      ⚡ In Progress
                                     </option>
                                     <option
                                       value="In Review"
                                       className="bg-white dark:bg-[#11131e] text-slate-700 dark:text-slate-200"
                                     >
-                                      In Review
+                                      🔍 In Review
                                     </option>
                                     {task.status === "Completed" && (
                                       <option
                                         value="Completed"
                                         className="bg-white dark:bg-[#11131e] text-slate-700 dark:text-slate-200"
                                       >
-                                        Completed
+                                        ✅ Completed
                                       </option>
                                     )}
                                     <option
                                       value="On Hold"
                                       className="bg-white dark:bg-[#11131e] text-slate-700 dark:text-slate-200"
                                     >
-                                      On Hold
+                                      ⏸️ On Hold
                                     </option>
                                     {task.status === "Rejected" && (
                                       <option
                                         value="Rejected"
                                         className="bg-white dark:bg-[#11131e] text-slate-700 dark:text-slate-200"
                                       >
-                                        Rejected
+                                        ❌ Rejected
                                       </option>
                                     )}
                                   </select>
@@ -3208,7 +3389,7 @@ const MyTasksTab = ({
       {/* OFF-CANVAS WORKSPACE PREVIEW DRAWER */}
       <AnimatePresence>
         {selectedTask && (
-          <div className="fixed inset-0 z-50 flex justify-end">
+          <div key={`mytask-drawer-${selectedTask._id}`} className="fixed inset-0 z-50 flex justify-end">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -3406,6 +3587,114 @@ const MyTasksTab = ({
                   </div>
                 </div>
 
+                {/* Correction History Display */}
+                {selectedTask.correctionHistory &&
+                  selectedTask.correctionHistory.length > 0 && (
+                    <div className="bg-amber-50/60 dark:bg-amber-500/[0.03] border border-amber-200/80 dark:border-amber-500/20 rounded-2xl p-4 space-y-3">
+                      <h3 className="text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                        <FiEdit3 size={14} /> Correction History (
+                        {selectedTask.correctionHistory.length})
+                      </h3>
+                      <div className="flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                        {selectedTask.correctionHistory
+                          .slice()
+                          .reverse()
+                          .map((item, idx) => {
+                            const userObj = users?.find(
+                              (u) =>
+                                u._id ===
+                                (item.requestedBy?._id || item.requestedBy),
+                            );
+                            const userName =
+                              item.requestedBy?.name ||
+                              userObj?.name ||
+                              "Unknown User";
+                            return (
+                              <div
+                                key={idx}
+                                className="bg-white dark:bg-[#111111] border border-amber-200/60 dark:border-amber-500/20 rounded-xl p-3 shadow-xs"
+                              >
+                                <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-medium">
+                                  "{item.reason}"
+                                </p>
+                                <div className="flex items-center justify-between mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+                                  <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                                    <FiUser size={10} />
+                                    {userName}
+                                  </span>
+                                  <span>
+                                    {new Date(item.requestedAt).toLocaleString(
+                                      undefined,
+                                      {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      },
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Rejection History Display */}
+                {selectedTask.rejectionHistory &&
+                  selectedTask.rejectionHistory.length > 0 && (
+                    <div className="bg-rose-50/60 dark:bg-rose-500/[0.03] border border-rose-200/80 dark:border-rose-500/20 rounded-2xl p-4 space-y-3">
+                      <h3 className="text-xs font-bold text-rose-800 dark:text-rose-400 flex items-center gap-2">
+                        <FiAlertTriangle size={14} /> Rejection History (
+                        {selectedTask.rejectionHistory.length})
+                      </h3>
+                      <div className="flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                        {selectedTask.rejectionHistory
+                          .slice()
+                          .reverse()
+                          .map((item, idx) => {
+                            const userObj = users?.find(
+                              (u) =>
+                                u._id ===
+                                (item.rejectedBy?._id || item.rejectedBy),
+                            );
+                            const userName =
+                              item.rejectedBy?.name ||
+                              userObj?.name ||
+                              "Unknown User";
+                            return (
+                              <div
+                                key={idx}
+                                className="bg-white dark:bg-[#111111] border border-rose-200/60 dark:border-rose-500/20 rounded-xl p-3 shadow-xs"
+                              >
+                                <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-medium">
+                                  "{item.reason}"
+                                </p>
+                                <div className="flex items-center justify-between mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+                                  <span className="flex items-center gap-1.5 text-rose-700 dark:text-rose-400">
+                                    <FiUser size={10} />
+                                    {userName}
+                                  </span>
+                                  <span>
+                                    {new Date(item.rejectedAt).toLocaleString(
+                                      undefined,
+                                      {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      },
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
                 {/* Approval Info Section */}
                 {(selectedTask.reviewStartedAt ||
                   selectedTask.approvalWaitingMs) && (
@@ -3548,6 +3837,45 @@ const MyTasksTab = ({
             </motion.div>
           </div>
         )}
+        {/* CORRECTION MODAL */}
+        <CorrectionModal
+          isOpen={!!correctionModalData}
+          onClose={() => setCorrectionModalData(null)}
+          onSubmit={async (reason) => {
+            if (!correctionModalData) return;
+            try {
+              await updateTaskTrigger({
+                id: correctionModalData.taskId,
+                taskData: { status: "Correction", correctionReason: reason },
+              }).unwrap();
+              toast.success("Task sent for Correction");
+            } catch (err) {
+              toast.error("Failed to send task for correction");
+            }
+            setCorrectionModalData(null);
+          }}
+          task={correctionModalData?.taskObj}
+        />
+
+        {/* REJECTION MODAL */}
+        <RejectionModal
+          isOpen={!!rejectionModalData}
+          onClose={() => setRejectionModalData(null)}
+          onSubmit={async (reason) => {
+            if (!rejectionModalData) return;
+            try {
+              await updateTaskTrigger({
+                id: rejectionModalData.taskId,
+                taskData: { status: "Rejected", rejectionReason: reason },
+              }).unwrap();
+              toast.success("Task marked as Rejected");
+            } catch (err) {
+              toast.error("Failed to reject task");
+            }
+            setRejectionModalData(null);
+          }}
+          task={rejectionModalData?.taskObj}
+        />
       </AnimatePresence>
     </>
   );
