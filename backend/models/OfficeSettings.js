@@ -1,9 +1,36 @@
 const mongoose = require("mongoose");
 
 const OfficeSettingsSchema = new mongoose.Schema({
-  key: { type: String, default: "global", unique: true },
-  startHour: { type: Number, default: 9 },
-  endHour: { type: Number, default: 19 },
-}, { timestamps: true });
+  key: {
+    type: String,
+    default: "global",
+    unique: true,
+    immutable: true,
+  },
+
+  startHour: {
+    type: Number,
+    default: 9,
+    min: 0,
+    max: 23,
+    required: true,
+  },
+
+  endHour: {
+    type: Number,
+    default: 19,
+    min: 1,
+    max: 24,
+    required: true,
+    validate: {
+      validator(value) {
+        return value > this.startHour;
+      },
+      message: "End hour must be greater than start hour.",
+    },
+  },
+}, {
+  timestamps: true,
+});
 
 module.exports = mongoose.model("OfficeSettings", OfficeSettingsSchema);

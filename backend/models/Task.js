@@ -8,7 +8,7 @@ const SubtaskSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Pending", "In Progress", "Completed", "On Hold", "IN-REVIEW", "In Review", "IN-Review", "Rejected"],
+    enum: ["Pending", "In Progress", "Completed", "On Hold", "In Review", "Rejected", "Correction"],
     default: "Pending",
   },
   assignedTo: {
@@ -21,7 +21,7 @@ const SubtaskSchema = new mongoose.Schema({
   dueDate: {
     type: Date,
   },
-priority: {
+ priority: {
     type: String,
     enum: ["Low", "Medium", "High", "Top High"],
     default: "Medium",
@@ -45,6 +45,51 @@ priority: {
     type: Date,
     default: null,
   },
+  autoPaused: {
+    type: Boolean,
+    default: false,
+  },
+  isBlocked: {
+    type: Boolean,
+    default: false,
+  },
+  blockerReason: {
+    type: String,
+    default: "",
+  },
+  blockerType: {
+    type: String,
+    default: "",
+  },
+  blockerDescription: {
+    type: String,
+    default: "",
+  },
+  blockerExpectedTime: {
+    type: String,
+    default: "",
+  },
+  blockerPriority: {
+    type: String,
+    default: "",
+  },
+  blockerPausedAt: {
+    type: Date,
+  },
+  blockerResumedAt: {
+    type: Date,
+  },
+  blockerHistory: [
+    {
+      blockerType: String,
+      blockerDescription: String,
+      blockerExpectedTime: String,
+      blockerPriority: String,
+      pausedAt: Date,
+      resumedAt: Date,
+      totalPauseMinutes: Number,
+    }
+  ],
   revisions: {
     type: Number,
     default: 0,
@@ -138,7 +183,7 @@ const TaskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Pending", "In Progress", "Completed", "On Hold", "IN-REVIEW", "In Review", "IN-Review", "Rejected"],
+      enum: ["Pending", "In Progress", "Completed", "On Hold", "In Review", "Rejected", "Correction"],
       default: "Pending",
     },
     priority: {
@@ -168,6 +213,10 @@ const TaskSchema = new mongoose.Schema(
     pausedAt: {
       type: Date,
       default: null,
+    },
+    autoPaused: {
+      type: Boolean,
+      default: false,
     },
     totalPausedMs: {
       type: Number,
@@ -304,9 +353,13 @@ const TaskSchema = new mongoose.Schema(
   }
 );
 
-// Indexes to optimize task queries by project and by assigned team member
+// Indexes to optimize task queries by project, assigned team member, status, and creator
 TaskSchema.index({ project: 1 });
 TaskSchema.index({ assignedTo: 1 });
+TaskSchema.index({ status: 1 });
+TaskSchema.index({ createdBy: 1 });
+TaskSchema.index({ assignedTo: 1, status: 1 });
+TaskSchema.index({ project: 1, status: 1 });
 
 const isSameDay = (d1, d2) => {
   if (!d1 || !d2) return false;

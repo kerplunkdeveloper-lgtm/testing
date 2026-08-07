@@ -66,4 +66,25 @@ function calculateBusinessMs(startDate, endDate, startHour = 9, endHour = 19, ho
   return totalMs;
 }
 
-module.exports = { calculateBusinessMs };
+const OfficeSettings = require("../models/OfficeSettings");
+
+async function checkWithinBusinessHours() {
+  try {
+    let settings = await OfficeSettings.findOne({ key: "global" });
+    if (!settings) {
+      settings = { startHour: 9, endHour: 19 };
+    }
+    const now = new Date();
+    const day = now.getDay();
+    // Sunday = 0, Saturday = 6
+    if (day === 0 || day === 6) {
+      return false;
+    }
+    const currentHour = now.getHours();
+    return currentHour >= settings.startHour && currentHour < settings.endHour;
+  } catch (err) {
+    return true;
+  }
+}
+
+module.exports = { calculateBusinessMs, checkWithinBusinessHours };

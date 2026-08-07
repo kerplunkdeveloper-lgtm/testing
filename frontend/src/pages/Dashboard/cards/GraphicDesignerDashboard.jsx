@@ -1,4 +1,97 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
+
+const LiveProductivityCell = React.memo(
+  ({ tasks = [], initialLoggedMs = 0 }) => {
+    const [liveMs, setLiveMs] = useState(initialLoggedMs);
+
+    const hasInProgress = useMemo(() => {
+      return tasks.some((t) => t.status === "In Progress" && !t.actualEndTime);
+    }, [tasks]);
+
+    const hasInReview = useMemo(() => {
+      return tasks.some((t) => {
+        const s = (t.status || "").toLowerCase();
+        return (s === "in review" || s === "in-review") && !t.actualEndTime;
+      });
+    }, [tasks]);
+
+    const calculateTotalLogged = useCallback(() => {
+      let total = 0;
+      tasks.forEach((t) => {
+        if (t.actualStartTime) {
+          const start = new Date(t.actualStartTime).getTime();
+          const end = t.actualEndTime
+            ? new Date(t.actualEndTime).getTime()
+            : t.pausedAt
+              ? new Date(t.pausedAt).getTime()
+              : Date.now();
+          const paused = t.totalPausedMs || 0;
+          total += Math.max(0, end - start - paused);
+        }
+      });
+      return total;
+    }, [tasks]);
+
+    useEffect(() => {
+      setLiveMs(calculateTotalLogged());
+      if (hasInProgress || hasInReview) {
+        const interval = setInterval(() => {
+          setLiveMs(calculateTotalLogged());
+        }, 1000);
+        return () => clearInterval(interval);
+      }
+    }, [tasks, hasInProgress, hasInReview, calculateTotalLogged]);
+
+    if (!liveMs || liveMs <= 0) {
+      return (
+        <span className="text-slate-400 dark:text-slate-500 font-bold">—</span>
+      );
+    }
+
+    const formatLoggedDuration = (ms) => {
+      if (!ms || ms <= 0) return "0m";
+      const totalSecs = Math.floor(ms / 1000);
+      const h = Math.floor(totalSecs / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      return `${m}m ${s}s`;
+    };
+
+    let badgeStyle =
+      "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300";
+    let pulseDot = null;
+
+    if (hasInProgress) {
+      badgeStyle =
+        "bg-blue-50/90 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:border-blue-700/60 dark:text-blue-400 shadow-sm";
+      pulseDot = (
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0 mr-1.5 inline-block" />
+      );
+    } else if (hasInReview) {
+      badgeStyle =
+        "bg-yellow-400/90 text-yellow-950 border-yellow-500 dark:bg-yellow-500/30 dark:border-yellow-600/60 dark:text-yellow-300 shadow-sm font-black";
+      pulseDot = (
+        <span className="w-1.5 h-1.5 rounded-full bg-yellow-600 dark:bg-yellow-400 animate-pulse shrink-0 mr-1.5 inline-block" />
+      );
+    }
+
+    return (
+      <div
+        className={`inline-flex items-center justify-center px-2 py-1 rounded-full border font-bold text-[10px] tracking-wide ${badgeStyle}`}
+      >
+        {pulseDot}
+        {formatLoggedDuration(liveMs)}
+      </div>
+    );
+  },
+);
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../../context/ThemeContext";
@@ -249,7 +342,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       if (!isCompleted) {
         const startCheckDate = taskStartDate || taskCreatedDate;
         if (startCheckDate) {
-          const isStarted = isSameDay(startCheckDate, selectedDate) || isPast(startCheckDate);
+          const isStarted =
+            isSameDay(startCheckDate, selectedDate) || isPast(startCheckDate);
           if (isStarted) {
             return true;
           }
@@ -258,7 +352,11 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
       // 2. Completed tasks: ONLY show them on the day they were actually completed
       if (isCompleted) {
-        const completedDate = task.completedAt ? parseISO(task.completedAt) : (task.updatedAt ? parseISO(task.updatedAt) : null);
+        const completedDate = task.completedAt
+          ? parseISO(task.completedAt)
+          : task.updatedAt
+            ? parseISO(task.updatedAt)
+            : null;
         return completedDate ? isSameDay(completedDate, selectedDate) : false;
       }
 
@@ -357,7 +455,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     "On Hold",
     "IN REVIEW",
     "Completed",
-    "Rejected",
   ];
   const getColumnForTask = (task) => {
     const status = task.status || "Pending";
@@ -901,7 +998,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   const getDeadlineBadgeText = (dueDateStr, status) => {
     if (!dueDateStr) return "";
     const days = getDaysRemaining(dueDateStr);
-    const isCompleted = status?.toLowerCase() === "completed" || status?.toLowerCase().includes("approve");
+    const isCompleted =
+      status?.toLowerCase() === "completed" ||
+      status?.toLowerCase().includes("approve");
     if (isCompleted) return "Completed";
 
     if (days < 0) {
@@ -920,9 +1019,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     let clientName = "No Client";
     if (task.client) {
       const cId =
-        typeof task.client === "object"
-          ? task.client._id
-          : task.client;
+        typeof task.client === "object" ? task.client._id : task.client;
       const c = clients?.find((x) => x._id === cId);
       clientName =
         c?.companyName ||
@@ -932,15 +1029,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           : "Unknown Client");
     } else if (task.project) {
       const pId =
-        typeof task.project === "object"
-          ? task.project._id
-          : task.project;
+        typeof task.project === "object" ? task.project._id : task.project;
       const p = projects?.find((x) => x._id === pId);
       if (p) {
-        const cId =
-          typeof p.client === "object"
-            ? p.client?._id
-            : p.client;
+        const cId = typeof p.client === "object" ? p.client?._id : p.client;
         const c = clients?.find((x) => x._id === cId);
         clientName =
           c?.companyName ||
@@ -991,49 +1083,56 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         key={task._id}
-        className="bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-400 transition-all shadow-sm hover:shadow-md relative group backdrop-blur-sm"
+        className="bg-white dark:bg-slate-800/80 p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-400 transition-all shadow-2xs hover:shadow-sm relative group backdrop-blur-sm"
       >
-        <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-indigo-500 to-purple-500 rounded-l-xl opacity-100" />
-        {/* Title row: icon + name on left, date on right */}
-        <div className="flex items-start justify-between gap-2 pl-1.5 mb-2">
-          <div className="flex items-start gap-1.5 min-w-0">
+        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 to-purple-500 rounded-l-xl opacity-100" />
+        {/* Title row: icon + name */}
+        <div className="flex items-start justify-between gap-1 pl-1 mb-1.5">
+          <div className="flex items-start gap-1 min-w-0">
             <FiFileText
-              size={12}
+              size={11}
               className="text-indigo-400 dark:text-indigo-400 shrink-0 mt-0.5"
             />
-            <p className="text-[9px] font-bold text-slate-700 dark:text-white leading-snug break-words">
+            <p className="text-[8.5px] font-extrabold text-slate-700 dark:text-white leading-tight break-words" title={task.title}>
               {task.title}
             </p>
           </div>
-          {task.dueDate && (
+        </div>
+        {/* Due Date & Deadline Badge */}
+        {task.dueDate && (
+          <div className="pl-1 mb-1.5 flex items-center justify-between gap-1">
             <span
-              className={`shrink-0 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider whitespace-nowrap px-1.5 py-0.5 rounded ${
-                (() => {
-                  const days = getDaysRemaining(task.dueDate);
-                  const isCompleted = task.status?.toLowerCase() === "completed" || task.status?.toLowerCase().includes("approve");
-                  if (isCompleted) return "text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-500/10";
-                  if (days < 0) return "text-rose-605 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/50 dark:border-rose-900/30";
-                  if (days === 0) return "text-amber-605 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/50 dark:border-amber-900/30";
-                  if (days === 1) return "text-blue-605 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-200/50 dark:border-blue-900/30";
-                  return "text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/50";
-                })()
-              }`}
+              className={`shrink-0 flex items-center gap-1 text-[7.5px] font-black uppercase tracking-wider whitespace-nowrap px-1 py-0.5 rounded ${(() => {
+                const days = getDaysRemaining(task.dueDate);
+                const isCompleted =
+                  task.status?.toLowerCase() === "completed" ||
+                  task.status?.toLowerCase().includes("approve");
+                if (isCompleted)
+                  return "text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-500/10";
+                if (days < 0)
+                  return "text-rose-605 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/50 dark:border-rose-900/30";
+                if (days === 0)
+                  return "text-amber-605 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/50 dark:border-amber-900/30";
+                if (days === 1)
+                  return "text-blue-605 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-200/50 dark:border-blue-900/30";
+                return "text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/50";
+              })()}`}
             >
-              <FiClock size={9} />
+              <FiClock size={8} />
               <span>{format(parseISO(task.dueDate), "MMM dd")}</span>
               <span className="opacity-40 font-normal">|</span>
-              <span>{getDeadlineBadgeText(task.dueDate, task.status)}</span>
+              <span className="truncate max-w-[55px]">{getDeadlineBadgeText(task.dueDate, task.status)}</span>
             </span>
-          )}
-        </div>
+          </div>
+        )}
         {/* Project and Priority Info */}
-        <div className="flex items-center justify-between gap-2 mt-1 pl-1.5 mb-2">
-          <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 truncate max-w-[65%]">
+        <div className="flex items-center justify-between gap-1 pl-1 mb-1">
+          <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 truncate max-w-[65%]" title={clientName}>
             {clientName}
           </span>
           {task.priority && (
             <span
-              className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${getPriorityStyle(task.priority)}`}
+              className={`px-1 py-0.2 rounded text-[7.5px] font-black uppercase tracking-wider shrink-0 ${getPriorityStyle(task.priority)}`}
             >
               {task.priority}
             </span>
@@ -1041,22 +1140,22 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         </div>
         {/* Assigned User */}
         {(assignedUser || assignedByName) && (
-          <div className="mt-2 pl-1 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
+          <div className="mt-1 pl-1 pt-1 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-1">
             {/* Assigned To — left */}
             {assignedUser ? (
-              <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex items-center gap-1 min-w-0" title={`Assigned to: ${assignedUser.name}`}>
                 {profileImg ? (
                   <img
                     src={profileImg}
                     alt={assignedUser.name}
-                    className="w-5 h-5 rounded-full object-cover ring-1 ring-indigo-400/40 shrink-0"
+                    className="w-4 h-4 rounded-full object-cover ring-1 ring-indigo-400/40 shrink-0"
                   />
                 ) : (
-                  <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[8px] font-black ring-1 ring-indigo-400/30 shrink-0">
+                  <div className="w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[7.5px] font-black ring-1 ring-indigo-400/30 shrink-0">
                     {initials}
                   </div>
                 )}
-                <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 truncate">
+                <span className="text-[8.5px] font-semibold text-slate-600 dark:text-slate-400 truncate">
                   {assignedUser.name}
                 </span>
               </div>
@@ -1065,11 +1164,11 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             )}
             {/* Assigned By — right */}
             {assignedByName && (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 flex items-center justify-center text-[8px] font-black ring-1 ring-amber-400/30 shrink-0">
+              <div className="flex items-center gap-1 shrink-0" title={`Assigned by: ${assignedByName}`}>
+                <div className="w-4 h-4 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 flex items-center justify-center text-[7.5px] font-black ring-1 ring-amber-400/30 shrink-0">
                   {creatorInitials || "SM"}
                 </div>
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="text-[8.5px] font-semibold text-slate-500 dark:text-slate-400 truncate max-w-[45px]">
                   {assignedByName}
                 </span>
               </div>
@@ -1109,8 +1208,13 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
           {/* Date Picker Button */}
           <label className="relative flex items-center gap-2 px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all font-bold text-xs">
-            <FiCalendar className="text-emerald-500 dark:text-emerald-400 shrink-0" size={14} />
-            <span className="min-w-[80px] text-center">{format(selectedDate, "MMM dd, yyyy")}</span>
+            <FiCalendar
+              className="text-emerald-500 dark:text-emerald-400 shrink-0"
+              size={14}
+            />
+            <span className="min-w-[80px] text-center">
+              {format(selectedDate, "MMM dd, yyyy")}
+            </span>
             <FiChevronDown className="text-slate-400" size={13} />
             <input
               type="date"
@@ -1374,7 +1478,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             LIVE SYNC
           </span>
         </div>
-        <div className="flex flex-row gap-4 pb-4 overflow-x-auto w-full scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 pb-4 w-full">
           {boardColumns.map((col, i) => {
             let colBg = "bg-slate-50 dark:bg-slate-800/80";
             let boardBg = "bg-slate-50/50 dark:bg-[#0f172a]";
@@ -1462,42 +1566,45 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             return (
               <div
                 key={i}
-                className={`w-[290px] min-w-[290px] shrink-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[580px] shadow-sm`}
+                className={`w-full min-w-0 ${boardBg} backdrop-blur-md rounded-xl border ${colBorder} flex flex-col max-h-[580px] shadow-sm overflow-hidden`}
               >
                 <div
-                  className={`p-3 border-b flex items-center justify-between rounded-t-2xl backdrop-blur-md ${colBg} ${colBorder}`}
+                  className={`p-2 px-2.5 border-b flex items-center justify-between rounded-t-xl backdrop-blur-md ${colBg} ${colBorder}`}
                 >
                   <span
-                    className={`text-[10px] font-black tracking-widest uppercase truncate max-w-[80%] ${textCol}`}
+                    className={`text-[9px] xl:text-[9.5px] font-black tracking-wider uppercase truncate max-w-[75%] ${textCol}`}
+                    title={col}
                   >
                     {col}
                   </span>
                   <span
-                    className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${countBg} ${countText}`}
+                    className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${countBg} ${countText}`}
                   >
                     {columnTasks.length}
                   </span>
                 </div>
-                <div className="p-2.5 overflow-y-auto space-y-3 flex-1 custom-scrollbar">
+                <div className="p-1.5 overflow-y-auto space-y-2 flex-1 custom-scrollbar">
                   {isOverdueCol ? (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {/* Previous Overdue */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between px-2 py-1 bg-red-100/40 dark:bg-red-950/20 border border-red-200/30 dark:border-red-900/30 rounded-lg">
-                          <span className="text-[9px] font-extrabold uppercase text-red-600 dark:text-red-400 tracking-wider">
-                            Previous Overdue
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between px-1.5 py-0.5 bg-red-100/40 dark:bg-red-950/20 border border-red-200/30 dark:border-red-900/30 rounded-md">
+                          <span className="text-[8px] font-extrabold uppercase text-red-600 dark:text-red-400 tracking-wider truncate">
+                            Prev Overdue
                           </span>
-                          <span className="text-[9px] font-black text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded">
+                          <span className="text-[8px] font-black text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/50 px-1 py-0.2 rounded shrink-0">
                             {previousOverdue.length}
                           </span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <AnimatePresence>
                             {previousOverdue.length > 0 ? (
-                              previousOverdue.map((task) => renderTaskCard(task))
+                              previousOverdue.map((task) =>
+                                renderTaskCard(task),
+                              )
                             ) : (
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-2">
-                                No previous overdue tasks
+                              <p className="text-[9px] text-slate-400 dark:text-slate-500 italic text-center py-1">
+                                No previous overdue
                               </p>
                             )}
                           </AnimatePresence>
@@ -1505,21 +1612,21 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                       </div>
 
                       {/* Today Overdue */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between px-2 py-1 bg-amber-100/40 dark:bg-amber-950/20 border border-amber-200/30 dark:border-amber-900/30 rounded-lg">
-                          <span className="text-[9px] font-extrabold uppercase text-amber-600 dark:text-amber-400 tracking-wider">
-                            Today Overdue
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between px-1.5 py-0.5 bg-amber-100/40 dark:bg-amber-950/20 border border-amber-200/30 dark:border-amber-900/30 rounded-md">
+                          <span className="text-[8px] font-extrabold uppercase text-amber-600 dark:text-amber-400 tracking-wider truncate">
+                            Due Today
                           </span>
-                          <span className="text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded">
+                          <span className="text-[8px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-1 py-0.2 rounded shrink-0">
                             {todayOverdue.length}
                           </span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <AnimatePresence>
                             {todayOverdue.length > 0 ? (
                               todayOverdue.map((task) => renderTaskCard(task))
                             ) : (
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-2">
+                              <p className="text-[9px] text-slate-400 dark:text-slate-500 italic text-center py-1">
                                 No tasks due today
                               </p>
                             )}
@@ -1528,21 +1635,23 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                       </div>
 
                       {/* Tomorrow Overdue */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between px-2 py-1 bg-orange-100/40 dark:bg-orange-950/20 border border-orange-200/30 dark:border-orange-900/30 rounded-lg">
-                          <span className="text-[9px] font-extrabold uppercase text-orange-600 dark:text-orange-400 tracking-wider">
-                            Tomorrow Overdue
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between px-1.5 py-0.5 bg-orange-100/40 dark:bg-orange-950/20 border border-orange-200/30 dark:border-orange-900/30 rounded-md">
+                          <span className="text-[8px] font-extrabold uppercase text-orange-600 dark:text-orange-400 tracking-wider truncate">
+                            Due Tomorrow
                           </span>
-                          <span className="text-[9px] font-black text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/50 px-1.5 py-0.5 rounded">
+                          <span className="text-[8px] font-black text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/50 px-1 py-0.2 rounded shrink-0">
                             {tomorrowOverdue.length}
                           </span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <AnimatePresence>
                             {tomorrowOverdue.length > 0 ? (
-                              tomorrowOverdue.map((task) => renderTaskCard(task))
+                              tomorrowOverdue.map((task) =>
+                                renderTaskCard(task),
+                              )
                             ) : (
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center py-2">
+                              <p className="text-[9px] text-slate-400 dark:text-slate-500 italic text-center py-1">
                                 No tasks due tomorrow
                               </p>
                             )}
@@ -1647,7 +1756,22 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
                   >
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-medium text-slate-750 dark:text-slate-200">
-                      <div className="flex items-center gap-1.5">{tp.name}</div>
+                      <div className="flex items-center gap-2">
+                        {tp.profileImage ? (
+                          <img
+                            src={tp.profileImage}
+                            alt={tp.name}
+                            className="w-5.5 h-5.5 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700 shadow-2xs"
+                          />
+                        ) : (
+                          <div className="w-5.5 h-5.5 rounded-full bg-blue-600 dark:bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 shadow-2xs">
+                            {tp.name ? tp.name.charAt(0).toUpperCase() : "U"}
+                          </div>
+                        )}
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[130px]">
+                          {tp.name}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-medium text-slate-700 dark:text-slate-200">
                       {tp.assigned}
@@ -1661,32 +1785,32 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-fuchsia-500 text-fuchsia-850 dark:bg-fuchsia-700 dark:text-fuchsia-400">
                       {tp.onHold}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-yellow-500 text-yellow-850 dark:bg-yellow-700 dark:text-yellow-450">
+                    <td
+                      className={`py-1.5 px-2 border-r border-b text-[11px] font-bold transition-all ${
+                        tp.inReview > 0
+                          ? "bg-yellow-400/90 text-yellow-950 dark:bg-yellow-500/40 dark:text-yellow-200 animate-pulse ring-2 ring-yellow-500 dark:ring-yellow-400 border-2 border-yellow-600 dark:border-yellow-300 shadow-sm"
+                          : "bg-yellow-500 text-yellow-850 dark:bg-yellow-700 dark:text-yellow-450 border-slate-100 dark:border-slate-700/60"
+                      }`}
+                    >
                       {tp.inReview}
                     </td>
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-bold bg-emerald-500 text-emerald-850 dark:bg-emerald-700 dark:text-emerald-400">
                       {tp.completed}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] text-slate-650 dark:text-slate-200">
-                      <div className="flex items-center gap-2 min-w-[95px]">
-                        <div className="w-10 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden shrink-0">
-                          <div
-                            className={`h-full rounded-full ${
-                              tp.avgRevisions <= 1.5
-                                ? "bg-emerald-500"
-                                : tp.avgRevisions <= 3.0
-                                  ? "bg-amber-500"
-                                  : "bg-rose-500"
-                            }`}
-                            style={{
-                              width: `${Math.min(100, (tp.avgRevisions / 5) * 100)}%`,
-                            }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                          {tp.avgRevisions.toFixed(1)} avg
-                        </span>
-                      </div>
+                    <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] text-center">
+                      <span
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${
+                          tp.avgRevisions === 0
+                            ? "bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-800/40 dark:text-slate-500 dark:border-slate-700/50"
+                            : tp.avgRevisions <= 1.5
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40"
+                              : tp.avgRevisions <= 3.0
+                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40"
+                                : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800/40"
+                        }`}
+                      >
+                        {tp.avgRevisions.toFixed(1)} rev
+                      </span>
                     </td>
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] text-slate-600 dark:text-slate-200">
                       {tp.blockers === "none" ? (
@@ -1725,24 +1849,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                       )}
                     </td>
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] text-center">
-                      {tp.inProgressLoggedMs > 0 ? (
-                        <div className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-blue-50/80 border border-blue-200 text-blue-700 font-bold text-[10px] tracking-wide dark:bg-blue-900/30 dark:border-blue-700/50 dark:text-blue-400 shadow-sm">
-                          {(() => {
-                            const totalSecs = Math.floor(
-                              tp.inProgressLoggedMs / 1000,
-                            );
-                            const h = Math.floor(totalSecs / 3600);
-                            const m = Math.floor((totalSecs % 3600) / 60);
-                            const s = totalSecs % 60;
-                            if (h > 0) return `${h}h ${m}m ${s}s`;
-                            return `${m}m ${s}s`;
-                          })()}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 dark:text-slate-500 font-bold">
-                          —
-                        </span>
-                      )}
+                      <LiveProductivityCell
+                        tasks={tp.tasks}
+                        initialLoggedMs={tp.inProgressLoggedMs}
+                      />
                     </td>
 
                     <td className="py-1.5 px-2 border-r border-b border-slate-100 dark:border-slate-700/60 text-[11px] font-medium">
@@ -2089,7 +2199,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                 <div className="flex items-center flex-wrap gap-2.5 sm:gap-3 ml-12 sm:ml-0">
                   {/* status filter venum */}
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[9.5px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-widest">Filter:</span>
+                    <span className="text-[9.5px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-widest">
+                      Filter:
+                    </span>
                     <select
                       value={taskTab}
                       onChange={(e) => setTaskTab(e.target.value)}
@@ -2362,7 +2474,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                   className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-all duration-155 border-b border-slate-100 dark:border-slate-850 last:border-b-0"
                                 >
                                   <td className="py-2 px-3 text-xs font-black text-slate-850 dark:text-slate-100 max-w-xs break-words">
-                                    <span className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">{task.title}</span>
+                                    <span className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                      {task.title}
+                                    </span>
                                   </td>
                                   <td className="py-2 px-3">
                                     <span
@@ -2492,29 +2606,56 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                         );
                                       try {
                                         const dateObj = parseISO(targetDate);
-                                        const taskStatus = (task.status || "").toLowerCase();
+                                        const taskStatus = (
+                                          task.status || ""
+                                        ).toLowerCase();
 
-                                        if (taskStatus === "completed" || taskStatus.includes("approve")) {
+                                        if (
+                                          taskStatus === "completed" ||
+                                          taskStatus.includes("approve")
+                                        ) {
                                           return (
                                             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-650 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/30 shadow-sm transition-all hover:scale-[1.02]">
-                                              <FiCheckCircle size={10} className="shrink-0 text-emerald-500 animate-pulse" />
-                                              <span className="tracking-wide text-[9px]">Done</span>
+                                              <FiCheckCircle
+                                                size={10}
+                                                className="shrink-0 text-emerald-500 animate-pulse"
+                                              />
+                                              <span className="tracking-wide text-[9px]">
+                                                Done
+                                              </span>
                                               <span className="w-[1px] h-2.5 bg-emerald-300 dark:bg-emerald-800" />
                                               <span className="text-[9px] font-semibold opacity-90">
-                                                {format(dateObj, "MMM dd, h:mm a")}
+                                                {format(
+                                                  dateObj,
+                                                  "MMM dd, h:mm a",
+                                                )}
                                               </span>
                                             </div>
                                           );
                                         }
 
-                                        if (taskStatus.includes("review") || taskStatus.includes("revision")) {
+                                        if (
+                                          taskStatus.includes("review") ||
+                                          taskStatus.includes("revision")
+                                        ) {
                                           return (
                                             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50/90 dark:bg-amber-950/40 text-amber-650 dark:text-amber-400 border border-amber-200 dark:border-amber-900/30 shadow-sm transition-all hover:scale-[1.02]">
-                                              <FiClock size={10} className="shrink-0 text-amber-505 animate-spin" style={{ animationDuration: '4s' }} />
-                                              <span className="tracking-wide text-[9px]">In Review</span>
+                                              <FiClock
+                                                size={10}
+                                                className="shrink-0 text-amber-505 animate-spin"
+                                                style={{
+                                                  animationDuration: "4s",
+                                                }}
+                                              />
+                                              <span className="tracking-wide text-[9px]">
+                                                In Review
+                                              </span>
                                               <span className="w-[1px] h-2.5 bg-amber-300 dark:bg-amber-800" />
                                               <span className="text-[9px] font-semibold opacity-90">
-                                                {format(dateObj, "MMM dd, h:mm a")}
+                                                {format(
+                                                  dateObj,
+                                                  "MMM dd, h:mm a",
+                                                )}
                                               </span>
                                             </div>
                                           );
@@ -2631,7 +2772,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
                                       const totalWaitMs =
                                         task.approvalWaitingMs ||
-                                        (task.reviewStartedAt && task.completedAt
+                                        (task.reviewStartedAt &&
+                                        task.completedAt
                                           ? calculateBusinessMs(
                                               task.reviewStartedAt,
                                               task.completedAt,
@@ -2644,7 +2786,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                           totalWaitMs / 1000,
                                         );
                                         const h = Math.floor(totalSecs / 3600);
-                                        const m = Math.floor((totalSecs % 3600) / 60);
+                                        const m = Math.floor(
+                                          (totalSecs % 3600) / 60,
+                                        );
                                         const s = totalSecs % 60;
                                         tookText =
                                           h > 0
@@ -2659,7 +2803,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                           return {
                                             dayMonth: format(d, "dd MMM"),
                                             time: format(d, "hh:mm a"),
-                                            relative: formatDistanceToNow(d) + " ago",
+                                            relative:
+                                              formatDistanceToNow(d) + " ago",
                                           };
                                         } catch (e) {
                                           return null;
@@ -2682,26 +2827,39 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                               {tookText}
                                             </span>
                                           ) : (
-                                            <span className="text-[10px] text-slate-400 font-bold">—</span>
+                                            <span className="text-[10px] text-slate-400 font-bold">
+                                              —
+                                            </span>
                                           )}
 
                                           {/* Times Flow */}
                                           <div className="flex items-center justify-center gap-1.5 text-[10.5px] font-extrabold mt-0.5">
                                             <div className="flex flex-col items-center">
-                                              <span className="text-[8px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest leading-none mb-0.5">Start</span>
+                                              <span className="text-[8px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest leading-none mb-0.5">
+                                                Start
+                                              </span>
                                               <span className="text-slate-800 dark:text-slate-100 leading-tight">
-                                                {startInfo ? `${startInfo.dayMonth}, ${startInfo.time}` : "—"}
+                                                {startInfo
+                                                  ? `${startInfo.dayMonth}, ${startInfo.time}`
+                                                  : "—"}
                                               </span>
                                             </div>
-                                            
-                                            <span className="text-slate-300 dark:text-slate-700 font-normal mt-2">→</span>
-                                            
+
+                                            <span className="text-slate-300 dark:text-slate-700 font-normal mt-2">
+                                              →
+                                            </span>
+
                                             <div className="flex flex-col items-center">
-                                              <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest leading-none mb-0.5">End</span>
+                                              <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest leading-none mb-0.5">
+                                                End
+                                              </span>
                                               <span className="text-slate-850 dark:text-slate-100 leading-tight">
-                                                {endInfo ? (
-                                                  startInfo?.dayMonth === endInfo.dayMonth ? endInfo.time : `${endInfo.dayMonth}, ${endInfo.time}`
-                                                ) : "—"}
+                                                {endInfo
+                                                  ? startInfo?.dayMonth ===
+                                                    endInfo.dayMonth
+                                                    ? endInfo.time
+                                                    : `${endInfo.dayMonth}, ${endInfo.time}`
+                                                  : "—"}
                                               </span>
                                             </div>
                                           </div>

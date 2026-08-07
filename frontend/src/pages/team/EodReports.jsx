@@ -692,12 +692,12 @@ const EodReports = () => {
     if (tasksState.length > 0) {
       const hasPending = tasksState.some(
         (t) =>
-          !["Completed", "In Review", "IN-REVIEW", "IN-Review"].includes(
+          !["Completed", "In Review"].includes(
             t.statusAtEod,
           ),
       );
       const hasInReview = tasksState.some((t) =>
-        ["In Review", "IN-REVIEW", "IN-Review"].includes(t.statusAtEod),
+        t.statusAtEod === "In Review",
       );
       const allCompleted = tasksState.every(
         (t) => t.statusAtEod === "Completed",
@@ -810,7 +810,7 @@ const EodReports = () => {
     (t) => t.statusAtEod === "On Hold",
   ).length;
   const inReviewCount = tasksState.filter((t) =>
-    ["IN-REVIEW", "In Review", "IN-Review"].includes(t.statusAtEod),
+    t.statusAtEod === "In Review",
   ).length;
   const revisionCount = tasksState.filter((t) =>
     ["Revision", "Revision Pending"].includes(t.statusAtEod),

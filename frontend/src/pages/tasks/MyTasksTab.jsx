@@ -77,7 +77,7 @@ const TimeTracker = ({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "IN-REVIEW", "In Review", "IN-Review"].includes(
+        ["On Hold", "Rejected", "In Review"].includes(
           status,
         )
       ) {
@@ -91,9 +91,10 @@ const TimeTracker = ({
         blockerHistory.forEach((item) => {
           if (item.pausedAt) {
             const p = new Date(item.pausedAt).getTime();
-            const r = item.resumedAt
+            let r = item.resumedAt
               ? new Date(item.resumedAt).getTime()
               : Date.now();
+            if (r > end) r = end;
             if (r >= p) {
               totalPauseMs += r - p;
             }
@@ -103,9 +104,8 @@ const TimeTracker = ({
 
       if (isBlocked && blockerPausedAt) {
         const pauseStart = new Date(blockerPausedAt).getTime();
-        const currentPause = Date.now() - pauseStart;
-        if (currentPause > 0) {
-          totalPauseMs += currentPause;
+        if (pauseStart < end) {
+          totalPauseMs += end - pauseStart;
         }
       }
 
@@ -194,7 +194,7 @@ const TimeTracker = ({
   );
 };
 
-const SingleTimeDisplay = ({
+const SingleTimeDisplay = React.memo(({
   mode = "active", // "active" or "blocker"
   startTime,
   endTime,
@@ -219,7 +219,7 @@ const SingleTimeDisplay = ({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "IN-REVIEW", "In Review", "IN-Review"].includes(
+        ["On Hold", "Rejected", "In Review"].includes(
           status,
         )
       ) {
@@ -233,9 +233,10 @@ const SingleTimeDisplay = ({
         blockerHistory.forEach((item) => {
           if (item.pausedAt) {
             const p = new Date(item.pausedAt).getTime();
-            const r = item.resumedAt
+            let r = item.resumedAt
               ? new Date(item.resumedAt).getTime()
               : Date.now();
+            if (r > end) r = end;
             if (r >= p) {
               totalPauseMs += r - p;
             }
@@ -245,9 +246,8 @@ const SingleTimeDisplay = ({
 
       if (isBlocked && blockerPausedAt) {
         const pauseStart = new Date(blockerPausedAt).getTime();
-        const currentPause = Date.now() - pauseStart;
-        if (currentPause > 0) {
-          totalPauseMs += currentPause;
+        if (pauseStart < end) {
+          totalPauseMs += end - pauseStart;
         }
       }
 
@@ -313,10 +313,8 @@ const SingleTimeDisplay = ({
     const colorClasses =
       status === "In Progress"
         ? "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-[#3b82f6]/30 text-blue-600 dark:text-[#3b82f6]"
-        : status === "In Review" || status === "IN-Review" || status === "InReview"
+        : status === "In Review"
           ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400"
-          : status === "IN-REVIEW" || status === "in-review"
-            ? "bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400"
             : status === "On Hold"
               ? "bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/30 text-violet-600 dark:text-violet-400"
               : status === "Completed"
@@ -335,7 +333,7 @@ const SingleTimeDisplay = ({
       {formatTime(blockedMs)}
     </span>
   );
-};
+});
 
 const formatBusinessDuration = (ms) => {
   if (!ms) return "0m 0s";
@@ -347,7 +345,7 @@ const formatBusinessDuration = (ms) => {
   return `${m}m ${s}s`;
 };
 
-const ApprovalTimeDisplay = ({
+const ApprovalTimeDisplay = React.memo(({
   reviewStartedAt,
   completedAt,
   approvalWaitingMs,
@@ -358,7 +356,7 @@ const ApprovalTimeDisplay = ({
   useEffect(() => {
     if (
       !reviewStartedAt ||
-      !["In Review", "IN-REVIEW", "IN-Review"].includes(status)
+      status !== "In Review"
     ) {
       setLiveElapsed(0);
       return;
@@ -402,7 +400,7 @@ const ApprovalTimeDisplay = ({
   };
 
   const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
-  const isInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(status);
+  const isInReview = status === "In Review";
   const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
   const doneInfo = completedAt ? formatDateTime(completedAt) : null;
 
@@ -471,7 +469,7 @@ const ApprovalTimeDisplay = ({
       )}
     </div>
   );
-};
+});
 
 // Lightweight badge — shows only the approval duration (no date cards)
 const ApprovalDurationBadge = ({
@@ -480,7 +478,7 @@ const ApprovalDurationBadge = ({
   status,
 }) => {
   const [liveElapsed, setLiveElapsed] = useState(0);
-  const isInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(status);
+  const isInReview = status === "In Review";
 
   useEffect(() => {
     if (!reviewStartedAt || !isInReview) {
@@ -945,7 +943,6 @@ const MyTasksTab = ({
         return (
           s === "PENDING" ||
           s === "IN PROGRESS" ||
-          s === "IN-REVIEW" ||
           s === "IN REVIEW" ||
           s === "ON HOLD"
         );
@@ -1050,7 +1047,7 @@ const MyTasksTab = ({
 
     if (
       sanitizedFields.status &&
-      ["IN-REVIEW", "In Review", "IN-Review"].includes(sanitizedFields.status)
+      sanitizedFields.status === "In Review"
     ) {
       const currentTaskObj = tasks?.find((t) => t._id === taskId);
       if (currentTaskObj && !currentTaskObj.actualStartTime) {
@@ -1103,6 +1100,18 @@ const MyTasksTab = ({
         taskData: sanitizedFields,
       }).unwrap();
     } catch (err) {
+      if (err?.data?.isOfficeHoursEnded || err?.error?.data?.isOfficeHoursEnded) {
+        const errorData = err?.data || err?.error?.data;
+        window.dispatchEvent(
+          new CustomEvent("show-office-hours-ended-popup", {
+            detail: {
+              workingTimeMs: errorData.workingTimeMs,
+              pausedAtHour: errorData.pausedAt,
+            },
+          })
+        );
+        return;
+      }
       if (err?.status === 409 || err?.originalStatus === 409) {
         toast.custom(
           (t) => (
@@ -1272,7 +1281,7 @@ const MyTasksTab = ({
   const handleStatusChange = async (taskId, newStatus) => {
     if (
       newStatus &&
-      ["IN-REVIEW", "In Review", "IN-Review"].includes(newStatus)
+      newStatus === "In Review"
     ) {
       const currentTaskObj = tasks?.find((t) => t._id === taskId);
       if (currentTaskObj && !currentTaskObj.actualStartTime) {
@@ -1461,9 +1470,7 @@ const MyTasksTab = ({
           dot: "bg-amber-500",
           icon: FiAlertCircle,
         };
-      case "IN-REVIEW":
       case "In Review":
-      case "IN-Review":
         return {
           bg: "!bg-yellow-300 !text-sky-700 !border-sky-200 dark:!bg-yellow-400  dark:!text-black dark:!border-sky-500/40",
           dot: "bg-sky-500",
@@ -1833,7 +1840,7 @@ const MyTasksTab = ({
                         color: "bg-amber-500",
                       },
                       {
-                        name: "IN-REVIEW",
+                        name: "In Review",
                         label: "In Review",
                         color: "bg-sky-500",
                       },
@@ -2064,21 +2071,12 @@ const MyTasksTab = ({
           {[
             "Pending",
             "In Progress",
-            "IN-REVIEW",
+            "In Review",
             "On Hold",
             "Completed",
             "Rejected",
           ].map((colStatus) => {
-            const colTasks = filteredTasks.filter((t) => {
-              if (colStatus === "IN-REVIEW") {
-                return (
-                  t.status === "IN-REVIEW" ||
-                  t.status === "In Review" ||
-                  t.status === "IN-Review"
-                );
-              }
-              return t.status === colStatus;
-            });
+            const colTasks = filteredTasks.filter((t) => t.status === colStatus);
             const style = getStatusStyle(colStatus);
 
             return (
@@ -2550,11 +2548,7 @@ const MyTasksTab = ({
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                   Completed
                                 </div>
-                              ) : [
-                                  "IN-REVIEW",
-                                  "In Review",
-                                  "IN-Review",
-                                ].includes(task.status) ? (
+                              ) : task.status === "In Review" ? (
                                 <div className="px-2.5 py-2 text-[11px] sm:text-[13px] font-extrabold rounded-md border border-yellow-800 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300 bg-yellow-200 dark:bg-yellow-500/10 flex items-center justify-center gap-1.5 shadow-sm ">
                                   <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
                                   In Review
@@ -2584,7 +2578,7 @@ const MyTasksTab = ({
                                       In Progress
                                     </option>
                                     <option
-                                      value="IN-REVIEW"
+                                      value="In Review"
                                       className="bg-white dark:bg-[#11131e] text-slate-700 dark:text-slate-200"
                                     >
                                       In Review

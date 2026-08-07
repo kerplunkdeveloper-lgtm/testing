@@ -44,6 +44,7 @@ import axiosInstance from "../../services/axiosInstance";
 import toast from "react-hot-toast";
 
 import {
+  apiSlice,
   useGetTasksQuery,
   useCreateTaskMutation,
   useUpdateTaskMutation,
@@ -85,7 +86,7 @@ export const isSameDate = (d1, d2) => {
   }
 };
 
-const ApprovalTimeDisplay = ({
+const ApprovalTimeDisplay = React.memo(({
   reviewStartedAt,
   completedAt,
   approvalWaitingMs,
@@ -100,7 +101,7 @@ const ApprovalTimeDisplay = ({
   useEffect(() => {
     if (
       !reviewStartedAt ||
-      !["In Review", "IN-REVIEW", "IN-Review"].includes(status)
+      status !== "In Review"
     ) {
       setLiveElapsed(0);
       return;
@@ -161,7 +162,7 @@ const ApprovalTimeDisplay = ({
   };
 
   const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
-  const isInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(status);
+  const isInReview = status === "In Review";
   const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
   const doneInfo = completedAt ? formatDateTime(completedAt) : null;
 
@@ -276,7 +277,7 @@ const ApprovalTimeDisplay = ({
         )}
     </div>
   );
-};
+});
 
 const StrictModeDroppable = ({ children, ...props }) => {
   const [enabled, setEnabled] = useState(false);
@@ -291,7 +292,7 @@ const StrictModeDroppable = ({ children, ...props }) => {
   return <Droppable {...props}>{children}</Droppable>;
 };
 
-const TimeTracker = ({
+const TimeTracker = React.memo(({
   startTime,
   endTime,
   pausedAt,
@@ -313,7 +314,7 @@ const TimeTracker = ({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "In Review", "IN-REVIEW", "IN-Review"].includes(
+        ["On Hold", "Rejected", "In Review"].includes(
           status,
         )
       ) {
@@ -399,15 +400,13 @@ const TimeTracker = ({
       className={`inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold tracking-wider w-full ${
         status === "In Progress" && !endTime
           ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30 shadow-sm"
-          : status === "In Review" || status === "IN-Review" || status === "InReview"
+          : status === "In Review"
             ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30 shadow-sm"
-            : status === "IN-REVIEW" || status === "in-review"
-              ? "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30 shadow-sm"
-              : status === "On Hold"
-                ? "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/30 shadow-sm"
-                : status === "Completed"
-                  ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 shadow-sm"
-                  : "bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-500/5 dark:text-slate-400 dark:border-slate-500/20 shadow-xs"
+            : status === "On Hold"
+              ? "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/30 shadow-sm"
+              : status === "Completed"
+                ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 shadow-sm"
+                : "bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-500/5 dark:text-slate-400 dark:border-slate-500/20 shadow-xs"
       }`}
     >
       {status === "In Progress" && !endTime ? (
@@ -418,7 +417,7 @@ const TimeTracker = ({
       {timeString}
     </div>
   );
-};
+});
 
 // Task Title Input Component for autosaving inline without cursor jump
 const TaskTitleInput = ({
@@ -2061,11 +2060,7 @@ const ProjectTaskBoard = ({
           return false;
         }
       } else if (statusFilter === "In Review") {
-        if (
-          statusUpper !== "IN-REVIEW" &&
-          statusUpper !== "IN REVIEW" &&
-          statusUpper !== "IN-REVIEW"
-        ) {
+        if (t.status !== "In Review") {
           return false;
         }
       } else if (statusFilter === "In Progress") {
@@ -2197,6 +2192,18 @@ const ProjectTaskBoard = ({
         }).unwrap();
       } catch (err) {
         console.error("Failed to drag and drop task:", err);
+        if (err?.data?.isOfficeHoursEnded || err?.error?.data?.isOfficeHoursEnded) {
+          const errorData = err?.data || err?.error?.data;
+          window.dispatchEvent(
+            new CustomEvent("show-office-hours-ended-popup", {
+              detail: {
+                workingTimeMs: errorData.workingTimeMs,
+                pausedAtHour: errorData.pausedAt,
+              },
+            })
+          );
+          dispatch(apiSlice.util.invalidateTags(["Task"]));
+        }
       }
     } else {
       // Optimistically update local UI for section
@@ -2527,10 +2534,7 @@ const ProjectTaskBoard = ({
 
   // Update Task fields inline / autosave
   const handleTaskFieldChange = async (taskId, fields) => {
-    if (
-      fields.status &&
-      ["IN-REVIEW", "In Review", "IN-Review"].includes(fields.status)
-    ) {
+    if (fields.status === "In Review") {
       const taskObj = localTasks.find((t) => t._id === taskId);
       if (taskObj && !taskObj.actualStartTime) {
         showStartInProgressWarning("review");
@@ -2712,6 +2716,20 @@ const ProjectTaskBoard = ({
       }).unwrap();
     } catch (err) {
       console.error("Failed to update task:", err);
+
+      if (err?.data?.isOfficeHoursEnded || err?.error?.data?.isOfficeHoursEnded) {
+        const errorData = err?.data || err?.error?.data;
+        window.dispatchEvent(
+          new CustomEvent("show-office-hours-ended-popup", {
+            detail: {
+              workingTimeMs: errorData.workingTimeMs,
+              pausedAtHour: errorData.pausedAt,
+            },
+          })
+        );
+        dispatch(apiSlice.util.invalidateTags(["Task"]));
+        return;
+      }
 
       if (err?.status === 409) {
         toast.custom(
@@ -2928,10 +2946,7 @@ const ProjectTaskBoard = ({
 
   // Update specific subtask fields
   const handleSubtaskFieldChange = async (task, subtaskId, updatedFields) => {
-    if (
-      updatedFields.status &&
-      ["IN-REVIEW", "In Review", "IN-Review"].includes(updatedFields.status)
-    ) {
+    if (updatedFields.status === "In Review") {
       const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
       if (subtaskObj && !subtaskObj.actualStartTime) {
         showStartInProgressWarning("review");
@@ -5733,13 +5748,9 @@ const ProjectTaskBoard = ({
                                                                 }`}
                                                               >
                                                                 {task.status ===
-                                                                  "IN-REVIEW" ||
-                                                                task.status ===
-                                                                  "In Review" ||
-                                                                task.status ===
-                                                                  "IN-Review" ? (
+                                                                "In Review" ? (
                                                                   <>
-                                                                    <option value="IN-REVIEW">
+                                                                    <option value="In Review">
                                                                       In Review
                                                                     </option>
                                                                     <option value="Completed">
@@ -5758,7 +5769,7 @@ const ProjectTaskBoard = ({
                                                                       In
                                                                       Progress
                                                                     </option>
-                                                                    <option value="IN-REVIEW">
+                                                                    <option value="In Review">
                                                                       In Review
                                                                     </option>
                                                                     <option value="Completed">
@@ -5783,11 +5794,7 @@ const ProjectTaskBoard = ({
                                                                         "In Progress"
                                                                       ? "badge-status-in-progress"
                                                                       : task.status ===
-                                                                            "IN-REVIEW" ||
-                                                                          task.status ===
-                                                                            "In Review" ||
-                                                                          task.status ===
-                                                                            "IN-Review"
+                                                                            "In Review"
                                                                         ? "badge-status-in-review"
                                                                         : task.status ===
                                                                             "On Hold"
@@ -5799,11 +5806,7 @@ const ProjectTaskBoard = ({
                                                                 }`}
                                                               >
                                                                 {task.status ===
-                                                                  "IN-REVIEW" ||
-                                                                task.status ===
-                                                                  "In Review" ||
-                                                                task.status ===
-                                                                  "IN-Review"
+                                                                "In Review"
                                                                   ? "In Review"
                                                                   : task.status ||
                                                                     "Pending"}
@@ -6957,11 +6960,7 @@ const ProjectTaskBoard = ({
                                                                                 "In Progress"
                                                                               ? "badge-status-in-progress"
                                                                               : sub.status ===
-                                                                                    "IN-REVIEW" ||
-                                                                                  sub.status ===
-                                                                                    "In Review" ||
-                                                                                  sub.status ===
-                                                                                    "IN-Review"
+                                                                                  "In Review"
                                                                                 ? "badge-status-in-review"
                                                                                 : sub.status ===
                                                                                     "On Hold"
@@ -6973,15 +6972,10 @@ const ProjectTaskBoard = ({
                                                                         }`}
                                                                       >
                                                                         {sub.status ===
-                                                                          "IN-REVIEW" ||
-                                                                        sub.status ===
-                                                                          "In Review" ||
-                                                                        sub.status ===
-                                                                          "IN-Review" ? (
+                                                                        "In Review" ? (
                                                                           <>
-                                                                            <option value="IN-REVIEW">
-                                                                              In
-                                                                              Review
+                                                                            <option value="In Review">
+                                                                              In Review
                                                                             </option>
                                                                             <option value="Completed">
                                                                               Completed

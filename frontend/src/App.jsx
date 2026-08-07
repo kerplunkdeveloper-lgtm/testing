@@ -3,6 +3,8 @@ import AppRoutes from "./routes/AppRoutes";
 import ThemeSettingsPanel from "./components/common/ThemeSettingsPanel";
 import Preloader from "./components/common/Preloader";
 import InReviewNotificationPopup from "./components/common/InReviewNotificationPopup";
+import OfficeHoursPausedPopup from "./components/common/OfficeHoursPausedPopup";
+import ResumePausedTasksPopup from "./components/common/ResumePausedTasksPopup";
 
 const App = () => {
   return (
@@ -11,6 +13,8 @@ const App = () => {
       <AppRoutes />
       <ThemeSettingsPanel />
       <InReviewNotificationPopup />
+      <OfficeHoursPausedPopup />
+      <ResumePausedTasksPopup />
     </>
   );
 };

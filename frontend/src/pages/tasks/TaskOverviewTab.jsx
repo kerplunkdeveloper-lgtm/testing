@@ -55,8 +55,10 @@ const SimpleTimeTracker = ({
   isBlocked,
   blockerPausedAt,
   blockerHistory,
+  mode = "active",
 }) => {
   const [elapsed, setElapsed] = useState(0);
+  const [blockedMs, setBlockedMs] = useState(0);
 
   useEffect(() => {
     if (!startTime) return;
@@ -69,9 +71,7 @@ const SimpleTimeTracker = ({
         end = new Date(endTime).getTime();
       } else if (
         pausedAt &&
-        ["On Hold", "Rejected", "IN-REVIEW", "In Review", "IN-Review"].includes(
-          status,
-        )
+        ["On Hold", "Rejected", "In Review"].includes(status)
       ) {
         end = new Date(pausedAt).getTime();
       } else {
@@ -83,9 +83,10 @@ const SimpleTimeTracker = ({
         blockerHistory.forEach((item) => {
           if (item.pausedAt) {
             const p = new Date(item.pausedAt).getTime();
-            const r = item.resumedAt
+            let r = item.resumedAt
               ? new Date(item.resumedAt).getTime()
               : Date.now();
+            if (r > end) r = end;
             if (r >= p) {
               totalPauseMs += r - p;
             }
@@ -95,18 +96,22 @@ const SimpleTimeTracker = ({
 
       if (isBlocked && blockerPausedAt) {
         const pauseStart = new Date(blockerPausedAt).getTime();
-        const currentPause = Date.now() - pauseStart;
-        if (currentPause > 0) {
-          totalPauseMs += currentPause;
+        if (pauseStart < end) {
+          totalPauseMs += end - pauseStart;
         }
       }
 
       const totalElapsedMs = end - start - (savedPausedMs || 0) - totalPauseMs;
-      return Math.max(0, Math.floor(totalElapsedMs / 1000));
+      return {
+        active: Math.max(0, Math.floor(totalElapsedMs / 1000)),
+        blocked: Math.max(0, Math.floor(totalPauseMs / 1000)),
+      };
     };
 
     const update = () => {
-      setElapsed(calculateTime());
+      const { active, blocked } = calculateTime();
+      setElapsed(active);
+      setBlockedMs(blocked);
     };
 
     update();
@@ -129,7 +134,7 @@ const SimpleTimeTracker = ({
   if (!startTime) {
     if (!status || status.toLowerCase() === "pending") {
       return (
-        <span className="text-slate-450 dark:text-slate-500 font-semibold text-xs">
+        <span className="text-slate-450 dark:text-slate-500 font-semibold text-[9.5px]">
           Not started
         </span>
       );
@@ -146,23 +151,159 @@ const SimpleTimeTracker = ({
     return `${h > 0 ? `${h}h ` : ""}${m}m ${s}s`;
   };
 
+  if (mode === "blocker") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-xl text-[9px] font-black border shadow-2xs bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20">
+        {formatTime(blockedMs)}
+      </span>
+    );
+  }
+
   const colorClasses =
     status === "In Progress"
       ? "bg-blue-50/80 text-blue-700 border-blue-200 dark:bg-blue-955/30 dark:text-blue-400 dark:border-blue-900/30"
-      : status === "In Review" || status === "IN-Review" || status === "InReview"
+      : status === "In Review"
         ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-550/10 dark:text-amber-400 dark:border-amber-550/30"
-        : status === "IN-REVIEW" || status === "in-review"
-          ? "bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30"
-          : status === "On Hold"
-            ? "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/30"
-            : status === "Completed"
-              ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
-              : "bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-500/5 dark:text-slate-400 dark:border-slate-500/20";
+        : status === "On Hold"
+          ? "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/30"
+          : status === "Completed"
+            ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+            : "bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-500/5 dark:text-slate-400 dark:border-slate-500/20";
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black border shadow-2xs ${colorClasses}`}>
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-xl text-[9px] font-black border shadow-2xs ${colorClasses}`}
+    >
       {formatTime(elapsed)}
     </span>
+  );
+};
+
+const TimeTrackerBox = ({
+  startTime,
+  endTime,
+  status,
+  pausedAt,
+  savedPausedMs = 0,
+  isBlocked,
+  blockerPausedAt,
+  blockerHistory,
+}) => {
+  const [elapsed, setElapsed] = useState(0);
+  const [blockedMs, setBlockedMs] = useState(0);
+
+  useEffect(() => {
+    if (!startTime) return;
+
+    const calculateTime = () => {
+      const start = new Date(startTime).getTime();
+      let end;
+
+      if (endTime) {
+        end = new Date(endTime).getTime();
+      } else if (
+        pausedAt &&
+        ["On Hold", "Rejected", "In Review"].includes(status)
+      ) {
+        end = new Date(pausedAt).getTime();
+      } else {
+        end = Date.now();
+      }
+
+      let totalPauseMs = 0;
+      if (blockerHistory && blockerHistory.length > 0) {
+        blockerHistory.forEach((item) => {
+          if (item.pausedAt) {
+            const p = new Date(item.pausedAt).getTime();
+            let r = item.resumedAt
+              ? new Date(item.resumedAt).getTime()
+              : Date.now();
+            if (r > end) r = end;
+            if (r >= p) {
+              totalPauseMs += r - p;
+            }
+          }
+        });
+      }
+
+      if (isBlocked && blockerPausedAt) {
+        const pauseStart = new Date(blockerPausedAt).getTime();
+        if (pauseStart < end) {
+          totalPauseMs += end - pauseStart;
+        }
+      }
+
+      const totalElapsedMs = end - start - (savedPausedMs || 0) - totalPauseMs;
+      return {
+        active: Math.max(0, Math.floor(totalElapsedMs / 1000)),
+        blocked: Math.max(0, Math.floor(totalPauseMs / 1000)),
+      };
+    };
+
+    const update = () => {
+      const { active, blocked } = calculateTime();
+      setElapsed(active);
+      setBlockedMs(blocked);
+    };
+
+    update();
+
+    if (status === "In Progress" && !endTime) {
+      const interval = setInterval(update, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [
+    startTime,
+    endTime,
+    pausedAt,
+    status,
+    isBlocked,
+    blockerPausedAt,
+    blockerHistory,
+    savedPausedMs,
+  ]);
+
+  if (!startTime) {
+    if (!status || status.toLowerCase() === "pending") {
+      return (
+        <span className="text-slate-450 dark:text-slate-500 font-semibold text-[9.5px]">
+          Not started
+        </span>
+      );
+    }
+    return (
+      <span className="text-slate-450 dark:text-slate-500 font-normal">—</span>
+    );
+  }
+
+  const formatTime = (secs) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${h > 0 ? `${h}h ` : ""}${m}m ${s}s`;
+  };
+
+  const activeStr = formatTime(elapsed);
+  const blockedStr = formatTime(blockedMs);
+  const totalStr = formatTime(elapsed + blockedMs);
+
+  return (
+    <div className="flex flex-col gap-0.5 w-[105px] text-[8.5px] font-extrabold tracking-wide mx-auto">
+      <div className="flex justify-between items-center bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/50 dark:border-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-700 dark:text-emerald-400">
+        <span>Active:</span>
+        <span>{activeStr}</span>
+      </div>
+      {(blockedMs > 0 || isBlocked) && (
+        <div className="flex justify-between items-center bg-orange-50 dark:bg-orange-500/10 border border-orange-200/50 dark:border-orange-500/20 px-1.5 py-0.5 rounded text-orange-700 dark:text-orange-400">
+          <span>Blocked:</span>
+          <span>{blockedStr}</span>
+        </div>
+      )}
+      <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-600/50 px-1.5 py-0.5 rounded text-slate-800 dark:text-slate-100 shadow-2xs">
+        <span>Total:</span>
+        <span>{totalStr}</span>
+      </div>
+    </div>
   );
 };
 
@@ -175,192 +316,192 @@ const formatBusinessDuration = (ms) => {
   if (h > 0) return `${h}h ${m}m ${s}s`;
   return `${m}m ${s}s`;
 };
-const ApprovalTimeDisplay = ({
-  reviewStartedAt,
-  completedAt,
-  approvalWaitingMs,
-  status,
-}) => {
-  const [liveElapsed, setLiveElapsed] = useState(0);
-  const [showPopup, setShowPopup] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
-  const buttonRef = useRef(null);
-  const popupRef = useRef(null);
+const ApprovalTimeDisplay = React.memo(
+  ({ reviewStartedAt, completedAt, approvalWaitingMs, status }) => {
+    const [liveElapsed, setLiveElapsed] = useState(0);
+    const [showPopup, setShowPopup] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef(null);
+    const popupRef = useRef(null);
 
-  useEffect(() => {
-    if (
-      !reviewStartedAt ||
-      !["In Review", "IN-REVIEW", "IN-Review"].includes(status)
-    ) {
-      setLiveElapsed(0);
-      return;
-    }
-    const updateTime = () => {
-      const elapsed = calculateBusinessMs(reviewStartedAt, Date.now());
-      setLiveElapsed(elapsed);
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, [reviewStartedAt, status]);
-
-  // Click outside close
-  useEffect(() => {
-    if (!showPopup) return;
-    const handleClickOutside = (e) => {
-      if (popupRef.current && !popupRef.current.contains(e.target) && buttonRef.current && !buttonRef.current.contains(e.target)) {
-        setShowPopup(false);
+    useEffect(() => {
+      if (!reviewStartedAt || status !== "In Review") {
+        setLiveElapsed(0);
+        return;
       }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showPopup]);
+      const updateTime = () => {
+        const elapsed = calculateBusinessMs(reviewStartedAt, Date.now());
+        setLiveElapsed(elapsed);
+      };
+      updateTime();
+      const interval = setInterval(updateTime, 1000);
+      return () => clearInterval(interval);
+    }, [reviewStartedAt, status]);
 
-  if (!reviewStartedAt && !approvalWaitingMs) {
-    return (
-      <span className="text-slate-350 dark:text-slate-655 text-xs">—</span>
-    );
-  }
+    // Click outside close
+    useEffect(() => {
+      if (!showPopup) return;
+      const handleClickOutside = (e) => {
+        if (
+          popupRef.current &&
+          !popupRef.current.contains(e.target) &&
+          buttonRef.current &&
+          !buttonRef.current.contains(e.target)
+        ) {
+          setShowPopup(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }, [showPopup]);
 
-  const formatDateTime = (dateStr) => {
-    if (!dateStr) return { date: "—", time: "", relative: "" };
-    const d = new Date(dateStr);
-    const date = d.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-    });
-    const time = d.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const diffMs = Date.now() - d;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    let relative = "just now";
-    if (diffDays > 0) relative = `${diffDays}d ago`;
-    else if (diffHours > 0) relative = `${diffHours}h ago`;
-    else if (diffMins > 0) relative = `${diffMins}m ago`;
-    return { date, time, relative };
-  };
-
-  const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
-  const isInReview = ["In Review", "IN-REVIEW", "IN-Review"].includes(status);
-  const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
-  const doneInfo = completedAt ? formatDateTime(completedAt) : null;
-
-  const handleToggle = (e) => {
-    e.stopPropagation();
-    if (!showPopup && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      // Position above the button, aligned to its right edge
-      setCoords({
-        top: rect.top + window.scrollY - 175,
-        left: rect.right + window.scrollX - 224,
-      });
+    if (!reviewStartedAt && !approvalWaitingMs) {
+      return (
+        <span className="text-slate-350 dark:text-slate-655 text-[9.5px]">—</span>
+      );
     }
-    setShowPopup(!showPopup);
-  };
 
-  return (
-    <div className="relative inline-flex items-center gap-1.5 justify-center">
-      {/* Duration badge */}
-      {totalWaitMs > 0 && (
-        <div
-          className={`px-2.5 py-1 rounded-full font-black text-[10px] tracking-wide border shadow-sm ${
-            isInReview
-              ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/25"
-              : "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20"
-          }`}
-        >
-          {isInReview && (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0 mr-1 inline-block" />
-          )}
-          {isInReview ? "Waiting " : "Took "}
-          <span className="font-black">
-            {formatBusinessDuration(totalWaitMs)}
-          </span>
-        </div>
-      )}
+    const formatDateTime = (dateStr) => {
+      if (!dateStr) return { date: "—", time: "", relative: "" };
+      const d = new Date(dateStr);
+      const date = d.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+      });
+      const time = d.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const diffMs = Date.now() - d;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      let relative = "just now";
+      if (diffDays > 0) relative = `${diffDays}d ago`;
+      else if (diffHours > 0) relative = `${diffHours}h ago`;
+      else if (diffMins > 0) relative = `${diffMins}m ago`;
+      return { date, time, relative };
+    };
 
-      {/* View Details Eye Icon */}
-      {(revInfo || doneInfo) && (
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={handleToggle}
-          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-[#3b82f6] transition-colors cursor-pointer"
-          title="View approval details"
-        >
-          <FiEye size={13} />
-        </button>
-      )}
+    const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
+    const isInReview = status === "In Review";
+    const revInfo = reviewStartedAt ? formatDateTime(reviewStartedAt) : null;
+    const doneInfo = completedAt ? formatDateTime(completedAt) : null;
 
-      {/* Details Popup rendered via Portal */}
-      {showPopup && createPortal(
-        <AnimatePresence>
-          <motion.div
-            ref={popupRef}
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.15 }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: "absolute",
-              top: coords.top,
-              left: coords.left,
-            }}
-            className="z-[9999] w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl flex flex-col gap-2 text-left"
+    const handleToggle = (e) => {
+      e.stopPropagation();
+      if (!showPopup && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        // Position above the button, aligned to its right edge
+        setCoords({
+          top: rect.top + window.scrollY - 175,
+          left: rect.right + window.scrollX - 224,
+        });
+      }
+      setShowPopup(!showPopup);
+    };
+
+    return (
+      <div className="relative inline-flex items-center gap-1 justify-center">
+        {/* Duration badge */}
+        {totalWaitMs > 0 && (
+          <div
+            className={`px-2 py-0.5 rounded-full font-black text-[9px] tracking-wide border shadow-xs ${
+              isInReview
+                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/25"
+                : "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20"
+            }`}
           >
-            <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Timeline Details
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowPopup(false)}
-                className="text-slate-400 hover:text-slate-600 dark:text-[#555] dark:hover:text-slate-350 cursor-pointer"
+            {isInReview && (
+              <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse shrink-0 mr-1 inline-block" />
+            )}
+            {isInReview ? "Waiting " : "Took "}
+            <span className="font-black">
+              {formatBusinessDuration(totalWaitMs)}
+            </span>
+          </div>
+        )}
+
+        {/* View Details Eye Icon */}
+        {(revInfo || doneInfo) && (
+          <button
+            ref={buttonRef}
+            type="button"
+            onClick={handleToggle}
+            className="p-0.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-[#3b82f6] transition-colors cursor-pointer"
+            title="View approval details"
+          >
+            <FiEye size={11} />
+          </button>
+        )}
+        {/* Details Popup rendered via Portal */}
+        {showPopup &&
+          createPortal(
+            <AnimatePresence>
+              <motion.div
+                ref={popupRef}
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ duration: 0.15 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: "absolute",
+                  top: coords.top,
+                  left: coords.left,
+                }}
+                className="z-[9999] w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl flex flex-col gap-2 text-left"
               >
-                <FiX size={10} />
-              </button>
-            </div>
+                <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Timeline Details
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPopup(false)}
+                    className="text-slate-400 hover:text-slate-600 dark:text-[#555] dark:hover:text-slate-350 cursor-pointer"
+                  >
+                    <FiX size={10} />
+                  </button>
+                </div>
 
-            {revInfo && (
-              <div className="flex flex-col gap-0.5 bg-blue-50/40 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
-                <span className="text-[8px] font-black text-blue-500 dark:text-blue-450 uppercase tracking-widest">
-                  Review Start
-                </span>
-                <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
-                  {revInfo.date} · {revInfo.time}
-                </span>
-                <span className="text-[9px] text-blue-455 dark:text-blue-500 font-medium">
-                  {revInfo.relative}
-                </span>
-              </div>
-            )}
+                {revInfo && (
+                  <div className="flex flex-col gap-0.5 bg-blue-50/40 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
+                    <span className="text-[8px] font-black text-blue-500 dark:text-blue-450 uppercase tracking-widest">
+                      Review Start
+                    </span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                      {revInfo.date} · {revInfo.time}
+                    </span>
+                    <span className="text-[9px] text-blue-455 dark:text-blue-500 font-medium">
+                      {revInfo.relative}
+                    </span>
+                  </div>
+                )}
 
-            {doneInfo && (
-              <div className="flex flex-col gap-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
-                <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
-                  Completed
-                </span>
-                <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
-                  {doneInfo.date} · {doneInfo.time}
-                </span>
-                <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium">
-                  {doneInfo.relative}
-                </span>
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>,
-        document.body
-      )}
-    </div>
-  );
-};
+                {doneInfo && (
+                  <div className="flex flex-col gap-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
+                    <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
+                      Completed
+                    </span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                      {doneInfo.date} · {doneInfo.time}
+                    </span>
+                    <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium">
+                      {doneInfo.relative}
+                    </span>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>,
+            document.body,
+          )}
+      </div>
+    );
+  },
+);
 
 const renderUserAvatarSmall = (u) => {
   if (!u) return null;
@@ -381,7 +522,7 @@ const renderUserAvatarSmall = (u) => {
       <img
         src={avatarUrl}
         alt={u.name || "User"}
-        className="w-9 h-9 rounded-full object-cover border border-slate-200/80 dark:border-white/10 shadow-xs shrink-0"
+        className="w-5 h-5 rounded-full object-cover border border-slate-200/80 dark:border-white/10 shadow-xs shrink-0"
       />
     );
   }
@@ -619,7 +760,11 @@ const TaskOverviewTab = ({
                 Action Required: Start Task First
               </h4>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed font-medium">
-                Please start the task by setting its status to <strong className="text-amber-600 dark:text-amber-400 font-bold">"In Progress"</strong> {actionMsg}
+                Please start the task by setting its status to{" "}
+                <strong className="text-amber-600 dark:text-amber-400 font-bold">
+                  "In Progress"
+                </strong>{" "}
+                {actionMsg}
               </p>
             </div>
           </div>
@@ -633,7 +778,7 @@ const TaskOverviewTab = ({
           </div>
         </div>
       ),
-      { duration: 6000 }
+      { duration: 6000 },
     );
   };
 
@@ -658,7 +803,7 @@ const TaskOverviewTab = ({
   const handleTaskFieldChange = async (taskId, fields) => {
     const sanitizedFields = { ...fields };
 
-    if (sanitizedFields.status && ["IN-REVIEW", "In Review", "IN-Review"].includes(sanitizedFields.status)) {
+    if (sanitizedFields.status === "In Review") {
       const currentTaskObj = tasks?.find((t) => t._id === taskId);
       if (currentTaskObj && !currentTaskObj.actualStartTime) {
         showStartInProgressWarning("review");
@@ -692,7 +837,11 @@ const TaskOverviewTab = ({
         ? sanitizedFields.dueDate
         : currentTaskForPriority?.dueDate;
 
-    if (effectiveStart && effectiveEnd && isSameDate(effectiveStart, effectiveEnd)) {
+    if (
+      effectiveStart &&
+      effectiveEnd &&
+      isSameDate(effectiveStart, effectiveEnd)
+    ) {
       sanitizedFields.priority = "Top High";
     }
 
@@ -702,6 +851,21 @@ const TaskOverviewTab = ({
         taskData: sanitizedFields,
       }).unwrap();
     } catch (err) {
+      if (
+        err?.data?.isOfficeHoursEnded ||
+        err?.error?.data?.isOfficeHoursEnded
+      ) {
+        const errorData = err?.data || err?.error?.data;
+        window.dispatchEvent(
+          new CustomEvent("show-office-hours-ended-popup", {
+            detail: {
+              workingTimeMs: errorData.workingTimeMs,
+              pausedAtHour: errorData.pausedAt,
+            },
+          }),
+        );
+        return;
+      }
       if (err?.status === 409) {
         toast.custom(
           (t) => (
@@ -788,7 +952,6 @@ const TaskOverviewTab = ({
         return {
           bg: "!bg-amber-50 !text-amber-700 !border-amber-200 dark:!bg-amber-500/20 dark:!text-amber-300 dark:!border-amber-500/40",
         };
-      case "IN-REVIEW":
       case "In Review":
         return {
           bg: "!bg-sky-50 !text-sky-700 !border-sky-200 dark:!bg-sky-500/20 dark:!text-sky-350 dark:!border-sky-500/40",
@@ -816,6 +979,8 @@ const TaskOverviewTab = ({
     priority: false,
     status: false,
     totalHours: false,
+    blockerTime: false,
+    timeTracker: false,
     approvalInfo: false,
     action: false,
   });
@@ -1047,9 +1212,8 @@ const TaskOverviewTab = ({
           const isCompleted = statusUpper === "COMPLETED";
           const isRejected = statusUpper === "REJECTED";
           if (isCompleted || isRejected) return false;
-        } else if (overviewStatusFilter === "In Review" || overviewStatusFilter === "IN-REVIEW") {
-          const statusUpper = (task.status || "Pending").toUpperCase();
-          if (statusUpper !== "IN-REVIEW" && statusUpper !== "IN REVIEW") {
+        } else if (overviewStatusFilter === "In Review") {
+          if (task.status !== "In Review") {
             return false;
           }
         } else if (
@@ -1094,10 +1258,13 @@ const TaskOverviewTab = ({
 
         if (dateFilter !== "All") {
           const targetDate = task.dueDate ? new Date(task.dueDate) : null;
-          const targetStartDate = task.startDate ? new Date(task.startDate) : null;
+          const targetStartDate = task.startDate
+            ? new Date(task.startDate)
+            : null;
 
           const hasValidDueDate = targetDate && !isNaN(targetDate.getTime());
-          const hasValidStartDate = targetStartDate && !isNaN(targetStartDate.getTime());
+          const hasValidStartDate =
+            targetStartDate && !isNaN(targetStartDate.getTime());
 
           if (!hasValidDueDate && !hasValidStartDate) {
             return false;
@@ -1119,16 +1286,28 @@ const TaskOverviewTab = ({
             );
 
             if (dateFilter === "Today") {
-              const isDueToday = hasValidDueDate && targetDate >= todayStart && targetDate <= todayEnd;
-              const isStartToday = hasValidStartDate && targetStartDate >= todayStart && targetStartDate <= todayEnd;
+              const isDueToday =
+                hasValidDueDate &&
+                targetDate >= todayStart &&
+                targetDate <= todayEnd;
+              const isStartToday =
+                hasValidStartDate &&
+                targetStartDate >= todayStart &&
+                targetStartDate <= todayEnd;
               if (!isDueToday && !isStartToday) return false;
             } else if (dateFilter === "Yesterday") {
               const yesterdayStart = new Date(todayStart);
               yesterdayStart.setDate(yesterdayStart.getDate() - 1);
               const yesterdayEnd = new Date(todayEnd);
               yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
-              const isDueYesterday = hasValidDueDate && targetDate >= yesterdayStart && targetDate <= yesterdayEnd;
-              const isStartYesterday = hasValidStartDate && targetStartDate >= yesterdayStart && targetStartDate <= yesterdayEnd;
+              const isDueYesterday =
+                hasValidDueDate &&
+                targetDate >= yesterdayStart &&
+                targetDate <= yesterdayEnd;
+              const isStartYesterday =
+                hasValidStartDate &&
+                targetStartDate >= yesterdayStart &&
+                targetStartDate <= yesterdayEnd;
               if (!isDueYesterday && !isStartYesterday) return false;
             } else if (dateFilter === "This Week") {
               const dayOfWeek = now.getDay();
@@ -1139,8 +1318,14 @@ const TaskOverviewTab = ({
               const endOfWeek = new Date(startOfWeek);
               endOfWeek.setDate(endOfWeek.getDate() + 6);
               endOfWeek.setHours(23, 59, 59, 999);
-              const isDueThisWeek = hasValidDueDate && targetDate >= startOfWeek && targetDate <= endOfWeek;
-              const isStartThisWeek = hasValidStartDate && targetStartDate >= startOfWeek && targetStartDate <= endOfWeek;
+              const isDueThisWeek =
+                hasValidDueDate &&
+                targetDate >= startOfWeek &&
+                targetDate <= endOfWeek;
+              const isStartThisWeek =
+                hasValidStartDate &&
+                targetStartDate >= startOfWeek &&
+                targetStartDate <= endOfWeek;
               if (!isDueThisWeek && !isStartThisWeek) return false;
             } else if (dateFilter === "This Month") {
               const startOfMonth = new Date(
@@ -1157,8 +1342,14 @@ const TaskOverviewTab = ({
                 59,
                 999,
               );
-              const isDueThisMonth = hasValidDueDate && targetDate >= startOfMonth && targetDate <= endOfMonth;
-              const isStartThisMonth = hasValidStartDate && targetStartDate >= startOfMonth && targetStartDate <= endOfMonth;
+              const isDueThisMonth =
+                hasValidDueDate &&
+                targetDate >= startOfMonth &&
+                targetDate <= endOfMonth;
+              const isStartThisMonth =
+                hasValidStartDate &&
+                targetStartDate >= startOfMonth &&
+                targetStartDate <= endOfMonth;
               if (!isDueThisMonth && !isStartThisMonth) return false;
             }
           }
@@ -1237,56 +1428,56 @@ const TaskOverviewTab = ({
   return (
     <>
       <div className="bg-white dark:bg-[#11131e] overflow-hidden flex flex-col h-[calc(100vh-160px)]">
-        <div className="px-10 flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 pt-1 border-b border-slate-100 dark:border-white/5 relative z-30 shrink-0">
-          <div className="flex items-center gap-4 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pb-2 pt-1 border-b border-slate-100 dark:border-white/5 relative z-30 shrink-0">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             {/* Back Button */}
             <button
-              onClick={() => navigate(`/${user?.role || "team"}?scroll=metrics`)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-705 dark:text-slate-400 dark:hover:text-slate-205 transition-colors cursor-pointer rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 border border-slate-200 dark:border-white/5 shadow-2xs shrink-0"
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-slate-500 hover:text-slate-705 dark:text-slate-400 dark:hover:text-slate-205 transition-colors cursor-pointer rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 border border-slate-200 dark:border-white/5 shadow-2xs shrink-0"
             >
-              <FiChevronLeft size={14} className="stroke-[3]" />
+              <FiChevronLeft size={12} className="stroke-[3]" />
               <span>Back</span>
             </button>
 
             <span className="text-slate-200 dark:text-slate-800">|</span>
 
             {/* client display */}
-            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-slate-700 dark:text-slate-300">
               <span>Client:</span>
               {overviewClientFilter === "All" ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
-                  <FiBriefcase size={8} />
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
+                  <FiBriefcase size={7} />
                   All
                 </span>
               ) : (
                 <ClientBadge
                   client={clients?.find((c) => c._id === overviewClientFilter)}
                   size="sm"
-                  className="!text-[8px] !px-1.5 !py-0.5"
+                  className="!text-[7.5px] !px-1.5 !py-0.5"
                 />
               )}
             </div>
 
             {/* status display  */}
-            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-slate-700 dark:text-slate-300">
               <span>Status:</span>
               {overviewStatusFilter === "All" ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
-                  <FiBriefcase size={8} />
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
+                  <FiBriefcase size={7} />
                   All
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
-                  <FiBriefcase size={8} />
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-black border rounded bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30">
+                  <FiBriefcase size={7} />
                   {overviewStatusFilter}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 w-full sm:w-auto">
+          <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
             <div className="relative" ref={clientDropdownRef}>
-              <div className="relative rounded-full p-[2px] overflow-hidden group inline-block shadow-sm">
+              <div className="relative rounded-full p-[1.5px] overflow-hidden group inline-block shadow-sm">
                 <div className="absolute inset-[-100%] bg-[conic-gradient(transparent_0deg,#3b82f6_90deg,transparent_180deg)] animate-[spin_2s_linear_infinite] group-hover:bg-[conic-gradient(transparent_0deg,#6366f1_90deg,transparent_180deg)] transition-colors duration-300" />
                 <div
                   className={`absolute inset-[1px] rounded-full z-0 ${
@@ -1298,20 +1489,20 @@ const TaskOverviewTab = ({
                 <button
                   type="button"
                   onClick={() => setShowClientDropdown((prev) => !prev)}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
+                  className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
                     overviewClientFilter !== "All"
                       ? "text-blue-800 dark:text-blue-300"
                       : "text-slate-800 dark:text-slate-200"
                   }`}
                 >
-                  <span className="truncate max-w-[90px]">
+                  <span className="truncate max-w-[75px]">
                     {overviewClientFilter === "All"
                       ? "All Clients"
                       : clients?.find((c) => c._id === overviewClientFilter)
                           ?.companyName || "Client"}
                   </span>
                   <FiChevronDown
-                    size={13}
+                    size={11}
                     className={`text-slate-400 transition-transform duration-200 ${
                       showClientDropdown ? "rotate-180" : ""
                     }`}
@@ -1326,29 +1517,29 @@ const TaskOverviewTab = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-64 max-h-[340px] flex flex-col bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[70] overflow-hidden"
+                    className="absolute right-0 top-full mt-2 w-60 max-h-[300px] flex flex-col bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[70] overflow-hidden"
                   >
-                    <div className="p-2 border-b border-slate-100 dark:border-white/10 shrink-0">
+                    <div className="p-1.5 border-b border-slate-100 dark:border-white/10 shrink-0">
                       <div className="relative">
                         <input
                           type="text"
                           placeholder="Search clients..."
                           value={clientSearchQuery}
                           onChange={(e) => setClientSearchQuery(e.target.value)}
-                          className="w-full pl-7 pr-3 py-1.5 text-[11px] font-semibold rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200"
+                          className="w-full pl-7 pr-2.5 py-1 text-[10px] font-semibold rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200"
                           onClick={(e) => e.stopPropagation()}
                         />
                       </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-0.5">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5">
                       <button
                         type="button"
                         onClick={() => {
                           setOverviewClientFilter("All");
                           setShowClientDropdown(false);
                         }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                        className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all shrink-0 ${
                           overviewClientFilter === "All"
                             ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
                             : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
@@ -1370,7 +1561,7 @@ const TaskOverviewTab = ({
                               setOverviewClientFilter(client._id);
                               setShowClientDropdown(false);
                             }}
-                            className={`w-full text-left px-2 py-1.5 rounded-xl transition-all shrink-0 flex items-center ${
+                            className={`w-full text-left px-2 py-1 rounded-xl transition-all shrink-0 flex items-center ${
                               overviewClientFilter === client._id
                                 ? "bg-blue-50 dark:bg-blue-500/10"
                                 : "hover:bg-slate-50 dark:hover:bg-white/5"
@@ -1378,8 +1569,8 @@ const TaskOverviewTab = ({
                           >
                             <ClientBadge
                               client={client}
-                              size="md"
-                              className="w-full justify-start"
+                              size="sm"
+                              className="w-full justify-start !text-[8.5px]"
                             />
                           </button>
                         ))}
@@ -1391,7 +1582,7 @@ const TaskOverviewTab = ({
 
             {/* Created By Filter */}
             <div className="relative" ref={createdByDropdownRef}>
-              <div className="relative rounded-full p-[2px] overflow-hidden group inline-block shadow-sm">
+              <div className="relative rounded-full p-[1.5px] overflow-hidden group inline-block shadow-sm">
                 <div className="absolute inset-[-100%] bg-[conic-gradient(transparent_0deg,#a855f7_90deg,transparent_180deg)] animate-[spin_2s_linear_infinite] group-hover:bg-[conic-gradient(transparent_0deg,#ec4899_90deg,transparent_180deg)] transition-colors duration-300" />
                 <div
                   className={`absolute inset-[1px] rounded-full z-0 ${
@@ -1403,7 +1594,7 @@ const TaskOverviewTab = ({
                 <button
                   type="button"
                   onClick={() => setShowCreatedByDropdown((prev) => !prev)}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
+                  className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
                     overviewCreatedByFilter !== "All"
                       ? "text-blue-800 dark:text-blue-300"
                       : "text-slate-800 dark:text-slate-200"
@@ -1415,7 +1606,7 @@ const TaskOverviewTab = ({
                         (u) => (u._id || u.id) === overviewCreatedByFilter,
                       ),
                     )}
-                  <span className="truncate max-w-[90px]">
+                  <span className="truncate max-w-[75px]">
                     {overviewCreatedByFilter === "All"
                       ? "Created By"
                       : uniqueCreators.find(
@@ -1423,7 +1614,7 @@ const TaskOverviewTab = ({
                         )?.name || "Creator"}
                   </span>
                   <FiChevronDown
-                    size={13}
+                    size={11}
                     className={`text-slate-400 transition-transform duration-200 ${
                       showCreatedByDropdown ? "rotate-180" : ""
                     }`}
@@ -1438,9 +1629,9 @@ const TaskOverviewTab = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-64 max-h-[340px] flex flex-col bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[70] overflow-hidden"
+                    className="absolute right-0 top-full mt-2 w-60 max-h-[300px] flex flex-col bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[70] overflow-hidden"
                   >
-                    <div className="p-2 border-b border-slate-100 dark:border-white/10 shrink-0">
+                    <div className="p-1.5 border-b border-slate-100 dark:border-white/10 shrink-0">
                       <div className="relative">
                         <input
                           type="text"
@@ -1449,20 +1640,20 @@ const TaskOverviewTab = ({
                           onChange={(e) =>
                             setCreatedBySearchQuery(e.target.value)
                           }
-                          className="w-full pl-7 pr-3 py-1.5 text-[11px] font-semibold rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200"
+                          className="w-full pl-7 pr-2.5 py-1 text-[10px] font-semibold rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200"
                           onClick={(e) => e.stopPropagation()}
                         />
                       </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-0.5">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5">
                       <button
                         type="button"
                         onClick={() => {
                           setOverviewCreatedByFilter("All");
                           setShowCreatedByDropdown(false);
                         }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                        className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all shrink-0 ${
                           overviewCreatedByFilter === "All"
                             ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
                             : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
@@ -1486,14 +1677,14 @@ const TaskOverviewTab = ({
                                 setOverviewCreatedByFilter(uid);
                                 setShowCreatedByDropdown(false);
                               }}
-                              className={`w-full text-left px-3 py-2 rounded-xl transition-all shrink-0 flex items-center gap-2 ${
+                              className={`w-full text-left px-2.5 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
                                 overviewCreatedByFilter === uid
                                   ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 font-extrabold"
                                   : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
                               }`}
                             >
                               {renderUserAvatarSmall(u)}
-                              <span className="truncate text-xs">{u.name}</span>
+                              <span className="truncate text-[10px]">{u.name}</span>
                             </button>
                           );
                         })}
@@ -1505,7 +1696,7 @@ const TaskOverviewTab = ({
 
             {/* Assignee Filter */}
             <div className="relative" ref={assigneeDropdownRef}>
-              <div className="relative rounded-full p-[2px] overflow-hidden group inline-block shadow-sm">
+              <div className="relative rounded-full p-[1.5px] overflow-hidden group inline-block shadow-sm">
                 <div className="absolute inset-[-100%] bg-[conic-gradient(transparent_0deg,#e11d48_90deg,transparent_180deg)] animate-[spin_2s_linear_infinite] group-hover:bg-[conic-gradient(transparent_0deg,#f43f5e_90deg,transparent_180deg)] transition-colors duration-300" />
                 <div
                   className={`absolute inset-[1px] rounded-full z-0 ${
@@ -1517,7 +1708,7 @@ const TaskOverviewTab = ({
                 <button
                   type="button"
                   onClick={() => setShowAssigneeDropdown((prev) => !prev)}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
+                  className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
                     overviewAssigneeFilter !== "All"
                       ? "text-blue-800 dark:text-blue-300"
                       : "text-slate-800 dark:text-slate-200"
@@ -1529,7 +1720,7 @@ const TaskOverviewTab = ({
                         (u) => (u._id || u.id) === overviewAssigneeFilter,
                       ),
                     )}
-                  <span className="truncate max-w-[90px]">
+                  <span className="truncate max-w-[75px]">
                     {overviewAssigneeFilter === "All"
                       ? "Assignee"
                       : uniqueAssignees.find(
@@ -1537,7 +1728,7 @@ const TaskOverviewTab = ({
                         )?.name || "Assignee"}
                   </span>
                   <FiChevronDown
-                    size={13}
+                    size={11}
                     className={`text-slate-400 transition-transform duration-200 ${
                       showAssigneeDropdown ? "rotate-180" : ""
                     }`}
@@ -1552,9 +1743,9 @@ const TaskOverviewTab = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-64 max-h-[340px] flex flex-col bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[70] overflow-hidden"
+                    className="absolute right-0 top-full mt-2 w-60 max-h-[300px] flex flex-col bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[70] overflow-hidden"
                   >
-                    <div className="p-2 border-b border-slate-100 dark:border-white/10 shrink-0">
+                    <div className="p-1.5 border-b border-slate-100 dark:border-white/10 shrink-0">
                       <div className="relative">
                         <input
                           type="text"
@@ -1563,20 +1754,20 @@ const TaskOverviewTab = ({
                           onChange={(e) =>
                             setAssigneeSearchQuery(e.target.value)
                           }
-                          className="w-full pl-7 pr-3 py-1.5 text-[11px] font-semibold rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200"
+                          className="w-full pl-7 pr-2.5 py-1 text-[10px] font-semibold rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200"
                           onClick={(e) => e.stopPropagation()}
                         />
                       </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-0.5">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5">
                       <button
                         type="button"
                         onClick={() => {
                           setOverviewAssigneeFilter("All");
                           setShowAssigneeDropdown(false);
                         }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                        className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all shrink-0 ${
                           overviewAssigneeFilter === "All"
                             ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
                             : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
@@ -1600,14 +1791,14 @@ const TaskOverviewTab = ({
                                 setOverviewAssigneeFilter(uid);
                                 setShowAssigneeDropdown(false);
                               }}
-                              className={`w-full text-left px-3 py-2 rounded-xl transition-all shrink-0 flex items-center gap-2 ${
+                              className={`w-full text-left px-2.5 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
                                 overviewAssigneeFilter === uid
                                   ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 font-extrabold"
                                   : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
                               }`}
                             >
                               {renderUserAvatarSmall(u)}
-                              <span className="truncate text-xs">{u.name}</span>
+                              <span className="truncate text-[10px]">{u.name}</span>
                             </button>
                           );
                         })}
@@ -1619,7 +1810,7 @@ const TaskOverviewTab = ({
 
             {/* Status Filter */}
             <div className="relative" ref={statusDropdownRef}>
-              <div className="relative rounded-full p-[2px] overflow-hidden group inline-block shadow-sm">
+              <div className="relative rounded-full p-[1.5px] overflow-hidden group inline-block shadow-sm">
                 <div className="absolute inset-[-100%] bg-[conic-gradient(transparent_0deg,#0ea5e9_90deg,transparent_180deg)] animate-[spin_2s_linear_infinite] group-hover:bg-[conic-gradient(transparent_0deg,#2563eb_90deg,transparent_180deg)] transition-colors duration-300" />
                 <div
                   className={`absolute inset-[1px] rounded-full z-0 ${
@@ -1631,19 +1822,19 @@ const TaskOverviewTab = ({
                 <button
                   type="button"
                   onClick={() => setShowStatusDropdown((prev) => !prev)}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
+                  className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
                     overviewStatusFilter !== "All"
                       ? "text-blue-800 dark:text-blue-300"
                       : "text-slate-800 dark:text-slate-200"
                   }`}
                 >
-                  <span className="truncate max-w-[90px]">
+                  <span className="truncate max-w-[75px]">
                     {overviewStatusFilter === "All"
                       ? "Status"
                       : overviewStatusFilter}
                   </span>
                   <FiChevronDown
-                    size={13}
+                    size={11}
                     className={`text-slate-400 transition-transform duration-200 ${
                       showStatusDropdown ? "rotate-180" : ""
                     }`}
@@ -1658,14 +1849,14 @@ const TaskOverviewTab = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-44 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1.5 z-[70] flex flex-col gap-0.5"
+                    className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1 z-[70] flex flex-col gap-0.5"
                   >
                     {[
                       "All",
                       "Active Tasks",
                       "Pending",
                       "In Progress",
-                      "IN-REVIEW",
+                      "In Review",
                       "On Hold",
                       "Completed",
                       "Rejected",
@@ -1680,7 +1871,7 @@ const TaskOverviewTab = ({
                           setOverviewStatusFilter(st);
                           setShowStatusDropdown(false);
                         }}
-                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all text-left cursor-pointer ${
                           overviewStatusFilter === st
                             ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 font-extrabold"
                             : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
@@ -1699,7 +1890,7 @@ const TaskOverviewTab = ({
 
             {/* Priority Filter */}
             <div className="relative" ref={priorityDropdownRef}>
-              <div className="relative rounded-full p-[2px] overflow-hidden group inline-block shadow-sm">
+              <div className="relative rounded-full p-[1.5px] overflow-hidden group inline-block shadow-sm">
                 <div className="absolute inset-[-100%] bg-[conic-gradient(transparent_0deg,#f59e0b_90deg,transparent_180deg)] animate-[spin_2s_linear_infinite] group-hover:bg-[conic-gradient(transparent_0deg,#ea580c_90deg,transparent_180deg)] transition-colors duration-300" />
                 <div
                   className={`absolute inset-[1px] rounded-full z-0 ${
@@ -1711,19 +1902,19 @@ const TaskOverviewTab = ({
                 <button
                   type="button"
                   onClick={() => setShowPriorityDropdown((prev) => !prev)}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
+                  className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
                     overviewPriorityFilter !== "All"
                       ? "text-blue-800 dark:text-blue-300"
                       : "text-slate-800 dark:text-slate-200"
                   }`}
                 >
-                  <span className="truncate max-w-[90px]">
+                  <span className="truncate max-w-[75px]">
                     {overviewPriorityFilter === "All"
                       ? "Priority"
                       : overviewPriorityFilter}
                   </span>
                   <FiChevronDown
-                    size={13}
+                    size={11}
                     className={`text-slate-400 transition-transform duration-200 ${
                       showPriorityDropdown ? "rotate-180" : ""
                     }`}
@@ -1738,7 +1929,7 @@ const TaskOverviewTab = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-44 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1.5 z-[70] flex flex-col gap-0.5"
+                    className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1 z-[70] flex flex-col gap-0.5"
                   >
                     {["All", "Top High", "High", "Medium", "Low"].map((pr) => (
                       <button
@@ -1748,7 +1939,7 @@ const TaskOverviewTab = ({
                           setOverviewPriorityFilter(pr);
                           setShowPriorityDropdown(false);
                         }}
-                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all text-left cursor-pointer ${
                           overviewPriorityFilter === pr
                             ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 font-extrabold"
                             : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
@@ -1767,7 +1958,7 @@ const TaskOverviewTab = ({
 
             {/* Date Filter */}
             <div className="relative" ref={dateDropdownRef}>
-              <div className="relative rounded-full p-[2px] overflow-hidden group inline-block shadow-sm">
+              <div className="relative rounded-full p-[1.5px] overflow-hidden group inline-block shadow-sm">
                 <div className="absolute inset-[-100%] bg-[conic-gradient(transparent_0deg,#10b981_90deg,transparent_180deg)] animate-[spin_2s_linear_infinite] group-hover:bg-[conic-gradient(transparent_0deg,#0ea5e9_90deg,transparent_180deg)] transition-colors duration-300" />
                 <div
                   className={`absolute inset-[1px] rounded-full z-0 ${
@@ -1779,16 +1970,16 @@ const TaskOverviewTab = ({
                 <button
                   type="button"
                   onClick={() => setShowDateDropdown((prev) => !prev)}
-                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
+                  className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer z-10 bg-transparent outline-none border-none tracking-wide ${
                     dateFilter !== "All"
                       ? "text-blue-800 dark:text-blue-300"
                       : "text-slate-800 dark:text-slate-200"
                   }`}
                 >
-                  <FiFilter size={13} className="text-[#10b981] stroke-[3]" />
+                  <FiFilter size={11} className="text-[#10b981] stroke-[3]" />
                   <span>{dateFilter === "All" ? "Date" : dateFilter}</span>
                   <FiChevronDown
-                    size={13}
+                    size={11}
                     className={`text-slate-400 transition-transform duration-200 ${
                       showDateDropdown ? "rotate-180" : ""
                     }`}
@@ -1803,7 +1994,7 @@ const TaskOverviewTab = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-44 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1.5 z-[70] flex flex-col gap-0.5"
+                    className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1 z-[70] flex flex-col gap-0.5"
                   >
                     {[
                       { label: "All Dates", value: "All" },
@@ -1819,7 +2010,7 @@ const TaskOverviewTab = ({
                           setDateFilter(option.value);
                           setShowDateDropdown(false);
                         }}
-                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all text-left cursor-pointer ${
                           dateFilter === option.value
                             ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold"
                             : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
@@ -1840,16 +2031,16 @@ const TaskOverviewTab = ({
               <button
                 type="button"
                 onClick={() => setIsColsOpen(!isColsOpen)}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl border text-xs font-extrabold cursor-pointer transition-all shadow-2xs ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-2xl border text-[10px] font-extrabold cursor-pointer transition-all shadow-2xs ${
                   isColsOpen || Object.values(hiddenColumns).some(Boolean)
                     ? "bg-blue-50 border-blue-300 text-blue-600 dark:bg-blue-950/30 dark:border-blue-500/40 dark:text-blue-300"
                     : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900"
                 }`}
               >
-                <FiColumns className="text-blue-500" size={13} />
+                <FiColumns className="text-blue-500" size={11} />
                 <span>Hide Column</span>
                 {Object.values(hiddenColumns).filter(Boolean).length > 0 && (
-                  <span className="text-[10px] font-black bg-blue-505 text-white rounded-full w-4 h-4 flex items-center justify-center ml-0.5">
+                  <span className="text-[8.5px] font-black bg-blue-505 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center ml-0.5">
                     {Object.values(hiddenColumns).filter(Boolean).length}
                   </span>
                 )}
@@ -1862,10 +2053,10 @@ const TaskOverviewTab = ({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-2.5 z-50 space-y-1.5 backdrop-blur-md"
+                    className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-2 z-50 space-y-1 backdrop-blur-md"
                   >
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-2 px-1">
-                      <span className="text-xs font-bold text-slate-800 dark:text-white tracking-wider">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-1.5 px-1">
+                      <span className="text-[10px] font-bold text-slate-800 dark:text-white tracking-wider">
                         Toggle Columns
                       </span>
                       {Object.values(hiddenColumns).some(Boolean) && (
@@ -1882,17 +2073,19 @@ const TaskOverviewTab = ({
                               status: false,
                               revisions: false,
                               totalHours: false,
+                              blockerTime: false,
+                              timeTracker: false,
                               approvalInfo: false,
                               action: false,
                             })
                           }
-                          className="text-[10px] font-bold text-blue-500 hover:text-blue-600 transition-colors"
+                          className="text-[9px] font-bold text-blue-500 hover:text-blue-600 transition-colors"
                         >
                           Reset
                         </button>
                       )}
                     </div>
-                    <div className="flex flex-col gap-1 max-h-60 overflow-y-auto custom-scrollbar">
+                    <div className="flex flex-col gap-0.5 max-h-56 overflow-y-auto custom-scrollbar">
                       {[
                         { key: "taskName", label: "Task Name" },
                         { key: "createdBy", label: "Created By" },
@@ -1902,13 +2095,15 @@ const TaskOverviewTab = ({
                         { key: "dueDate", label: "End Date" },
                         { key: "priority", label: "Priority" },
                         { key: "status", label: "Status" },
-                        { key: "totalHours", label: "Total Hours" },
+                        { key: "totalHours", label: "Total Inprogress" },
+                        { key: "blockerTime", label: "Blocker Time" },
+                        { key: "timeTracker", label: "Time Tracker" },
                         { key: "approvalInfo", label: "Approve Info" },
                         { key: "action", label: "Action" },
                       ].map((col) => (
                         <label
                           key={col.key}
-                          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-355 select-none"
+                          className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer text-[10px] font-bold text-slate-700 dark:text-slate-355 select-none"
                         >
                           <input
                             type="checkbox"
@@ -1919,7 +2114,7 @@ const TaskOverviewTab = ({
                                 [col.key]: !prev[col.key],
                               }))
                             }
-                            className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-white/10 dark:bg-black/20"
+                            className="w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-white/10 dark:bg-black/20"
                           />
                           <span>{col.label}</span>
                         </label>
@@ -1933,70 +2128,80 @@ const TaskOverviewTab = ({
         </div>
 
         <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1 relative bg-white dark:bg-[#11131e]">
-          <table className="w-full text-left border-collapse min-w-[1505px] table-fixed">
+          <table className="w-full text-left border-collapse min-w-[1560px] table-fixed">
             <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-[#161826] shadow-sm">
-              <tr className="border-b border-slate-300 dark:border-white/15 text-[9.5px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-wider">
+              <tr className="border-b border-slate-300 dark:border-white/15 text-[8.5px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-wider">
                 {!hiddenColumns.taskName && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[220px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 w-[180px]">
                     TASK NAME
                   </th>
                 )}
 
                 {!hiddenColumns.clientName && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[150px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 w-[130px]">
                     CLIENT NAME
                   </th>
                 )}
 
                 {!hiddenColumns.createdBy && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[200px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 w-[170px]">
                     CREATED BY
                   </th>
                 )}
 
                 {!hiddenColumns.assignee && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 w-[200px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 w-[170px]">
                     ASSIGNEE
                   </th>
                 )}
                 {!hiddenColumns.startDate && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[100px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center w-[90px]">
                     START DATE
                   </th>
                 )}
                 {!hiddenColumns.dueDate && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[100px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center w-[90px]">
                     END DATE
                   </th>
                 )}
                 {!hiddenColumns.priority && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[160px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center w-[130px]">
                     PRIORITY
                   </th>
                 )}
                 {!hiddenColumns.status && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[160px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center w-[130px]">
                     STATUS
                   </th>
                 )}
                 {!hiddenColumns.totalHours && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[110px]">
-                    TOTAL Inprogress 
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center w-[95px]">
+                    TOTAL Inprogress
+                  </th>
+                )}
+                {!hiddenColumns.blockerTime && (
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center w-[95px]">
+                    BLOCKER TIME
+                  </th>
+                )}
+                {!hiddenColumns.timeTracker && (
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center w-[115px]">
+                    TIMETRACKER
                   </th>
                 )}
                 {!hiddenColumns.approvalInfo && (
-                  <th className="py-2.5 px-3 border-r border-b border-slate-300 dark:border-white/15 text-center w-[200px]">
+                  <th className="py-1.5 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center w-[170px]">
                     APPROVE INFO
                   </th>
                 )}
                 {!hiddenColumns.action && (
-                  <th className="py-2.5 px-3 border-b border-slate-300 dark:border-white/15 text-right w-[125px]">
+                  <th className="py-1.5 px-2 border-b border-slate-300 dark:border-white/15 text-right w-[105px]">
                     ACTION
                   </th>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-white/10 text-xs font-semibold">
+            <tbody className="divide-y divide-slate-200 dark:divide-white/10 text-[10px] font-semibold">
               {filteredOverviewTasks.length === 0 ? (
                 <tr>
                   <td
@@ -2005,7 +2210,7 @@ const TaskOverviewTab = ({
                         (isHidden) => !isHidden,
                       ).length
                     }
-                    className="py-8 text-center text-slate-400 font-bold"
+                    className="py-6 text-center text-slate-400 font-bold text-[10px]"
                   >
                     No tasks found.
                   </td>
@@ -2042,8 +2247,8 @@ const TaskOverviewTab = ({
                         onClick={() => setSelectedTaskId(task._id)}
                       >
                         {!hiddenColumns.taskName && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 font-extrabold text-left">
-                            <div className="flex items-center gap-2">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 font-extrabold text-left">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -2054,14 +2259,14 @@ const TaskOverviewTab = ({
                                       : "Completed",
                                   });
                                 }}
-                                className={`w-4 h-4 rounded-full flex items-center justify-center border transition-all shrink-0 cursor-pointer ${
+                                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border transition-all shrink-0 cursor-pointer ${
                                   isCompleted
                                     ? "bg-[#10b981] border-[#10b981] text-white shadow-sm"
                                     : "bg-white dark:bg-[#151725] border-slate-350 dark:border-slate-650 text-slate-400 dark:text-slate-500 hover:border-[#10b981] hover:text-[#10b981]"
                                 }`}
                               >
                                 <FiCheck
-                                  size={9}
+                                  size={8}
                                   className={
                                     isCompleted
                                       ? "stroke-[4px]"
@@ -2071,10 +2276,10 @@ const TaskOverviewTab = ({
                               </button>
                               <BiFile
                                 className="text-slate-400 shrink-0"
-                                size={13}
+                                size={14}
                               />
                               <span
-                                className={`truncate max-w-[180px] text-[11px] ${isCompleted ? "line-through text-slate-400 dark:text-slate-500" : ""}`}
+                                className={`truncate max-w-[150px] text-[10px] ${isCompleted ? "line-through decoration-[#10b981] decoration-2 text-black dark:text-white" : ""}`}
                                 title={task.title}
                               >
                                 {task.title}
@@ -2083,32 +2288,32 @@ const TaskOverviewTab = ({
                           </td>
                         )}
                         {!hiddenColumns.clientName && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-left">
                             {clientObj && clientObj.companyName ? (
                               <ClientBadge
                                 client={clientObj}
                                 size="sm"
-                                className="!text-[10px] !px-1.5 !py-0.5"
+                                className="!text-[8.5px] !px-1.5 !py-0.5"
                               />
                             ) : (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[14px] font-bold bg-pink-50 text-pink-600 border border-pink-100 dark:bg-pink-950/30 dark:text-pink-400 dark:border-pink-900/30">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-pink-50 text-pink-600 border border-pink-100 dark:bg-pink-950/30 dark:text-pink-400 dark:border-pink-900/30">
                                 {clientName}
                               </span>
                             )}
                           </td>
                         )}
                         {!hiddenColumns.createdBy && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left">
-                            <div className="flex items-center gap-2">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-left">
+                            <div className="flex items-center gap-1.5">
                               {renderUserAvatarSmall(task.createdBy)}
                               <div className="flex flex-col justify-center min-w-0">
                                 <span
-                                  className={`font-extrabold text-[9.5px] truncate transition-colors ${getUserColorClass(task.createdBy?.name || "Unknown")}`}
+                                  className={`font-extrabold text-[8.5px] truncate transition-colors ${getUserColorClass(task.createdBy?.name || "Unknown")}`}
                                 >
                                   {task.createdBy?.name || "Unknown"}
                                 </span>
                                 <span
-                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black border uppercase tracking-wider mt-1 w-max ${getDeptBadgeStyle(task.createdBy?.department || "Creator")}`}
+                                  className={`inline-flex items-center px-1 py-0.5 rounded text-[7.5px] font-black border uppercase tracking-wider mt-0.5 w-max ${getDeptBadgeStyle(task.createdBy?.department || "Creator")}`}
                                 >
                                   {task.createdBy?.department || "Creator"}
                                 </span>
@@ -2117,17 +2322,17 @@ const TaskOverviewTab = ({
                           </td>
                         )}
                         {!hiddenColumns.assignee && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left">
-                            <div className="flex items-center gap-2">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-left">
+                            <div className="flex items-center gap-1.5">
                               {renderUserAvatarSmall(task.assignedTo)}
                               <div className="flex flex-col justify-center min-w-0">
                                 <span
-                                  className={`font-extrabold text-[9.5px] truncate transition-colors ${getUserColorClass(task.assignedTo?.name || "Unassigned")}`}
+                                  className={`font-extrabold text-[8.5px] truncate transition-colors ${getUserColorClass(task.assignedTo?.name || "Unassigned")}`}
                                 >
                                   {task.assignedTo?.name || "Unassigned"}
                                 </span>
                                 <span
-                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black border uppercase tracking-wider mt-1 w-max ${getDeptBadgeStyle(task.assignedTo?.department || "Team Member")}`}
+                                  className={`inline-flex items-center px-1 py-0.5 rounded text-[7.5px] font-black border uppercase tracking-wider mt-0.5 w-max ${getDeptBadgeStyle(task.assignedTo?.department || "Team Member")}`}
                                 >
                                   {task.assignedTo?.department || "Team Member"}
                                 </span>
@@ -2136,61 +2341,93 @@ const TaskOverviewTab = ({
                           </td>
                         )}
                         {!hiddenColumns.startDate && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
                             {task.startDate ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[14px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-550/20 shadow-2xs">
-                                <FiCalendar size={10} className="shrink-0" />
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-550/20 shadow-2xs">
+                                <FiCalendar size={9} className="shrink-0" />
                                 {formatDate(task.startDate)}
                               </span>
                             ) : (
-                              <span className="text-slate-400 font-normal text-[10px]">
+                              <span className="text-slate-400 font-normal text-[9px]">
                                 —
                               </span>
                             )}
                           </td>
                         )}
                         {!hiddenColumns.dueDate && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
                             {task.dueDate ? (
-                              <span className="inline-flex items-center gap-1  px-2.5 py-0.5 rounded-full text-[14px] font-bold bg-rose-50 text-rose-700 border border-rose-200/50 dark:bg-rose-500/10 dark:text-rose-350 dark:border-rose-550/20 shadow-2xs">
-                                <FiCalendar size={10} className="shrink-0" />
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-bold bg-rose-50 text-rose-700 border border-rose-200/50 dark:bg-rose-500/10 dark:text-rose-350 dark:border-rose-550/20 shadow-2xs">
+                                <FiCalendar size={9} className="shrink-0" />
                                 {formatDate(task.dueDate)}
                               </span>
                             ) : (
-                              <span className="text-slate-400 font-normal text-[10px]">
+                              <span className="text-slate-400 font-normal text-[9px]">
                                 —
                               </span>
                             )}
                           </td>
                         )}
                         {!hiddenColumns.priority && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[14px] font-medium  tracking-wider shadow-lg border ${
+                              className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[9.5px] font-medium tracking-wider shadow-sm border ${
                                 isSameDate(task.startDate, task.dueDate)
                                   ? "badge-priority-top-high"
                                   : pStyle
                               }`}
                             >
-                              {isSameDate(task.startDate, task.dueDate) ? " Top High" : task.priority || "Medium"}
+                              {isSameDate(task.startDate, task.dueDate)
+                                ? " Top High"
+                                : task.priority || "Medium"}
                             </span>
                           </td>
                         )}
                         {!hiddenColumns.status && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[14px] font-medium border  tracking-wider shadow-lg ${sStyle.bg} ${sStyle.text} ${sStyle.border}`}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-medium border tracking-wider shadow-sm ${sStyle.bg} ${sStyle.text} ${sStyle.border}`}
                             >
                               <span
-                                className={`w-1.5 h-1.5 rounded-full ${sStyle.dot}`}
+                                className={`w-1 h-1 rounded-full ${sStyle.dot}`}
                               />
                               {task.status || "Pending"}
                             </span>
                           </td>
                         )}
                         {!hiddenColumns.totalHours && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
                             <SimpleTimeTracker
+                              mode="active"
+                              startTime={task.actualStartTime}
+                              endTime={task.actualEndTime}
+                              pausedAt={task.pausedAt}
+                              savedPausedMs={task.totalPausedMs}
+                              status={task.status}
+                              isBlocked={task.isBlocked}
+                              blockerPausedAt={task.blockerPausedAt}
+                              blockerHistory={task.blockerHistory}
+                            />
+                          </td>
+                        )}
+                        {!hiddenColumns.blockerTime && (
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                            <SimpleTimeTracker
+                              mode="blocker"
+                              startTime={task.actualStartTime}
+                              endTime={task.actualEndTime}
+                              pausedAt={task.pausedAt}
+                              savedPausedMs={task.totalPausedMs}
+                              status={task.status}
+                              isBlocked={task.isBlocked}
+                              blockerPausedAt={task.blockerPausedAt}
+                              blockerHistory={task.blockerHistory}
+                            />
+                          </td>
+                        )}
+                        {!hiddenColumns.timeTracker && (
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                            <TimeTrackerBox
                               startTime={task.actualStartTime}
                               endTime={task.actualEndTime}
                               pausedAt={task.pausedAt}
@@ -2203,7 +2440,7 @@ const TaskOverviewTab = ({
                           </td>
                         )}
                         {!hiddenColumns.approvalInfo && (
-                          <td className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
+                          <td className="py-1.5 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
                             <ApprovalTimeDisplay
                               reviewStartedAt={task.reviewStartedAt}
                               completedAt={task.completedAt}
@@ -2214,10 +2451,10 @@ const TaskOverviewTab = ({
                         )}
                         {!hiddenColumns.action && (
                           <td
-                            className="py-2.5 px-3 border-b border-slate-200 dark:border-white/10 text-right"
+                            className="py-1.5 px-2 border-b border-slate-200 dark:border-white/10 text-right"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2231,17 +2468,17 @@ const TaskOverviewTab = ({
                                     `/${userRole}/projects?id=${projId}&taskId=${task._id}`,
                                   );
                                 }}
-                                className="px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-extrabold text-slate-800 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-[#3b82f6] hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
+                                className="px-1.5 py-0.5 rounded-lg border border-slate-200 dark:border-white/10 text-[9px] font-extrabold text-slate-800 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-[#3b82f6] hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
                               >
                                 View Task
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setTaskToDelete(task._id)}
-                                className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 hover:border-red-200 transition-all cursor-pointer shadow-2xs"
+                                className="p-1 rounded-lg border border-slate-200 dark:border-white/10 text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 hover:border-red-200 transition-all cursor-pointer shadow-2xs"
                                 title="Delete Task"
                               >
-                                <FiTrash2 size={12} />
+                                <FiTrash2 size={10} />
                               </button>
                             </div>
                           </td>
@@ -2255,8 +2492,8 @@ const TaskOverviewTab = ({
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-[#161826] shrink-0 mt-auto">
-            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <div className="flex items-center justify-between px-3 py-2 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-[#161826] shrink-0 mt-auto">
+            <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
               Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
               {Math.min(
                 currentPage * itemsPerPage,
@@ -2264,12 +2501,12 @@ const TaskOverviewTab = ({
               )}{" "}
               of {filteredOverviewTasks.length} tasks
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-white/5 transition-colors shadow-2xs cursor-pointer"
+                className="px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-bold text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-white/5 transition-colors shadow-2xs cursor-pointer"
               >
                 Previous
               </button>
@@ -2308,7 +2545,7 @@ const TaskOverviewTab = ({
                     return (
                       <span
                         key={`ellipsis-${index}`}
-                        className="px-2 py-1 text-xs text-slate-400 dark:text-slate-650 font-bold select-none"
+                        className="px-1.5 py-0.5 text-[10px] text-slate-400 dark:text-slate-650 font-bold select-none"
                       >
                         ...
                       </span>
@@ -2319,7 +2556,7 @@ const TaskOverviewTab = ({
                       key={page}
                       type="button"
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-xs rounded-lg border transition-all cursor-pointer font-bold ${
+                      className={`px-2 py-1 text-[10px] rounded-lg border transition-all cursor-pointer font-bold ${
                         currentPage === page
                           ? "bg-blue-600 text-white border-blue-600 dark:bg-[#3b82f6] dark:border-[#3b82f6] dark:text-black shadow-sm"
                           : "border-slate-200 dark:border-white/10 hover:bg-white dark:hover:bg-white/5 text-slate-600 dark:text-slate-300"
@@ -2337,7 +2574,7 @@ const TaskOverviewTab = ({
                   setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                 }
                 disabled={currentPage === totalPages}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-white/5 transition-colors shadow-2xs cursor-pointer"
+                className="px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-bold text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-white/5 transition-colors shadow-2xs cursor-pointer"
               >
                 Next
               </button>
@@ -2432,9 +2669,7 @@ const TaskOverviewTab = ({
                               ? "badge-status-completed"
                               : selectedTask.status === "In Progress"
                                 ? "badge-status-in-progress"
-                                : selectedTask.status === "IN-REVIEW" ||
-                                    selectedTask.status === "In Review" ||
-                                    selectedTask.status === "IN-Review"
+                                : selectedTask.status === "In Review"
                                   ? "badge-status-in-review"
                                   : selectedTask.status === "On Hold"
                                     ? "badge-status-on-hold"
@@ -2445,7 +2680,7 @@ const TaskOverviewTab = ({
                         >
                           <option value="Pending">Pending</option>
                           <option value="In Progress">In Progress</option>
-                          <option value="IN-REVIEW">In Review</option>
+                          <option value="In Review">In Review</option>
                           <option value="Completed">Completed</option>
                           <option value="On Hold">On Hold</option>
                           <option value="Rejected">Rejected</option>
@@ -2505,8 +2740,6 @@ const TaskOverviewTab = ({
                     </div>
                   </div>
                 </div>
-
-
               </div>
             </motion.div>
           </div>
@@ -2531,7 +2764,12 @@ const TaskOverviewTab = ({
                     Submit Task for Review?
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed font-medium">
-                    Are you sure you want to submit this task for review? Once submitted, the task status will update to <strong className="text-indigo-600 dark:text-indigo-400 font-bold">"In Review"</strong> and your manager will be notified.
+                    Are you sure you want to submit this task for review? Once
+                    submitted, the task status will update to{" "}
+                    <strong className="text-indigo-600 dark:text-indigo-400 font-bold">
+                      "In Review"
+                    </strong>{" "}
+                    and your manager will be notified.
                   </p>
                 </div>
               </div>

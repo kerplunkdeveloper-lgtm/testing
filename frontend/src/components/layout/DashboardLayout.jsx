@@ -118,7 +118,7 @@ const DashboardLayout = ({ role }) => {
               isChatPage
                 ? "h-full theme-bg-card"
                 : `min-h-full ${
-                    sidebarLayout === "horizontal" ? "max-w-8xl mt-15" : "max-w-8xl"
+                    sidebarLayout === "horizontal" ? "max-w-7xl mt-20 " : "max-w-8xl "
                   } mx-auto w-full dark:shadow-none p-2 sm:p-3 md:p-2`
             }
           >
