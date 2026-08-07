@@ -1424,35 +1424,35 @@ const TaskOverviewTab = ({
         );
       })
       .sort((a, b) => {
-        const priorityRank = {
-          "Top High": 1,
-          High: 2,
-          Medium: 3,
-          Low: 4,
-        };
-
-        const pRankA = priorityRank[a.priority] || 5;
-        const pRankB = priorityRank[b.priority] || 5;
-
-        if (pRankA !== pRankB) {
-          return pRankA - pRankB;
-        }
-
+        // Primary sort: Active tasks first, Completed tasks LAST
         const isCompletedA = a.status === "Completed" ? 1 : 0;
         const isCompletedB = b.status === "Completed" ? 1 : 0;
         if (isCompletedA !== isCompletedB) {
           return isCompletedA - isCompletedB;
         }
 
-        const creatorA = (a.createdBy?.name || "Unknown").toLowerCase();
-        const creatorB = (b.createdBy?.name || "Unknown").toLowerCase();
+        // Secondary sort: Most recent date first (Newest created/start date first)
+        const dateA = new Date(
+          a.createdAt || a.startDate || a.dueDate || 0
+        ).getTime();
+        const dateB = new Date(
+          b.createdAt || b.startDate || b.dueDate || 0
+        ).getTime();
 
-        if (creatorA < creatorB) return -1;
-        if (creatorA > creatorB) return 1;
+        if (dateB !== dateA) {
+          return dateB - dateA;
+        }
 
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return timeB - timeA;
+        // Tertiary sort: Priority
+        const priorityRank = {
+          "Top High": 1,
+          High: 2,
+          Medium: 3,
+          Low: 4,
+        };
+        const pRankA = priorityRank[a.priority] || 5;
+        const pRankB = priorityRank[b.priority] || 5;
+        return pRankA - pRankB;
       });
   }, [
     tasks,
