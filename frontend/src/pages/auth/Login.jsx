@@ -66,33 +66,15 @@ const Login = () => {
 
   return (
     <div className="min-h-screen theme-bg-main flex flex-col md:flex-row overflow-hidden">
-      {/* TOP / LEFT SIDE IMAGE SECTION */}
-      <div
-        id="login-image-section"
-        className="relative w-full h-[39vh] sm:h-[45vh] md:h-screen md:w-[55%] xl:w-[60%] overflow-hidden flex items-center justify-center shrink-0 z-0"
-      >
-        <img
-          src={lightlogin}
-          alt="Project Management Background"
-          className="absolute inset-0 w-full h-full object-cover z-0"
-        />
-        {/* Color Overlay */}
-        <div
-          className="absolute inset-0 opacity-45 z-10"
-          style={{ background: "var(--color-brand-gradient, linear-gradient(to right, #1e3a8a, #3b82f6))" }}
-        ></div>
-      </div>
-
       {/* BOTTOM / RIGHT SIDE LOGIN FORM */}
       <div
-        id="login-form-section"
-        className="w-full md:w-[45%] xl:w-[40%] md:h-screen flex flex-col justify-center p-6 sm:p-12 md:px-10 lg:px-16 xl:px-24  relative rounded-t-[40px] md:rounded-none -mt-8 md:mt-0 z-10 backdrop-blur-xl"
+        className="w-full  md:h-screen flex flex-col justify-center p-6 sm:p-12 md:px-10 lg:px-16 xl:px-24  relative rounded-t-[40px] md:rounded-none -mt-8 md:mt-0 z-10 backdrop-blur-xl"
       >
         <div className="w-full max-w-[490px] mx-auto relative z-10">
           <form onSubmit={handleSubmit} className="w-full">
             <div className="mb-10 md:mb-12 text-center md:text-left">
               <h2 className="text-3xl md:text-4xl font-black mb-3 text-slate-800 dark:text-white tracking-tight">
-                Welcome Back
+                Welcome Back - this demo 
               </h2>
               <p className="text-[13px] md:text-[15px] font-medium theme-text-secondary">
                 Login to continue managing your projects

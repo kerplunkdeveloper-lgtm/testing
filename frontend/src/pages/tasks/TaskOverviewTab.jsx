@@ -19,6 +19,8 @@ import {
   FiEye,
   FiClock,
   FiDownload,
+  FiArrowUp,
+  FiArrowDown,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector } from "react-redux";
