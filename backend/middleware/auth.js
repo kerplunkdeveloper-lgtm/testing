@@ -30,6 +30,21 @@ exports.protect = async (req, res, next) => {
 
     req.user = await User.findById(decoded.id);
 
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User no longer exists',
+      });
+    }
+
+    if (req.user.employmentStatus === 'relieved' || req.user.accountStatus === 'inactive') {
+      return res.status(401).json({
+        success: false,
+        accountDeactivated: true,
+        message: 'Your account has been deactivated. Please contact your administrator.',
+      });
+    }
+
     next();
   } catch (err) {
     return res.status(401).json({

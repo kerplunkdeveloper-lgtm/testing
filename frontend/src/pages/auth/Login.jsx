@@ -10,8 +10,8 @@ import { useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
-import lightlogin from "../../assets/logo.png";
-import loginleft from "../../assets/loginleft.png";
+import lightlogin from "../../assets/loginnew1.png";
+
 
 const Login = () => {
   const dispatch = useDispatch();
@@ -66,15 +66,33 @@ const Login = () => {
 
   return (
     <div className="min-h-screen theme-bg-main flex flex-col md:flex-row overflow-hidden">
+      {/* TOP / LEFT SIDE IMAGE SECTION */}
+      <div
+        id="login-image-section"
+        className="relative w-full h-[39vh] sm:h-[45vh] md:h-screen md:w-[60%] lg:w-[65%] xl:w-[68%] overflow-hidden flex items-center justify-center shrink-0 z-0"
+      >
+        <img
+          src={lightlogin}
+          alt="Project Management Background"
+          className="absolute inset-0 w-full h-full object-cover z-0"
+        />
+        {/* Color Overlay */}
+        <div
+          className="absolute inset-0 opacity-45 z-10"
+          style={{ background: "var(--color-brand-gradient, linear-gradient(to right, #1e3a8a, #3b82f6))" }}
+        ></div>
+      </div>
+
       {/* BOTTOM / RIGHT SIDE LOGIN FORM */}
       <div
-        className="w-full  md:h-screen flex flex-col justify-center p-6 sm:p-12 md:px-10 lg:px-16 xl:px-24  relative rounded-t-[40px] md:rounded-none -mt-8 md:mt-0 z-10 backdrop-blur-xl"
+        id="login-form-section"
+        className="w-full md:w-[40%] lg:w-[35%] xl:w-[32%] md:h-screen flex flex-col justify-center p-6 sm:p-12 md:px-8 lg:px-12 xl:px-16 relative rounded-t-[40px] md:rounded-none -mt-8 md:mt-0 z-10 backdrop-blur-xl"
       >
         <div className="w-full max-w-[490px] mx-auto relative z-10">
           <form onSubmit={handleSubmit} className="w-full">
             <div className="mb-10 md:mb-12 text-center md:text-left">
               <h2 className="text-3xl md:text-4xl font-black mb-3 text-slate-800 dark:text-white tracking-tight">
-                Welcome Back - this demo 
+                Welcome Back
               </h2>
               <p className="text-[13px] md:text-[15px] font-medium theme-text-secondary">
                 Login to continue managing your projects

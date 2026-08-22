@@ -7,7 +7,7 @@ const Profile = require('../models/Profile');
 // register
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, password, role,department } = req.body;
+    const { name, email, password, role, department, location } = req.body;
 
     // Create user
     const user = await User.create({
@@ -16,6 +16,7 @@ exports.register = async (req, res, next) => {
       password,
       role,
       department,
+      location,
     });
 
     // Create profile
@@ -69,6 +70,14 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
+      });
+    }
+
+    // Check if account is deactivated or relieved
+    if (user.employmentStatus === 'relieved' || user.accountStatus === 'inactive') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact your administrator.',
       });
     }
 
@@ -155,6 +164,7 @@ const sendTokenResponse = (user, statusCode, res) => {
           email: user.email,
           role: user.role,
           department: user.department,
+          location: user.location,
           permissions: user.permissions || {},
         },
       },

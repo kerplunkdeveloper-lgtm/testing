@@ -27,11 +27,25 @@ export const fetchDirectMessages = createAsyncThunk(
 
 export const fetchGroupMessages = createAsyncThunk(
   "chat/fetchGroupMessages",
-  async (roomId, thunkAPI) => {
+  async (arg, thunkAPI) => {
     try {
-      const url = roomId && roomId !== "group" ? `/messages/group/${roomId}` : "/messages/group";
+      const roomId = typeof arg === "string" ? arg : arg?.roomId || "group";
+      const before = typeof arg === "object" ? arg?.before : null;
+      const limit = typeof arg === "object" ? arg?.limit || 50 : 50;
+
+      let url = roomId && roomId !== "group" ? `/messages/group/${roomId}` : "/messages/group";
+      const params = [];
+      if (before) params.push(`before=${encodeURIComponent(before)}`);
+      if (limit) params.push(`limit=${limit}`);
+      if (params.length > 0) url += `?${params.join("&")}`;
+
       const response = await axiosInstance.get(url);
-      return response.data.data;
+      return {
+        data: response.data.data,
+        hasMore: response.data.hasMore,
+        roomId,
+        isLoadMore: typeof arg === "object" ? !!arg.isLoadMore : false,
+      };
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || "Failed to load group messages");
     }
@@ -126,6 +140,18 @@ export const clearChatAction = createAsyncThunk(
   }
 );
 
+export const toggleReactionAction = createAsyncThunk(
+  "chat/toggleReactionAction",
+  async ({ messageId, emoji }, thunkAPI) => {
+    try {
+      const response = await axiosInstance.post(`/messages/${messageId}/reaction`, { emoji });
+      return response.data.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || "Failed to update reaction");
+    }
+  }
+);
+
 // Helper to safely get a string ID from a field that could be an object or string
 const getIdString = (field) => {
   if (!field) return "";
@@ -140,6 +166,8 @@ const chatSlice = createSlice({
     messages: [],
     rooms: [],
     loading: false,
+    loadingOlder: false,
+    hasMoreGroupMessages: false,
     error: null,
     activeChatId: null, // Track the current active chat for proper message routing
     unreadCounts: {},
@@ -148,6 +176,37 @@ const chatSlice = createSlice({
   reducers: {
     setActiveChatId: (state, action) => {
       state.activeChatId = action.payload;
+    },
+    updateMessageSeen: (state, action) => {
+      const { messageIds, userId, seenAt, user } = action.payload;
+      if (!Array.isArray(messageIds) || messageIds.length === 0 || !userId) return;
+
+      const messageIdSet = new Set(messageIds.map((id) => id.toString()));
+      const userIdStr = userId.toString();
+
+      state.messages = state.messages.map((msg) => {
+        if (messageIdSet.has(msg._id.toString())) {
+          const seenList = msg.seenBy || [];
+          const alreadySeen = seenList.some((s) => {
+            const sId = getIdString(s.userId || s);
+            return sId === userIdStr;
+          });
+
+          if (!alreadySeen) {
+            return {
+              ...msg,
+              seenBy: [
+                ...seenList,
+                {
+                  userId: user || { _id: userId, name: "User" },
+                  seenAt: seenAt || new Date().toISOString(),
+                },
+              ],
+            };
+          }
+        }
+        return msg;
+      });
     },
     receiveMessage: (state, action) => {
       const { message, currentUserId } = action.payload;
@@ -215,6 +274,13 @@ const chatSlice = createSlice({
       }
       delete state.lastMessages[otherUserId];
     },
+    updateMessageReaction: (state, action) => {
+      const { messageId, reactions } = action.payload;
+      const msg = state.messages.find((m) => m._id === messageId);
+      if (msg) {
+        msg.reactions = reactions;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -244,23 +310,41 @@ const chatSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      .addCase(fetchGroupMessages.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-        state.messages = []; // Clear old messages immediately to prevent cross-chat bleed
+      .addCase(fetchGroupMessages.pending, (state, action) => {
+        const isLoadMore = typeof action.meta.arg === "object" ? !!action.meta.arg.isLoadMore : false;
+        if (isLoadMore) {
+          state.loadingOlder = true;
+        } else {
+          state.loading = true;
+          state.error = null;
+          state.messages = [];
+        }
       })
       .addCase(fetchGroupMessages.fulfilled, (state, action) => {
-        // Race condition guard: only apply if this response matches the active chat
-        const requestedRoomId = action.meta.arg || "group";
-        if (state.activeChatId === requestedRoomId) {
+        const { data, hasMore, roomId, isLoadMore } = action.payload;
+        const currentActive = state.activeChatId || "group";
+        
+        if (currentActive === roomId) {
           state.loading = false;
-          state.messages = action.payload;
+          state.loadingOlder = false;
+          state.hasMoreGroupMessages = !!hasMore;
+
+          if (isLoadMore) {
+            // Deduplicate and prepend older messages
+            const existingIds = new Set(state.messages.map((m) => m._id));
+            const newOldMessages = data.filter((m) => !existingIds.has(m._id));
+            state.messages = [...newOldMessages, ...state.messages];
+          } else {
+            state.messages = data;
+          }
         } else {
           state.loading = false;
+          state.loadingOlder = false;
         }
       })
       .addCase(fetchGroupMessages.rejected, (state, action) => {
         state.loading = false;
+        state.loadingOlder = false;
         state.error = action.payload;
       })
       .addCase(sendMessageAction.fulfilled, (state, action) => {
@@ -305,9 +389,27 @@ const chatSlice = createSlice({
       })
       .addCase(deleteMessageAction.fulfilled, (state, action) => {
         state.messages = state.messages.filter((m) => m._id !== action.payload);
+      })
+      .addCase(toggleReactionAction.fulfilled, (state, action) => {
+        const { messageId, reactions } = action.payload;
+        const msg = state.messages.find((m) => m._id === messageId);
+        if (msg) {
+          msg.reactions = reactions;
+        }
       });
   },
 });
 
-export const { receiveMessage, removeMessage, clearMessages, markChatAsRead, clearAllUnreadCounts, setActiveChatId, clearChatLocal, incrementUnreadCount } = chatSlice.actions;
+export const {
+  receiveMessage,
+  removeMessage,
+  clearMessages,
+  markChatAsRead,
+  clearAllUnreadCounts,
+  setActiveChatId,
+  clearChatLocal,
+  incrementUnreadCount,
+  updateMessageSeen,
+  updateMessageReaction,
+} = chatSlice.actions;
 export default chatSlice.reducer;

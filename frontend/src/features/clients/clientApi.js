@@ -14,6 +14,8 @@ export const getClientsAPI = async () => {
   return response.data;
 };
 
+export const getClients = getClientsAPI;
+
 
 
 // CREATE CLIENT

@@ -41,13 +41,48 @@ const EodReports = lazyWithRetry(() => import("../pages/team/EodReports.jsx"));
 const AdminEodReports = lazyWithRetry(() => import("../pages/admin/AdminEodReports.jsx"));
 const Templatelib = lazyWithRetry(() => import("../pages/admin/templatelibrary/Templatelib.jsx"));
 const Clients = lazyWithRetry(() => import("../pages/admin/clients/Clients.jsx"));
-const CalendarPage = lazyWithRetry(() => import("../pages/calendar/CalendarPage.jsx"));
 const Notifications = lazyWithRetry(() => import("../pages/notifications/Notifications.jsx"));
 const Task = lazyWithRetry(() => import("../pages/tasks/Task.jsx"));
 const ChatPage = lazyWithRetry(() => import("../pages/chat/ChatPage.jsx"));
 const Portfolio = lazyWithRetry(() => import("../pages/admin/portfolio/Portfolio.jsx"));
 const Workload = lazyWithRetry(() => import("../pages/workload/Workload.jsx"));
 const Stickynotes = lazyWithRetry(() => import("../pages/admin/Stickynotes.jsx"));
+const MomClientReport = lazyWithRetry(() => import("../pages/admin/MomClientReport.jsx"));
+const SocialAccounts = lazyWithRetry(() => import("../pages/socialAccounts/SocialAccounts.jsx"));
+const ClientCalls = lazyWithRetry(() => import("../pages/client-calls/ClientCalls.jsx"));
+import SMtasks from "../pages/smTasks/SMtasks.jsx";
+
+// Background preload core route bundles for zero-delay sidebar navigation
+export const preloadAllRoutes = () => {
+  const routesToPreload = [
+    () => import("../pages/Dashboard/Dashboardmain.jsx"),
+    () => import("../pages/projects/Project.jsx"),
+    () => import("../pages/admin/clients/Clients.jsx"),
+    () => import("../pages/admin/AdminUsers.jsx"),
+    () => import("../pages/tasks/Task.jsx"),
+    () => import("../pages/settings/Settings.jsx"),
+    () => import("../pages/profile/Profile.jsx"),
+    () => import("../pages/notifications/Notifications.jsx"),
+    () => import("../pages/admin/portfolio/Portfolio.jsx"),
+    () => import("../pages/admin/AdminEodReports.jsx"),
+    () => import("../pages/admin/Stickynotes.jsx"),
+    () => import("../pages/socialAccounts/SocialAccounts.jsx"),
+    () => import("../pages/client-calls/ClientCalls.jsx"),
+    () => import("../pages/admin/MomClientReport.jsx"),
+    () => import("../pages/chat/ChatPage.jsx"),
+    () => import("../pages/workload/Workload.jsx"),
+  ];
+
+  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    window.requestIdleCallback(() => {
+      routesToPreload.forEach((fn) => fn());
+    });
+  } else {
+    setTimeout(() => {
+      routesToPreload.forEach((fn) => fn());
+    }, 1000);
+  }
+};
 
 // Elegant, premium animated page loader
 const PageLoader = () => (
@@ -89,6 +124,11 @@ const AppRoutes = () => {
         />
 
         <Route
+          path="social-accounts"
+          element={<ProtectedRoute requiredPermission="manage_clients"><SocialAccounts /></ProtectedRoute>}
+        />
+
+        <Route
           path="clients"
           element={<ProtectedRoute requiredPermission="manage_clients"><Clients /></ProtectedRoute>}
         />
@@ -114,6 +154,16 @@ const AppRoutes = () => {
         />
 
         <Route
+          path="mom-client-report"
+          element={<MomClientReport />}
+        />
+
+        <Route
+          path="workload"
+          element={<Workload />}
+        />
+
+        <Route
           path="eod-reports"
           element={<ProtectedRoute requiredPermission="view_reports"><AdminEodReports /></ProtectedRoute>}
         />
@@ -136,11 +186,6 @@ const AppRoutes = () => {
         />
         
         <Route
-          path="calendar"
-          element={<CalendarPage />}
-        />
-
-        <Route
           path="partnerhub"
           element={<ProtectedRoute requiredPermission="manage_settings"><PartnerHub /></ProtectedRoute>}
         />
@@ -158,6 +203,14 @@ const AppRoutes = () => {
         <Route
           path="chat"
           element={<ChatPage />}
+        />
+        <Route
+          path="client-calls"
+          element={<ClientCalls />}
+        />
+        <Route
+          path="sm-tasks"
+          element={<SMtasks />}
         />
 
 
@@ -187,7 +240,12 @@ const AppRoutes = () => {
           element={<Stickynotes />}
         />
 
-         <Route
+        <Route
+          path="social-accounts"
+          element={<ProtectedRoute requiredPermission="manage_clients"><SocialAccounts /></ProtectedRoute>}
+        />
+
+        <Route
           path="clients"
           element={<ProtectedRoute requiredPermission="manage_clients"><Clients /></ProtectedRoute>}
         />
@@ -223,11 +281,6 @@ const AppRoutes = () => {
         />
 
         <Route
-          path="calendar"
-          element={<CalendarPage />}
-        />
-
-        <Route
           path="template-library"
           element={<ProtectedRoute requiredPermission="manage_settings"><Templatelib /></ProtectedRoute>}
         />
@@ -240,6 +293,16 @@ const AppRoutes = () => {
         />
 
         <Route
+          path="mom-client-report"
+          element={<MomClientReport />}
+        />
+
+        <Route
+          path="workload"
+          element={<Workload />}
+        />
+
+        <Route
           path="notifications"
           element={<Notifications />}
         />
@@ -247,6 +310,14 @@ const AppRoutes = () => {
         <Route
           path="chat"
           element={<ChatPage />}
+        />
+        <Route
+          path="client-calls"
+          element={<ClientCalls />}
+        />
+        <Route
+          path="sm-tasks"
+          element={<SMtasks />}
         />
 
 
@@ -278,6 +349,11 @@ const AppRoutes = () => {
         />
 
         <Route
+          path="social-accounts"
+          element={<ProtectedRoute requiredPermission="manage_clients"><SocialAccounts /></ProtectedRoute>}
+        />
+
+        <Route
           path="clients"
           element={<ProtectedRoute requiredPermission="manage_clients"><Clients /></ProtectedRoute>}
         />
@@ -299,11 +375,6 @@ const AppRoutes = () => {
         <Route
           path="tasks"
           element={<ProtectedRoute requiredPermission="manage_tasks"><Task /></ProtectedRoute>}   
-        />
-
-        <Route
-          path="calendar"
-          element={<CalendarPage />}
         />
 
         <Route
@@ -334,6 +405,19 @@ const AppRoutes = () => {
         <Route
           path="chat"
           element={<ChatPage />}
+        />
+        <Route
+          path="client-calls"
+          element={<ClientCalls />}
+        />
+        <Route
+          path="sm-tasks"
+          element={<SMtasks />}
+        />
+
+        <Route
+          path="workload"
+          element={<Workload />}
         />
       </Route>
      

@@ -39,7 +39,9 @@ import {
   FiColumns,
   FiFilter,
   FiLoader,
+  FiLock,
 } from "react-icons/fi";
+import { getTotalTrackedMs, formatShortDuration } from "../../utils/taskTimerUtils";
 import axiosInstance from "../../services/axiosInstance";
 import toast from "react-hot-toast";
 
@@ -72,14 +74,15 @@ const formatBusinessDuration = (ms) => {
 
 const getStatusWithEmoji = (status) => {
   const s = (status || "").toLowerCase();
-  if (s === "pending" || s === "to do") return "⏳ Pending";
-  if (s.includes("progress")) return "⚡ In Progress";
-  if (s.includes("review")) return "🔍 In Review";
-  if (s.includes("correction")) return "🛠️ Correction";
-  if (s === "completed" || s.includes("approve") || s === "done") return "✅ Completed";
-  if (s.includes("hold")) return "⏸️ On Hold";
-  if (s.includes("reject")) return "❌ Rejected";
-  return `⏳ ${status || "Pending"}`;
+  if (s === "pending" || s === "to do") return "Pending";
+  if (s.includes("progress")) return "In Progress";
+  if (s.includes("review")) return "In Review";
+  if (s.includes("correction")) return "Correction";
+  if (s === "completed" || s.includes("approve") || s === "done")
+    return "Completed";
+  if (s.includes("hold")) return "On Hold";
+  if (s.includes("reject")) return "Rejected";
+  return status || "Pending";
 };
 
 export const isSameDate = (d1, d2) => {
@@ -99,207 +102,209 @@ export const isSameDate = (d1, d2) => {
   }
 };
 
-const ApprovalTimeDisplay = React.memo(({
-  reviewStartedAt,
-  completedAt,
-  approvalWaitingMs,
-  status,
-  lastReviewStartedAt,
-  reviewCycles,
-}) => {
-  const [liveElapsed, setLiveElapsed] = useState(0);
-  const [showPopup, setShowPopup] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
-  const buttonRef = useRef(null);
-  const popupRef = useRef(null);
+const ApprovalTimeDisplay = React.memo(
+  ({
+    reviewStartedAt,
+    completedAt,
+    approvalWaitingMs,
+    status,
+    lastReviewStartedAt,
+    reviewCycles,
+  }) => {
+    const [liveElapsed, setLiveElapsed] = useState(0);
+    const [showPopup, setShowPopup] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef(null);
+    const popupRef = useRef(null);
 
-  useEffect(() => {
-    if (
-      !reviewStartedAt ||
-      status !== "In Review"
-    ) {
-      setLiveElapsed(0);
-      return;
-    }
-    const updateTime = () => {
-      const elapsed = calculateBusinessMs(reviewStartedAt, Date.now());
-      setLiveElapsed(elapsed);
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, [reviewStartedAt, status]);
-
-  // Click outside close
-  useEffect(() => {
-    if (!showPopup) return;
-    const handleClickOutside = (e) => {
-      if (
-        popupRef.current &&
-        !popupRef.current.contains(e.target) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target)
-      ) {
-        setShowPopup(false);
+    useEffect(() => {
+      if (!reviewStartedAt || status !== "In Review") {
+        setLiveElapsed(0);
+        return;
       }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showPopup]);
+      const updateTime = () => {
+        const elapsed = calculateBusinessMs(reviewStartedAt, Date.now());
+        setLiveElapsed(elapsed);
+      };
+      updateTime();
+      const interval = setInterval(updateTime, 1000);
+      return () => clearInterval(interval);
+    }, [reviewStartedAt, status]);
 
-  const effectiveReviewStart =
-    reviewStartedAt ||
-    lastReviewStartedAt ||
-    (reviewCycles && reviewCycles.length > 0
-      ? reviewCycles[reviewCycles.length - 1]?.startedAt
-      : null);
+    // Click outside close
+    useEffect(() => {
+      if (!showPopup) return;
+      const handleClickOutside = (e) => {
+        if (
+          popupRef.current &&
+          !popupRef.current.contains(e.target) &&
+          buttonRef.current &&
+          !buttonRef.current.contains(e.target)
+        ) {
+          setShowPopup(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }, [showPopup]);
 
-  if (!effectiveReviewStart && !approvalWaitingMs) {
-    return (
-      <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
-    );
-  }
+    const effectiveReviewStart =
+      reviewStartedAt ||
+      lastReviewStartedAt ||
+      (reviewCycles && reviewCycles.length > 0
+        ? reviewCycles[reviewCycles.length - 1]?.startedAt
+        : null);
 
-  const formatDateTime = (dateStr) => {
-    if (!dateStr) return { date: "—", time: "", relative: "" };
-    const d = new Date(dateStr);
-    const date = d.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-    });
-    const time = d.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const diffMs = Date.now() - d;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    let relative = "just now";
-    if (diffDays > 0) relative = `${diffDays}d ago`;
-    else if (diffHours > 0) relative = `${diffHours}h ago`;
-    else if (diffMins > 0) relative = `${diffMins}m ago`;
-    return { date, time, relative };
-  };
-
-  const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
-  const isInReview = status === "In Review";
-  const revInfo = effectiveReviewStart ? formatDateTime(effectiveReviewStart) : null;
-  const doneInfo = completedAt ? formatDateTime(completedAt) : null;
-
-  const handleToggle = (e) => {
-    e.stopPropagation();
-    if (!showPopup && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      // Position above the button, aligned to its right edge
-      setCoords({
-        top: rect.top + window.scrollY - 175,
-        left: rect.right + window.scrollX - 224,
-      });
+    if (!effectiveReviewStart && !approvalWaitingMs) {
+      return (
+        <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+      );
     }
-    setShowPopup(!showPopup);
-  };
 
-  return (
-    <div className="relative inline-flex items-center gap-1.5 justify-center">
-      {/* Duration badge */}
-      {totalWaitMs > 0 && (
-        <div
-          className={`px-2.5 py-1 rounded-full font-black text-[10px] tracking-wide border shadow-sm ${
-            isInReview
-              ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/25"
-              : "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20"
-          }`}
-        >
-          {isInReview && (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0 mr-1 inline-block" />
-          )}
-          {isInReview ? "Waiting " : "Took "}
-          <span className="font-black">
-            {formatBusinessDuration(totalWaitMs)}
-          </span>
-        </div>
-      )}
+    const formatDateTime = (dateStr) => {
+      if (!dateStr) return { date: "—", time: "", relative: "" };
+      const d = new Date(dateStr);
+      const date = d.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+      });
+      const time = d.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const diffMs = Date.now() - d;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      let relative = "just now";
+      if (diffDays > 0) relative = `${diffDays}d ago`;
+      else if (diffHours > 0) relative = `${diffHours}h ago`;
+      else if (diffMins > 0) relative = `${diffMins}m ago`;
+      return { date, time, relative };
+    };
 
-      {/* View Details Eye Icon */}
-      {(revInfo || doneInfo) && (
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={handleToggle}
-          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-[#3b82f6] transition-colors cursor-pointer"
-          title="View approval details"
-        >
-          <FiEye size={13} />
-        </button>
-      )}
+    const totalWaitMs = (approvalWaitingMs || 0) + liveElapsed;
+    const isInReview = status === "In Review";
+    const revInfo = effectiveReviewStart
+      ? formatDateTime(effectiveReviewStart)
+      : null;
+    const doneInfo = completedAt ? formatDateTime(completedAt) : null;
 
-      {/* Details Popup rendered via Portal */}
-      {showPopup &&
-        createPortal(
-          <AnimatePresence>
-            <motion.div
-              ref={popupRef}
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ duration: 0.15 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                position: "absolute",
-                top: coords.top,
-                left: coords.left,
-              }}
-              className="z-[9999] w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl flex flex-col gap-2 text-left"
-            >
-              <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Timeline Details
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowPopup(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:text-[#555] dark:hover:text-slate-350 cursor-pointer"
-                >
-                  <FiX size={10} />
-                </button>
-              </div>
+    const handleToggle = (e) => {
+      e.stopPropagation();
+      if (!showPopup && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        // Position above the button, aligned to its right edge
+        setCoords({
+          top: rect.top + window.scrollY - 175,
+          left: rect.right + window.scrollX - 224,
+        });
+      }
+      setShowPopup(!showPopup);
+    };
 
-              {revInfo && (
-                <div className="flex flex-col gap-0.5 bg-blue-50/40 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
-                  <span className="text-[8px] font-black text-blue-500 dark:text-blue-450 uppercase tracking-widest">
-                    Review Start
-                  </span>
-                  <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
-                    {revInfo.date} · {revInfo.time}
-                  </span>
-                  <span className="text-[9px] text-blue-450 dark:text-blue-500 font-medium">
-                    {revInfo.relative}
-                  </span>
-                </div>
-              )}
-
-              {doneInfo && (
-                <div className="flex flex-col gap-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
-                  <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
-                    Completed
-                  </span>
-                  <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
-                    {doneInfo.date} · {doneInfo.time}
-                  </span>
-                  <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium">
-                    {doneInfo.relative}
-                  </span>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>,
-          document.body,
+    return (
+      <div className="relative inline-flex items-center gap-1.5 justify-center">
+        {/* Duration badge */}
+        {totalWaitMs > 0 && (
+          <div
+            className={`px-2.5 py-1 rounded-full font-black text-[10px] tracking-wide border shadow-sm ${
+              isInReview
+                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/25"
+                : "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20"
+            }`}
+          >
+            {isInReview && (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0 mr-1 inline-block" />
+            )}
+            {isInReview ? "Waiting " : "Took "}
+            <span className="font-black">
+              {formatBusinessDuration(totalWaitMs)}
+            </span>
+          </div>
         )}
-    </div>
-  );
-});
+
+        {/* View Details Eye Icon */}
+        {(revInfo || doneInfo) && (
+          <button
+            ref={buttonRef}
+            type="button"
+            onClick={handleToggle}
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-blue-500 dark:text-slate-500 dark:hover:text-[#3b82f6] transition-colors cursor-pointer"
+            title="View approval details"
+          >
+            <FiEye size={13} />
+          </button>
+        )}
+
+        {/* Details Popup rendered via Portal */}
+        {showPopup &&
+          createPortal(
+            <AnimatePresence>
+              <motion.div
+                ref={popupRef}
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ duration: 0.15 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: "absolute",
+                  top: coords.top,
+                  left: coords.left,
+                }}
+                className="z-[9999] w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl flex flex-col gap-2 text-left"
+              >
+                <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Timeline Details
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPopup(false)}
+                    className="text-slate-400 hover:text-slate-600 dark:text-[#555] dark:hover:text-slate-350 cursor-pointer"
+                  >
+                    <FiX size={10} />
+                  </button>
+                </div>
+
+                {revInfo && (
+                  <div className="flex flex-col gap-0.5 bg-blue-50/40 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100/50 dark:border-blue-900/30">
+                    <span className="text-[8px] font-black text-blue-500 dark:text-blue-450 uppercase tracking-widest">
+                      Review Start
+                    </span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                      {revInfo.date} · {revInfo.time}
+                    </span>
+                    <span className="text-[9px] text-blue-450 dark:text-blue-500 font-medium">
+                      {revInfo.relative}
+                    </span>
+                  </div>
+                )}
+
+                {doneInfo && (
+                  <div className="flex flex-col gap-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
+                    <span className="text-[8px] font-black text-emerald-500 dark:text-emerald-450 uppercase tracking-widest">
+                      Completed
+                    </span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px]">
+                      {doneInfo.date} · {doneInfo.time}
+                    </span>
+                    <span className="text-[9px] text-emerald-400 dark:text-emerald-500 font-medium">
+                      {doneInfo.relative}
+                    </span>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>,
+            document.body,
+          )}
+      </div>
+    );
+  },
+);
 
 const StrictModeDroppable = ({ children, ...props }) => {
   const [enabled, setEnabled] = useState(false);
@@ -314,132 +319,63 @@ const StrictModeDroppable = ({ children, ...props }) => {
   return <Droppable {...props}>{children}</Droppable>;
 };
 
-const TimeTracker = React.memo(({
-  startTime,
-  endTime,
-  pausedAt,
-  status,
-  savedPausedMs = 0,
-  variant = "default",
-}) => {
-  const [elapsed, setElapsed] = useState(0);
+const TimeTracker = React.memo(
+  ({
+    task,
+    startTime,
+    endTime,
+    pausedAt,
+    autoPaused,
+    status,
+    savedPausedMs = 0,
+    totalTrackedTime = 0,
+    variant = "default",
+  }) => {
+    const [now, setNow] = useState(Date.now());
 
-  useEffect(() => {
-    if (!startTime) return;
-
-    const calculateElapsed = () => {
-      const start = new Date(startTime).getTime();
-      let end;
-
-      if (endTime) {
-        // Task is completed — use the locked end time
-        end = new Date(endTime).getTime();
-      } else if (
-        pausedAt &&
-        ["On Hold", "Rejected", "In Review"].includes(
-          status,
-        )
-      ) {
-        // Task is paused (In Review / On Hold) — freeze at pausedAt
-        end = new Date(pausedAt).getTime();
-      } else {
-        // Task is actively running
-        end = Date.now();
+    useEffect(() => {
+      if (status === "In Progress" && !autoPaused && !endTime) {
+        const interval = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(interval);
       }
+    }, [status, autoPaused, endTime]);
 
-      // Subtract all accumulated paused/review time
-      const elapsedMs = end - start - (savedPausedMs || 0);
-
-      return Math.max(0, Math.floor(elapsedMs / 1000));
+    const taskObj = task || {
+      status,
+      actualStartTime: startTime,
+      actualEndTime: endTime,
+      pausedAt,
+      autoPaused,
+      totalPausedMs: savedPausedMs,
+      totalTrackedTime,
     };
 
-    setElapsed(calculateElapsed());
+    const totalMs = getTotalTrackedMs(taskObj, now);
 
-    // Only tick when actively running
-    if (status === "In Progress" && !endTime) {
-      const interval = setInterval(() => {
-        setElapsed(calculateElapsed());
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [startTime, endTime, pausedAt, status, savedPausedMs]);
-
-  if (!startTime && status !== "In Progress") {
-    if (!status || status.toLowerCase() === "pending") {
+    if (status === "Not Started" || (!startTime && totalMs === 0)) {
       return (
         <span className="text-slate-405 dark:text-slate-500 font-semibold text-xs block text-center w-full">
           Not started
         </span>
       );
     }
-    return null;
-  }
-  if (!startTime && status === "In Progress")
-    return (
-      <div className="inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold tracking-wider bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30 shadow-sm w-full">
-        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-[#3b82f6] animate-pulse"></span>
-        Starting...
-      </div>
-    );
 
-  const hours = Math.floor(elapsed / 3600);
-  const minutes = Math.floor((elapsed % 3600) / 60);
-  const seconds = elapsed % 60;
-
-  const timeString = `${hours > 0 ? `${hours}h ` : ""}${minutes}m ${seconds}s`;
-
-  if (variant === "premium") {
-    return (
-      <div className="flex flex-col">
-        <div className="flex items-baseline gap-1 text-slate-800 dark:text-white">
-          {hours > 0 && (
-            <>
-              <span className="text-3xl font-black tracking-tight">
-                {hours}
-              </span>
-              <span className="text-xs font-bold text-slate-400 mr-1">h</span>
-            </>
-          )}
-          <span className="text-3xl font-black tracking-tight">{minutes}</span>
-          <span className="text-xs font-bold text-slate-400 mr-1">m</span>
-          <span className="text-xl font-bold tracking-tight text-emerald-500">
-            {seconds}
-          </span>
-          <span className="text-[10px] font-bold text-emerald-500/70">s</span>
+    if (!startTime && status === "In Progress") {
+      return (
+        <div className="inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold tracking-wider bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30 shadow-sm w-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-[#3b82f6] animate-pulse"></span>
+          Starting...
         </div>
-        {status === "In Progress" && !endTime && (
-          <div className="flex items-center gap-1.5 mt-1 text-[9px] font-bold text-[#3b82f6] uppercase tracking-wider">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#3b82f6] animate-pulse"></span>
-            Timer Running
-          </div>
-        )}
-      </div>
+      );
+    }
+
+    return (
+      <span className="font-mono text-xs font-bold tracking-tight text-center block w-full">
+        {formatShortDuration(totalMs)}
+      </span>
     );
   }
-
-  return (
-    <div
-      className={`inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold tracking-wider w-full ${
-        status === "In Progress" && !endTime
-          ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30 shadow-sm"
-          : status === "In Review"
-            ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30 shadow-sm"
-            : status === "On Hold"
-              ? "bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/30 shadow-sm"
-              : status === "Completed"
-                ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 shadow-sm"
-                : "bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-500/5 dark:text-slate-400 dark:border-slate-500/20 shadow-xs"
-      }`}
-    >
-      {status === "In Progress" && !endTime ? (
-        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-[#3b82f6] animate-pulse"></span>
-      ) : (
-        <FiClock size={10} />
-      )}
-      {timeString}
-    </div>
-  );
-});
+);
 
 // Task Title Input Component for autosaving inline without cursor jump
 const TaskTitleInput = ({
@@ -752,7 +688,19 @@ const SubtaskRow = ({
         {/* Assignee Picker (Always Visible) */}
         <div className="flex items-center gap-1.5">
           <AssigneeDropdown
-            selectedUser={sub.assignedTo}
+            selectedUser={
+              sub.contentType === "MOM"
+                ? sub.assignedTo ||
+                  sub.createdBy?._id ||
+                  sub.createdBy?.id ||
+                  sub.createdBy ||
+                  task.createdBy?._id ||
+                  task.createdBy?.id ||
+                  task.createdBy ||
+                  currentUser?._id ||
+                  currentUser?.id
+                : sub.assignedTo
+            }
             users={users}
             onChange={(userId) =>
               handleSubtaskFieldChange(task, sub._id, {
@@ -760,10 +708,13 @@ const SubtaskRow = ({
               })
             }
             isAdminOrManager={isAdminOrManager}
+            disabled={sub.contentType === "MOM"}
+            isLocked={sub.contentType === "MOM"}
+            isMOM={sub.contentType === "MOM"}
             getAvatarColor={getAvatarColor}
             size="sm"
           />
-          {sub.assignedTo && isAdminOrManager && (
+          {sub.assignedTo && isAdminOrManager && sub.contentType !== "MOM" && (
             <button
               type="button"
               onClick={(e) => {
@@ -806,6 +757,10 @@ const AssigneeDropdown = ({
   getAvatarColor,
   align = "left",
   size = "md",
+  disabled = false,
+  isLocked = false,
+  isMOM = false,
+  currentUser = null,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -817,6 +772,8 @@ const AssigneeDropdown = ({
     isUpward: false,
   });
   const dropdownRef = useRef(null);
+
+  const canEdit = isAdminOrManager && !disabled && !isLocked && !isMOM;
 
   const updateCoords = () => {
     if (dropdownRef.current) {
@@ -875,10 +832,23 @@ const AssigneeDropdown = ({
     };
   }, [isOpen]);
 
-  const selectedUserObj =
+  let selectedUserObj =
     typeof selectedUser === "string"
-      ? (users || []).find((u) => u && u._id === selectedUser)
+      ? (users || []).find(
+          (u) => u && (u._id === selectedUser || u.id === selectedUser),
+        )
       : selectedUser;
+  if (
+    !selectedUserObj &&
+    selectedUser &&
+    currentUser &&
+    (selectedUser === currentUser._id || selectedUser === currentUser.id)
+  ) {
+    selectedUserObj = currentUser;
+  }
+  if (!selectedUserObj && isMOM && currentUser) {
+    selectedUserObj = currentUser;
+  }
 
   const handleSelect = (user) => {
     onChange(user ? user._id : null);
@@ -937,9 +907,11 @@ const AssigneeDropdown = ({
     if (size === "sm") {
       return (
         <div
-          onClick={() => isAdminOrManager && setIsOpen(!isOpen)}
-          className={`relative w-6 h-6 rounded-full border border-dashed border-slate-300 dark:border-indigo-900 flex items-center justify-center text-slate-400 dark:text-indigo-400/75 hover:border-indigo-400 hover:text-indigo-700 dark:hover:text-[#3b82f6] dark:hover:border-[#3b82f6]/40 bg-white dark:bg-[#111111] transition-all ${
-            isAdminOrManager ? "cursor-pointer" : "cursor-not-allowed"
+          onClick={() => canEdit && setIsOpen(!isOpen)}
+          className={`relative w-6 h-6 rounded-full border border-dashed border-slate-300 dark:border-indigo-900 flex items-center justify-center text-slate-400 dark:text-indigo-400/75 bg-white dark:bg-[#111111] transition-all ${
+            canEdit
+              ? "cursor-pointer hover:border-indigo-400 hover:text-indigo-700 dark:hover:text-[#3b82f6] dark:hover:border-[#3b82f6]/40"
+              : "cursor-default"
           } overflow-hidden`}
         >
           {selectedUserObj ? (
@@ -969,12 +941,12 @@ const AssigneeDropdown = ({
       return (
         <button
           type="button"
-          disabled={!isAdminOrManager}
+          disabled={!canEdit}
           onClick={() => setIsOpen(!isOpen)}
           className={`w-full flex items-center justify-between bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 ${
-            isAdminOrManager
+            canEdit
               ? "cursor-pointer hover:border-slate-350 dark:hover:border-white/20"
-              : "cursor-not-allowed"
+              : "cursor-default opacity-95"
           } focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]`}
         >
           <div className="flex items-center gap-2 truncate">
@@ -1010,10 +982,12 @@ const AssigneeDropdown = ({
               </span>
             )}
           </div>
-          <FiChevronDown
-            size={14}
-            className="text-slate-400 dark:text-slate-500 shrink-0"
-          />
+          {canEdit && (
+            <FiChevronDown
+              size={14}
+              className="text-slate-400 dark:text-slate-500 shrink-0"
+            />
+          )}
         </button>
       );
     }
@@ -1021,9 +995,11 @@ const AssigneeDropdown = ({
     if (selectedUserObj) {
       return (
         <div
-          onClick={() => isAdminOrManager && setIsOpen(!isOpen)}
-          className={`group/assigned relative flex items-center gap-1.5 bg-slate-50/40 dark:bg-white/5 hover:bg-slate-100/50 dark:hover:bg-white/10 px-1.5 py-0.5 rounded-lg border border-slate-200/60 dark:border-white/10 transition-all ${
-            isAdminOrManager ? "cursor-pointer" : "cursor-not-allowed"
+          onClick={() => canEdit && setIsOpen(!isOpen)}
+          className={`group/assigned relative flex items-center gap-1.5 bg-slate-50/40 dark:bg-white/5 px-1.5 py-0.5 rounded-lg border border-slate-200/60 dark:border-white/10 transition-all ${
+            canEdit
+              ? "cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/10"
+              : "cursor-default"
           } w-[135px] h-[28px] shadow-sm`}
         >
           {avatarUrl ? (
@@ -1051,7 +1027,7 @@ const AssigneeDropdown = ({
               </span>
             )}
           </div>
-          {isAdminOrManager && (
+          {canEdit && (
             <button
               type="button"
               onClick={(e) => {
@@ -1071,18 +1047,25 @@ const AssigneeDropdown = ({
     return (
       <button
         type="button"
-        disabled={!isAdminOrManager}
+        disabled={!canEdit}
         onClick={() => setIsOpen(!isOpen)}
         className={`group/assign relative flex items-center gap-1.5 bg-slate-50/20 dark:bg-white/5 hover:bg-slate-100/40 dark:hover:bg-white/10 px-1.5 py-0.5 rounded-lg border border-dashed border-slate-300 dark:border-white/10 transition-all ${
-          isAdminOrManager ? "cursor-pointer" : "cursor-not-allowed"
+          canEdit
+            ? "cursor-pointer hover:bg-slate-100/40 dark:hover:bg-white/10"
+            : "cursor-default"
         } w-[135px] h-[28px] text-left`}
       >
         <div className="w-5.5 h-5.5 rounded-full border border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0 bg-white dark:bg-[#111111]">
-          <FiUser size={10} className="group-hover/assign:hidden" />
-          <FiPlus
+          <FiUser
             size={10}
-            className="hidden group-hover/assign:block text-blue-500 dark:text-[#3b82f6]"
+            className={canEdit ? "group-hover/assign:hidden" : ""}
           />
+          {canEdit && (
+            <FiPlus
+              size={10}
+              className="hidden group-hover/assign:block text-blue-500 dark:text-[#3b82f6]"
+            />
+          )}
         </div>
         <div className="flex-1 min-w-0 flex flex-col text-left">
           <span className="text-[9.5px] font-bold text-slate-400 dark:text-slate-550 truncate leading-tight">
@@ -2185,31 +2168,13 @@ const ProjectTaskBoard = ({
       }
 
       // Optimistically update local UI for status
-      const isNewStatusInProgress = destination.droppableId === "In Progress";
       const updatedTasks = localTasks.map((t) => {
         if (t._id === draggableId) {
           return { ...t, status: destination.droppableId };
         }
-        if (
-          isNewStatusInProgress &&
-          (t.status === "In Progress" || t.status === "In-Progress")
-        ) {
-          return { ...t, status: "On Hold" };
-        }
         return t;
       });
       setLocalTasks(updatedTasks);
-
-      if (isNewStatusInProgress) {
-        (localTasks || []).forEach((t) => {
-          if (
-            t._id !== draggableId &&
-            (t.status === "In Progress" || t.status === "In-Progress")
-          ) {
-            updateTaskMutation({ id: t._id, taskData: { status: "On Hold" } });
-          }
-        });
-      }
 
       try {
         await updateTaskMutation({
@@ -2218,7 +2183,10 @@ const ProjectTaskBoard = ({
         }).unwrap();
       } catch (err) {
         console.error("Failed to drag and drop task:", err);
-        if (err?.data?.isOfficeHoursEnded || err?.error?.data?.isOfficeHoursEnded) {
+        if (
+          err?.data?.isOfficeHoursEnded ||
+          err?.error?.data?.isOfficeHoursEnded
+        ) {
           const errorData = err?.data || err?.error?.data;
           window.dispatchEvent(
             new CustomEvent("show-office-hours-ended-popup", {
@@ -2226,7 +2194,7 @@ const ProjectTaskBoard = ({
                 workingTimeMs: errorData.workingTimeMs,
                 pausedAtHour: errorData.pausedAt,
               },
-            })
+            }),
           );
           dispatch(apiSlice.util.invalidateTags(["Task"]));
         }
@@ -2562,7 +2530,7 @@ const ProjectTaskBoard = ({
   const handleTaskFieldChange = async (taskId, fields) => {
     if (fields.status === "In Review") {
       const taskObj = localTasks.find((t) => t._id === taskId);
-      if (taskObj && !taskObj.actualStartTime) {
+      if (taskObj && !taskObj.actualStartTime && !taskObj.totalTrackedTime) {
         showStartInProgressWarning("review");
         return;
       }
@@ -2574,7 +2542,7 @@ const ProjectTaskBoard = ({
 
     if (fields.status === "On Hold") {
       const taskObj = localTasks.find((t) => t._id === taskId);
-      if (taskObj && !taskObj.actualStartTime) {
+      if (taskObj && !taskObj.actualStartTime && !taskObj.totalTrackedTime && taskObj.contentType !== "MOM") {
         showStartInProgressWarning("hold");
         return;
       }
@@ -2623,6 +2591,34 @@ const ProjectTaskBoard = ({
     if (sanitizedFields.assignedTo === "") sanitizedFields.assignedTo = null;
     if (sanitizedFields.dueDate === "") sanitizedFields.dueDate = null;
     if (sanitizedFields.startDate === "") sanitizedFields.startDate = null;
+
+    const currentTask = localTasks.find((t) => t._id === taskId);
+
+    // Block modifying or clearing Start Date if already set
+    if (currentTask?.startDate) {
+      if (
+        sanitizedFields.startDate === null ||
+        (sanitizedFields.startDate !== undefined &&
+          new Date(sanitizedFields.startDate).toISOString().split("T")[0] !==
+            new Date(currentTask.startDate).toISOString().split("T")[0])
+      ) {
+        toast.error("🔒 Start Date is locked once set and cannot be changed.");
+        return;
+      }
+    }
+
+    // Block modifying or clearing End Date (dueDate) if already set
+    if (currentTask?.dueDate) {
+      if (
+        sanitizedFields.dueDate === null ||
+        (sanitizedFields.dueDate !== undefined &&
+          new Date(sanitizedFields.dueDate).toISOString().split("T")[0] !==
+            new Date(currentTask.dueDate).toISOString().split("T")[0])
+      ) {
+        toast.error("🔒 End Date is locked once set and cannot be changed.");
+        return;
+      }
+    }
 
     // Check date requirement before assigning member
     if (sanitizedFields.assignedTo) {
@@ -2717,32 +2713,14 @@ const ProjectTaskBoard = ({
       sanitizedFields.priority = "Top High";
     }
 
-    const isNewStatusInProgress = sanitizedFields.status === "In Progress";
     setLocalTasks((prev) =>
       prev.map((t) => {
         if (t._id === taskId) {
           return { ...t, ...sanitizedFields };
         }
-        if (
-          isNewStatusInProgress &&
-          (t.status === "In Progress" || t.status === "In-Progress")
-        ) {
-          return { ...t, status: "On Hold" };
-        }
         return t;
       }),
     );
-
-    if (isNewStatusInProgress) {
-      (localTasks || []).forEach((t) => {
-        if (
-          t._id !== taskId &&
-          (t.status === "In Progress" || t.status === "In-Progress")
-        ) {
-          updateTaskMutation({ id: t._id, taskData: { status: "On Hold" } });
-        }
-      });
-    }
 
     if (String(taskId).startsWith("temp-")) {
       return;
@@ -2756,7 +2734,10 @@ const ProjectTaskBoard = ({
     } catch (err) {
       console.error("Failed to update task:", err);
 
-      if (err?.data?.isOfficeHoursEnded || err?.error?.data?.isOfficeHoursEnded) {
+      if (
+        err?.data?.isOfficeHoursEnded ||
+        err?.error?.data?.isOfficeHoursEnded
+      ) {
         const errorData = err?.data || err?.error?.data;
         window.dispatchEvent(
           new CustomEvent("show-office-hours-ended-popup", {
@@ -2764,7 +2745,7 @@ const ProjectTaskBoard = ({
               workingTimeMs: errorData.workingTimeMs,
               pausedAtHour: errorData.pausedAt,
             },
-          })
+          }),
         );
         dispatch(apiSlice.util.invalidateTags(["Task"]));
         return;
@@ -2987,7 +2968,7 @@ const ProjectTaskBoard = ({
   const handleSubtaskFieldChange = async (task, subtaskId, updatedFields) => {
     if (updatedFields.status === "In Review") {
       const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
-      if (subtaskObj && !subtaskObj.actualStartTime) {
+      if (subtaskObj && !subtaskObj.actualStartTime && !subtaskObj.totalTrackedTime) {
         showStartInProgressWarning("review");
         return;
       }
@@ -3005,7 +2986,7 @@ const ProjectTaskBoard = ({
 
     if (updatedFields.status === "On Hold") {
       const subtaskObj = task.subtasks?.find((s) => s._id === subtaskId);
-      if (subtaskObj && !subtaskObj.actualStartTime) {
+      if (subtaskObj && !subtaskObj.actualStartTime && !subtaskObj.totalTrackedTime && (subtaskObj.contentType !== "MOM" && task.contentType !== "MOM")) {
         showStartInProgressWarning("hold");
         return;
       }
@@ -3058,6 +3039,36 @@ const ProjectTaskBoard = ({
     if (sanitizedFields.dueDate === "") sanitizedFields.dueDate = null;
 
     const currentSub = task.subtasks?.find((s) => s._id === subtaskId);
+
+    // Block modifying or clearing Subtask Start Date if already set
+    if (currentSub?.startDate) {
+      if (
+        sanitizedFields.startDate === null ||
+        (sanitizedFields.startDate !== undefined &&
+          new Date(sanitizedFields.startDate).toISOString().split("T")[0] !==
+            new Date(currentSub.startDate).toISOString().split("T")[0])
+      ) {
+        toast.error(
+          "🔒 Subtask Start Date is locked once set and cannot be changed.",
+        );
+        return;
+      }
+    }
+
+    // Block modifying or clearing Subtask End Date (dueDate) if already set
+    if (currentSub?.dueDate) {
+      if (
+        sanitizedFields.dueDate === null ||
+        (sanitizedFields.dueDate !== undefined &&
+          new Date(sanitizedFields.dueDate).toISOString().split("T")[0] !==
+            new Date(currentSub.dueDate).toISOString().split("T")[0])
+      ) {
+        toast.error(
+          "🔒 Subtask End Date is locked once set and cannot be changed.",
+        );
+        return;
+      }
+    }
 
     // Check date requirement before assigning member on subtask
     if (sanitizedFields.assignedTo) {
@@ -3574,8 +3585,13 @@ const ProjectTaskBoard = ({
                   }`}
                 >
                   <FiFilter className="shrink-0" size={13} />
-                  <span>{statusFilter === "All" ? "All Status" : statusFilter}</span>
-                  <FiChevronDown className="shrink-0 text-slate-400" size={13} />
+                  <span>
+                    {statusFilter === "All" ? "All Status" : statusFilter}
+                  </span>
+                  <FiChevronDown
+                    className="shrink-0 text-slate-400"
+                    size={13}
+                  />
                 </button>
 
                 <AnimatePresence>
@@ -3587,25 +3603,31 @@ const ProjectTaskBoard = ({
                       transition={{ duration: 0.15 }}
                       className="absolute right-0 mt-2 w-40 bg-white dark:bg-[#111] border border-slate-200/80 dark:border-transparent rounded-2xl shadow-2xl p-2 z-50 space-y-1 backdrop-blur-md"
                     >
-                      {["All", "Active Tasks", "Pending", "In Progress", "On Hold", "In Review", "Completed"].map(
-                        (option) => (
-                          <button
-                            key={option}
-                            type="button"
-                            onClick={() => {
-                              setStatusFilter(option);
-                              setIsStatusFilterOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                              statusFilter === option
-                                ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                                : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
-                            }`}
-                          >
-                            {option}
-                          </button>
-                        ),
-                      )}
+                      {[
+                        "All",
+                        "Active Tasks",
+                        "Pending",
+                        "In Progress",
+                        "On Hold",
+                        "In Review",
+                        "Completed",
+                      ].map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => {
+                            setStatusFilter(option);
+                            setIsStatusFilterOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                            statusFilter === option
+                              ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                              : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                          }`}
+                        >
+                          {option}
+                        </button>
+                      ))}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -3983,6 +4005,16 @@ const ProjectTaskBoard = ({
 
               return (
                 <div className="pt-3 w-full">
+                  <div className="flex justify-end mb-3">
+                    <button
+                      type="button"
+                      onClick={() => handleAddTask(null)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[12px] font-black cursor-pointer transition-all shadow-md"
+                    >
+                      <FiPlus size={14} className="stroke-[3]" />
+                      <span>Add Task</span>
+                    </button>
+                  </div>
                   {/* Mobile Horizontal Scroll Indicator Cue */}
                   <div className="flex md:hidden items-center justify-between gap-1.5 py-1.5 px-3 mb-2 rounded-lg bg-indigo-50/50 dark:bg-white/[0.02] border border-indigo-100/30 dark:border-white/5 text-[9px] text-slate-500 dark:text-slate-400 font-medium">
                     <div className="flex items-center gap-1.5">
@@ -4267,16 +4299,16 @@ const ProjectTaskBoard = ({
                             return sectionsToRender.map(
                               (sectionName, sectionIndex) => {
                                 const STATUS_ORDER = {
-                                  "Pending": 1,
+                                  Pending: 1,
                                   "To Do": 1,
                                   "In Progress": 2,
                                   "On Hold": 3,
                                   "In Review": 4,
                                   "IN-REVIEW": 4,
-                                  "Correction": 5,
-                                  "Completed": 6,
-                                  "Done": 6,
-                                  "Rejected": 7,
+                                  Correction: 5,
+                                  Completed: 6,
+                                  Done: 6,
+                                  Rejected: 7,
                                 };
                                 const sectionTasks = sortedTasks
                                   .filter(
@@ -4846,7 +4878,7 @@ const ProjectTaskBoard = ({
                                                 const canToggle =
                                                   isAdminOrManager ||
                                                   task.assignedTo?._id ===
-                                                  currentUser?._id ||
+                                                    currentUser?._id ||
                                                   task.assignedTo ===
                                                     currentUser?._id;
 
@@ -4862,15 +4894,9 @@ const ProjectTaskBoard = ({
                                                   ? "bg-blue-50 dark:bg-[#1e293b]"
                                                   : isRejected
                                                     ? "!bg-[#fde8e8] text-rose-950 dark:!bg-[#2c1214] dark:text-rose-200 opacity-80 pointer-events-none !border-rose-300 dark:!border-rose-800/60"
-                                                    : isCompleted
-                                                      ? "!bg-[#e6f4ea] text-emerald-950 dark:!bg-[#0c2919] dark:text-emerald-200"
-                                                      : isInReview
-                                                        ? "!bg-[#fef3c7] text-yellow-950 dark:!bg-[#2e2305] dark:text-yellow-200"
-                                                        : isInProgress
-                                                          ? "!bg-[#f3e8ff] text-purple-950 dark:!bg-[#261342] dark:text-purple-200"
-                                                          : taskIndex % 2 === 0
-                                                            ? "bg-white dark:bg-[#111115] text-slate-800 dark:text-slate-100"
-                                                            : "bg-slate-50 dark:bg-[#16161b] text-slate-800 dark:text-slate-100";
+                                                    : taskIndex % 2 === 0
+                                                      ? "bg-white dark:bg-[#111115] text-slate-800 dark:text-slate-100"
+                                                      : "bg-slate-50 dark:bg-[#16161b] text-slate-800 dark:text-slate-100";
 
                                                 return (
                                                   <React.Fragment
@@ -4885,7 +4911,8 @@ const ProjectTaskBoard = ({
                                                         )
                                                       }
                                                       className={`group cursor-pointer transition-colors ${
-                                                        highlightedTaskId === task._id
+                                                        highlightedTaskId ===
+                                                        task._id
                                                           ? "bg-indigo-100/80 dark:bg-indigo-900/40"
                                                           : rowBg
                                                       } ${
@@ -5044,8 +5071,12 @@ const ProjectTaskBoard = ({
 
                                                           {/* Task Title contentEditable Span */}
                                                           <div className="flex-grow min-w-0 flex items-center gap-1.5">
-                                                            {highlightedTaskId === task._id && (
-                                                              <FiLoader size={12} className="animate-spin text-indigo-500 dark:text-indigo-400 shrink-0" />
+                                                            {highlightedTaskId ===
+                                                              task._id && (
+                                                              <FiLoader
+                                                                size={12}
+                                                                className="animate-spin text-indigo-500 dark:text-indigo-400 shrink-0"
+                                                              />
                                                             )}
                                                             <span
                                                               ref={(el) => {
@@ -5306,27 +5337,38 @@ const ProjectTaskBoard = ({
                                                       {!hiddenColumns.startDate && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
                                                           <div
-                                                            className="relative h-6 flex items-center justify-start transition-all cursor-pointer"
+                                                            className={`relative h-6 flex items-center justify-start transition-all ${
+                                                              task.startDate
+                                                                ? "cursor-not-allowed"
+                                                                : "cursor-pointer"
+                                                            }`}
                                                             onClick={(e) => {
                                                               e.stopPropagation();
-                                                              const input =
-                                                                e.currentTarget.querySelector(
-                                                                  'input[type="date"]',
-                                                                );
                                                               if (
-                                                                input &&
-                                                                typeof input.showPicker ===
-                                                                  "function"
+                                                                !task.startDate
                                                               ) {
-                                                                input.showPicker();
+                                                                const input =
+                                                                  e.currentTarget.querySelector(
+                                                                    'input[type="date"]',
+                                                                  );
+                                                                if (
+                                                                  input &&
+                                                                  typeof input.showPicker ===
+                                                                    "function"
+                                                                ) {
+                                                                  input.showPicker();
+                                                                }
                                                               }
                                                             }}
                                                           >
                                                             {task.startDate ? (
-                                                              <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-800/85 hover:border-blue-400 dark:hover:border-blue-500/70 text-blue-855 dark:text-blue-300 text-[9.5px] font-bold bg-blue-100 dark:bg-blue-900 transition-all shadow-sm">
-                                                                <FiCalendar
+                                                              <div
+                                                                className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-800/85 text-blue-855 dark:text-blue-300 text-[9.5px] font-bold bg-blue-100 dark:bg-blue-900 transition-all shadow-2xs opacity-90 cursor-not-allowed select-none"
+                                                                title="🔒 Start Date — Locked"
+                                                              >
+                                                                <FiLock
                                                                   size={9.5}
-                                                                  className="text-blue-900 dark:text-blue-900 shrink-0"
+                                                                  className="text-amber-600 dark:text-amber-400 shrink-0"
                                                                 />
                                                                 <span className="whitespace-nowrap">
                                                                   {new Date(
@@ -5340,28 +5382,9 @@ const ProjectTaskBoard = ({
                                                                     },
                                                                   )}
                                                                 </span>
-                                                                {isAdminOrManager && (
-                                                                  <button
-                                                                    type="button"
-                                                                    onClick={(
-                                                                      e,
-                                                                    ) => {
-                                                                      e.stopPropagation();
-                                                                      handleTaskFieldChange(
-                                                                        task._id,
-                                                                        {
-                                                                          startDate:
-                                                                            null,
-                                                                        },
-                                                                      );
-                                                                    }}
-                                                                    className="ml-1 text-blue-505 hover:text-rose-600 dark:text-blue-450 dark:hover:text-rose-455 relative z-10 transition-colors cursor-pointer"
-                                                                  >
-                                                                    <FiX
-                                                                      size={9}
-                                                                    />
-                                                                  </button>
-                                                                )}
+                                                                <span className="ml-0.5 text-[8px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest shrink-0">
+                                                                  🔒
+                                                                </span>
                                                               </div>
                                                             ) : (
                                                               <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-blue-600 dark:border-blue-800/80 text-white dark:text-blue-400/90 bg-blue-400 dark:bg-blue-400 transition-all text-[8px] font-bold">
@@ -5373,34 +5396,28 @@ const ProjectTaskBoard = ({
                                                                 </span>
                                                               </div>
                                                             )}
-                                                            {isAdminOrManager && (
-                                                              <input
-                                                                type="date"
-                                                                value={
-                                                                  task.startDate
-                                                                    ? new Date(
-                                                                        task.startDate,
-                                                                      )
-                                                                        .toISOString()
-                                                                        .split(
-                                                                          "T",
-                                                                        )[0]
-                                                                    : ""
-                                                                }
-                                                                onChange={(e) =>
-                                                                  handleTaskFieldChange(
-                                                                    task._id,
-                                                                    {
-                                                                      startDate:
-                                                                        e.target
-                                                                          .value ||
-                                                                        null,
-                                                                    },
-                                                                  )
-                                                                }
-                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                              />
-                                                            )}
+                                                            {isAdminOrManager &&
+                                                              !task.startDate && (
+                                                                <input
+                                                                  type="date"
+                                                                  value=""
+                                                                  onChange={(
+                                                                    e,
+                                                                  ) =>
+                                                                    handleTaskFieldChange(
+                                                                      task._id,
+                                                                      {
+                                                                        startDate:
+                                                                          e
+                                                                            .target
+                                                                            .value ||
+                                                                          null,
+                                                                      },
+                                                                    )
+                                                                  }
+                                                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                                />
+                                                              )}
                                                           </div>
                                                         </td>
                                                       )}
@@ -5409,27 +5426,38 @@ const ProjectTaskBoard = ({
                                                       {!hiddenColumns.endDate && (
                                                         <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
                                                           <div
-                                                            className="relative h-6 flex items-center justify-start transition-all cursor-pointer"
+                                                            className={`relative h-6 flex items-center justify-start transition-all ${
+                                                              task.dueDate
+                                                                ? "cursor-not-allowed"
+                                                                : "cursor-pointer"
+                                                            }`}
                                                             onClick={(e) => {
                                                               e.stopPropagation();
-                                                              const input =
-                                                                e.currentTarget.querySelector(
-                                                                  'input[type="date"]',
-                                                                );
                                                               if (
-                                                                input &&
-                                                                typeof input.showPicker ===
-                                                                  "function"
+                                                                !task.dueDate
                                                               ) {
-                                                                input.showPicker();
+                                                                const input =
+                                                                  e.currentTarget.querySelector(
+                                                                    'input[type="date"]',
+                                                                  );
+                                                                if (
+                                                                  input &&
+                                                                  typeof input.showPicker ===
+                                                                    "function"
+                                                                ) {
+                                                                  input.showPicker();
+                                                                }
                                                               }
                                                             }}
                                                           >
                                                             {task.dueDate ? (
-                                                              <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-700/80 hover:border-rose-400 dark:hover:border-rose-500/70 text-rose-855 dark:text-rose-100 text-[9.5px] font-bold bg-rose-100 dark:bg-rose-800 transition-all shadow-sm">
-                                                                <FiCalendar
+                                                              <div
+                                                                className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-700/80 text-rose-855 dark:text-rose-100 text-[9.5px] font-bold bg-rose-100 dark:bg-rose-800 transition-all shadow-2xs opacity-90 cursor-not-allowed select-none"
+                                                                title="🔒 End Date — Locked"
+                                                              >
+                                                                <FiLock
                                                                   size={9.5}
-                                                                  className="text-rose-600 dark:text-rose-400 shrink-0"
+                                                                  className="text-amber-600 dark:text-amber-400 shrink-0"
                                                                 />
                                                                 <span className="whitespace-nowrap">
                                                                   {new Date(
@@ -5443,28 +5471,9 @@ const ProjectTaskBoard = ({
                                                                     },
                                                                   )}
                                                                 </span>
-                                                                {isAdminOrManager && (
-                                                                  <button
-                                                                    type="button"
-                                                                    onClick={(
-                                                                      e,
-                                                                    ) => {
-                                                                      e.stopPropagation();
-                                                                      handleTaskFieldChange(
-                                                                        task._id,
-                                                                        {
-                                                                          dueDate:
-                                                                            null,
-                                                                        },
-                                                                      );
-                                                                    }}
-                                                                    className="ml-1 text-rose-505 hover:text-rose-755 dark:text-rose-400 dark:hover:text-rose-300 relative z-10 transition-colors cursor-pointer"
-                                                                  >
-                                                                    <FiX
-                                                                      size={9}
-                                                                    />
-                                                                  </button>
-                                                                )}
+                                                                <span className="ml-0.5 text-[8px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest shrink-0">
+                                                                  🔒
+                                                                </span>
                                                               </div>
                                                             ) : (
                                                               <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-rose-300 dark:border-rose-800/80 text-rose-605 dark:text-rose-400/90 hover:border-rose-400 hover:text-rose-750 dark:hover:text-rose-300 dark:hover:border-rose-600/85 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/50 transition-all text-[8px] font-bold">
@@ -5476,45 +5485,39 @@ const ProjectTaskBoard = ({
                                                                 </span>
                                                               </div>
                                                             )}
-                                                            {isAdminOrManager && (
-                                                              <input
-                                                                type="date"
-                                                                value={
-                                                                  task.dueDate
-                                                                    ? new Date(
-                                                                        task.dueDate,
-                                                                      )
-                                                                        .toISOString()
-                                                                        .split(
-                                                                          "T",
-                                                                        )[0]
-                                                                    : ""
-                                                                }
-                                                                min={
-                                                                  task.startDate
-                                                                    ? new Date(
-                                                                        task.startDate,
-                                                                      )
-                                                                        .toISOString()
-                                                                        .split(
-                                                                          "T",
-                                                                        )[0]
-                                                                    : ""
-                                                                }
-                                                                onChange={(e) =>
-                                                                  handleTaskFieldChange(
-                                                                    task._id,
-                                                                    {
-                                                                      dueDate:
-                                                                        e.target
-                                                                          .value ||
-                                                                        null,
-                                                                    },
-                                                                  )
-                                                                }
-                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                              />
-                                                            )}
+                                                            {isAdminOrManager &&
+                                                              !task.dueDate && (
+                                                                <input
+                                                                  type="date"
+                                                                  value=""
+                                                                  min={
+                                                                    task.startDate
+                                                                      ? new Date(
+                                                                          task.startDate,
+                                                                        )
+                                                                          .toISOString()
+                                                                          .split(
+                                                                            "T",
+                                                                          )[0]
+                                                                      : ""
+                                                                  }
+                                                                  onChange={(
+                                                                    e,
+                                                                  ) =>
+                                                                    handleTaskFieldChange(
+                                                                      task._id,
+                                                                      {
+                                                                        dueDate:
+                                                                          e
+                                                                            .target
+                                                                            .value ||
+                                                                          null,
+                                                                      },
+                                                                    )
+                                                                  }
+                                                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                                />
+                                                              )}
                                                           </div>
                                                         </td>
                                                       )}
@@ -5530,7 +5533,19 @@ const ProjectTaskBoard = ({
                                                           >
                                                             <AssigneeDropdown
                                                               selectedUser={
-                                                                task.assignedTo
+                                                                task.contentType ===
+                                                                "MOM"
+                                                                  ? task.assignedTo ||
+                                                                    task
+                                                                      .createdBy
+                                                                      ?._id ||
+                                                                    task
+                                                                      .createdBy
+                                                                      ?.id ||
+                                                                    task.createdBy ||
+                                                                    currentUser?._id ||
+                                                                    currentUser?.id
+                                                                  : task.assignedTo
                                                               }
                                                               users={users}
                                                               onChange={(
@@ -5546,6 +5561,21 @@ const ProjectTaskBoard = ({
                                                               }
                                                               isAdminOrManager={
                                                                 isAdminOrManager
+                                                              }
+                                                              disabled={
+                                                                task.contentType ===
+                                                                "MOM"
+                                                              }
+                                                              isLocked={
+                                                                task.contentType ===
+                                                                "MOM"
+                                                              }
+                                                              isMOM={
+                                                                task.contentType ===
+                                                                "MOM"
+                                                              }
+                                                              currentUser={
+                                                                currentUser
                                                               }
                                                               getAvatarColor={
                                                                 getAvatarColor
@@ -5589,21 +5619,67 @@ const ProjectTaskBoard = ({
                                                                       customVal.trim() !==
                                                                         ""
                                                                     ) {
-                                                                      handleTaskFieldChange(
-                                                                        task._id,
+                                                                      const creatorId =
+                                                                        task
+                                                                          .createdBy
+                                                                          ?._id ||
+                                                                        task
+                                                                          .createdBy
+                                                                          ?.id ||
+                                                                        (typeof task.createdBy ===
+                                                                        "string"
+                                                                          ? task.createdBy
+                                                                          : null) ||
+                                                                        currentUser?._id ||
+                                                                        currentUser?.id;
+                                                                      const updates =
                                                                         {
                                                                           contentType:
                                                                             customVal.trim(),
-                                                                        },
+                                                                        };
+                                                                      if (
+                                                                        customVal.trim() ===
+                                                                          "MOM" &&
+                                                                        creatorId
+                                                                      ) {
+                                                                        updates.assignedTo =
+                                                                          creatorId;
+                                                                      }
+                                                                      handleTaskFieldChange(
+                                                                        task._id,
+                                                                        updates,
                                                                       );
                                                                     }
                                                                   } else {
-                                                                    handleTaskFieldChange(
-                                                                      task._id,
+                                                                    const creatorId =
+                                                                      task
+                                                                        .createdBy
+                                                                        ?._id ||
+                                                                      task
+                                                                        .createdBy
+                                                                        ?.id ||
+                                                                      (typeof task.createdBy ===
+                                                                      "string"
+                                                                        ? task.createdBy
+                                                                        : null) ||
+                                                                      currentUser?._id ||
+                                                                      currentUser?.id;
+                                                                    const updates =
                                                                       {
                                                                         contentType:
                                                                           val,
-                                                                      },
+                                                                      };
+                                                                    if (
+                                                                      val ===
+                                                                        "MOM" &&
+                                                                      creatorId
+                                                                    ) {
+                                                                      updates.assignedTo =
+                                                                        creatorId;
+                                                                    }
+                                                                    handleTaskFieldChange(
+                                                                      task._id,
+                                                                      updates,
                                                                     );
                                                                   }
                                                                 }}
@@ -5635,7 +5711,10 @@ const ProjectTaskBoard = ({
                                                                                   : task.contentType ===
                                                                                       "Video shoot"
                                                                                     ? "badge-type-carousel"
-                                                                                    : "badge-type-none"
+                                                                                    : task.contentType ===
+                                                                                        "MOM"
+                                                                                      ? "badge-type-post"
+                                                                                      : "badge-type-none"
                                                                 }`}
                                                               >
                                                                 <option value="">
@@ -5668,6 +5747,9 @@ const ProjectTaskBoard = ({
                                                                 <option value="Video shoot">
                                                                   Video shoot
                                                                 </option>
+                                                                <option value="MOM">
+                                                                  🤝 MOM
+                                                                </option>
                                                                 {task.contentType &&
                                                                   ![
                                                                     "VIDEO",
@@ -5679,6 +5761,7 @@ const ProjectTaskBoard = ({
                                                                     "Website",
                                                                     "SEO",
                                                                     "Video shoot",
+                                                                    "MOM",
                                                                   ].includes(
                                                                     task.contentType,
                                                                   ) && (
@@ -5692,9 +5775,12 @@ const ProjectTaskBoard = ({
                                                                       }
                                                                     </option>
                                                                   )}
-                                                                <option value="__ADD_CUSTOM__">
-                                                                  ➕ Custom...
-                                                                </option>
+                                                                {currentUser?.role ===
+                                                                  "admin" && (
+                                                                  <option value="__ADD_CUSTOM__">
+                                                                    ➕ Custom...
+                                                                  </option>
+                                                                )}
                                                               </select>
                                                             ) : (
                                                               <span
@@ -5736,7 +5822,6 @@ const ProjectTaskBoard = ({
                                                           </div>
                                                         </td>
                                                       )}
-
 
                                                       {/* Priority */}
                                                       {!hiddenColumns.priority && (
@@ -5872,46 +5957,58 @@ const ProjectTaskBoard = ({
                                                                               : "badge-status-pending"
                                                                 }`}
                                                               >
-                                                                {task.status ===
-                                                                "In Review" ||
-                                                                task.status ===
-                                                                  "IN-REVIEW" ? (
+                                                                {task.contentType ===
+                                                                "MOM" ? (
+                                                                  <>
+                                                                    <option value="Pending">
+                                                                      Pending
+                                                                    </option>
+
+                                                                    <option value="Completed">
+                                                                      Completed
+                                                                    </option>
+                                                                  </>
+                                                                ) : task.status ===
+                                                                    "In Review" ||
+                                                                  task.status ===
+                                                                    "IN-REVIEW" ? (
                                                                   <>
                                                                     <option value="In Review">
-                                                                      🔍 In Review
+                                                                      In Review
                                                                     </option>
                                                                     <option value="Correction">
-                                                                      🛠️ Correction
+                                                                      Correction
                                                                     </option>
                                                                     <option value="Completed">
-                                                                      ✅ Completed
+                                                                      Completed
                                                                     </option>
                                                                     <option value="Rejected">
-                                                                      ❌ Rejected
+                                                                      Rejected
                                                                     </option>
                                                                   </>
                                                                 ) : (
                                                                   <>
                                                                     <option value="Pending">
-                                                                      ⏳ Pending
+                                                                      Pending
                                                                     </option>
                                                                     <option value="In Progress">
-                                                                      ⚡ In Progress
+                                                                      In
+                                                                      Progress
                                                                     </option>
                                                                     <option value="In Review">
-                                                                      🔍 In Review
+                                                                      In Review
                                                                     </option>
                                                                     <option value="Correction">
-                                                                      🛠️ Correction
+                                                                      Correction
                                                                     </option>
                                                                     <option value="Completed">
-                                                                      ✅ Completed
+                                                                      Completed
                                                                     </option>
                                                                     <option value="On Hold">
-                                                                      ⏸️ On Hold
+                                                                      On Hold
                                                                     </option>
                                                                     <option value="Rejected">
-                                                                      ❌ Rejected
+                                                                      Rejected
                                                                     </option>
                                                                   </>
                                                                 )}
@@ -5926,7 +6023,7 @@ const ProjectTaskBoard = ({
                                                                         "In Progress"
                                                                       ? "badge-status-in-progress"
                                                                       : task.status ===
-                                                                            "In Review"
+                                                                          "In Review"
                                                                         ? "badge-status-in-review"
                                                                         : task.status ===
                                                                             "On Hold"
@@ -5937,7 +6034,9 @@ const ProjectTaskBoard = ({
                                                                             : "badge-status-pending"
                                                                 }`}
                                                               >
-                                                                {getStatusWithEmoji(task.status)}
+                                                                {getStatusWithEmoji(
+                                                                  task.status,
+                                                                )}
                                                               </span>
                                                             )}
                                                           </div>
@@ -5983,6 +6082,9 @@ const ProjectTaskBoard = ({
                                                             }
                                                             savedPausedMs={
                                                               task.totalPausedMs
+                                                            }
+                                                            totalTrackedTime={
+                                                              task.totalTrackedTime
                                                             }
                                                             status={task.status}
                                                           />
@@ -6093,13 +6195,7 @@ const ProjectTaskBoard = ({
                                                           const rowBgSub =
                                                             isSubRejected
                                                               ? "!bg-[#fde8e8] text-rose-950 dark:!bg-[#2c1214] dark:text-rose-200 opacity-80 pointer-events-none !border-rose-300 dark:!border-rose-800/60 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-                                                              : isSubCompleted
-                                                                ? "!bg-[#e6f4ea] text-emerald-950 dark:!bg-[#0c2919] dark:text-emerald-200 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-                                                                : isSubInReview
-                                                                  ? "!bg-[#fef3c7] text-yellow-950 dark:!bg-[#2e2305] dark:text-yellow-200 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-                                                                  : isSubInProgress
-                                                                    ? "!bg-[#f3e8ff] text-purple-950 dark:!bg-[#261342] dark:text-purple-200 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-                                                                    : "bg-amber-50 dark:bg-[#16161b] text-slate-855 dark:text-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]";
+                                                              : "bg-amber-50 dark:bg-[#16161b] text-slate-855 dark:text-slate-100 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]";
 
                                                           return (
                                                             <tr
@@ -6508,31 +6604,42 @@ const ProjectTaskBoard = ({
                                                               {!hiddenColumns.startDate && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
                                                                   <div
-                                                                    className="relative h-7 flex items-center justify-start transition-all cursor-pointer"
+                                                                    className={`relative h-7 flex items-center justify-start transition-all ${
+                                                                      sub.startDate
+                                                                        ? "cursor-not-allowed"
+                                                                        : "cursor-pointer"
+                                                                    }`}
                                                                     onClick={(
                                                                       e,
                                                                     ) => {
                                                                       e.stopPropagation();
-                                                                      const input =
-                                                                        e.currentTarget.querySelector(
-                                                                          'input[type="date"]',
-                                                                        );
                                                                       if (
-                                                                        input &&
-                                                                        typeof input.showPicker ===
-                                                                          "function"
+                                                                        !sub.startDate
                                                                       ) {
-                                                                        input.showPicker();
+                                                                        const input =
+                                                                          e.currentTarget.querySelector(
+                                                                            'input[type="date"]',
+                                                                          );
+                                                                        if (
+                                                                          input &&
+                                                                          typeof input.showPicker ===
+                                                                            "function"
+                                                                        ) {
+                                                                          input.showPicker();
+                                                                        }
                                                                       }
                                                                     }}
                                                                   >
                                                                     {sub.startDate ? (
-                                                                      <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-800/80 hover:border-blue-400 dark:hover:border-blue-500/70 text-blue-855 dark:text-blue-200 text-[9.5px] font-bold bg-blue-100/90 dark:bg-blue-955/75 transition-all shadow-sm">
-                                                                        <FiCalendar
+                                                                      <div
+                                                                        className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-800/80 text-blue-855 dark:text-blue-200 text-[9.5px] font-bold bg-blue-100/90 dark:bg-blue-955/75 transition-all shadow-2xs opacity-90 cursor-not-allowed select-none"
+                                                                        title="🔒 Start Date — Locked"
+                                                                      >
+                                                                        <FiLock
                                                                           size={
                                                                             9.5
                                                                           }
-                                                                          className="text-blue-600 dark:text-blue-450 shrink-0"
+                                                                          className="text-amber-600 dark:text-amber-400 shrink-0"
                                                                         />
                                                                         <span className="whitespace-nowrap">
                                                                           {new Date(
@@ -6546,31 +6653,9 @@ const ProjectTaskBoard = ({
                                                                             },
                                                                           )}
                                                                         </span>
-                                                                        {isAdminOrManager && (
-                                                                          <button
-                                                                            type="button"
-                                                                            onClick={(
-                                                                              e,
-                                                                            ) => {
-                                                                              e.stopPropagation();
-                                                                              handleSubtaskFieldChange(
-                                                                                task,
-                                                                                sub._id,
-                                                                                {
-                                                                                  startDate:
-                                                                                    null,
-                                                                                },
-                                                                              );
-                                                                            }}
-                                                                            className="ml-1 text-blue-505 hover:text-rose-600 dark:text-blue-450 dark:hover:text-rose-455 relative z-10 transition-colors cursor-pointer"
-                                                                          >
-                                                                            <FiX
-                                                                              size={
-                                                                                9
-                                                                              }
-                                                                            />
-                                                                          </button>
-                                                                        )}
+                                                                        <span className="ml-0.5 text-[8px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest shrink-0">
+                                                                          🔒
+                                                                        </span>
                                                                       </div>
                                                                     ) : (
                                                                       <div className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-blue-300 dark:border-blue-800/80 text-blue-605 dark:text-blue-400/90 hover:border-blue-400 hover:text-blue-755 dark:hover:text-blue-305 dark:hover:border-blue-600/80 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-955/50 transition-all text-[8px] font-bold">
@@ -6586,38 +6671,29 @@ const ProjectTaskBoard = ({
                                                                         </span>
                                                                       </div>
                                                                     )}
-                                                                    {isAdminOrManager && (
-                                                                      <input
-                                                                        type="date"
-                                                                        value={
-                                                                          sub.startDate
-                                                                            ? new Date(
-                                                                                sub.startDate,
-                                                                              )
-                                                                                .toISOString()
-                                                                                .split(
-                                                                                  "T",
-                                                                                )[0]
-                                                                            : ""
-                                                                        }
-                                                                        onChange={(
-                                                                          e,
-                                                                        ) =>
-                                                                          handleSubtaskFieldChange(
-                                                                            task,
-                                                                            sub._id,
-                                                                            {
-                                                                              startDate:
-                                                                                e
-                                                                                  .target
-                                                                                  .value ||
-                                                                                null,
-                                                                            },
-                                                                          )
-                                                                        }
-                                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                                      />
-                                                                    )}
+                                                                    {isAdminOrManager &&
+                                                                      !sub.startDate && (
+                                                                        <input
+                                                                          type="date"
+                                                                          value=""
+                                                                          onChange={(
+                                                                            e,
+                                                                          ) =>
+                                                                            handleSubtaskFieldChange(
+                                                                              task,
+                                                                              sub._id,
+                                                                              {
+                                                                                startDate:
+                                                                                  e
+                                                                                    .target
+                                                                                    .value ||
+                                                                                  null,
+                                                                              },
+                                                                            )
+                                                                          }
+                                                                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                                        />
+                                                                      )}
                                                                   </div>
                                                                 </td>
                                                               )}
@@ -6626,31 +6702,42 @@ const ProjectTaskBoard = ({
                                                               {!hiddenColumns.endDate && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
                                                                   <div
-                                                                    className="relative h-7 flex items-center justify-start transition-all cursor-pointer"
+                                                                    className={`relative h-7 flex items-center justify-start transition-all ${
+                                                                      sub.dueDate
+                                                                        ? "cursor-not-allowed"
+                                                                        : "cursor-pointer"
+                                                                    }`}
                                                                     onClick={(
                                                                       e,
                                                                     ) => {
                                                                       e.stopPropagation();
-                                                                      const input =
-                                                                        e.currentTarget.querySelector(
-                                                                          'input[type="date"]',
-                                                                        );
                                                                       if (
-                                                                        input &&
-                                                                        typeof input.showPicker ===
-                                                                          "function"
+                                                                        !sub.dueDate
                                                                       ) {
-                                                                        input.showPicker();
+                                                                        const input =
+                                                                          e.currentTarget.querySelector(
+                                                                            'input[type="date"]',
+                                                                          );
+                                                                        if (
+                                                                          input &&
+                                                                          typeof input.showPicker ===
+                                                                            "function"
+                                                                        ) {
+                                                                          input.showPicker();
+                                                                        }
                                                                       }
                                                                     }}
                                                                   >
                                                                     {sub.dueDate ? (
-                                                                      <div className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-750/80 hover:border-rose-400 dark:hover:border-rose-500/70 text-rose-850 dark:text-rose-200 text-[9.5px] font-bold bg-rose-100/90 dark:bg-rose-955/75 transition-all shadow-sm">
-                                                                        <FiCalendar
+                                                                      <div
+                                                                        className="flex items-center flex-nowrap gap-1 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-750/80 text-rose-850 dark:text-rose-200 text-[9.5px] font-bold bg-rose-100/90 dark:bg-rose-955/75 transition-all shadow-2xs opacity-90 cursor-not-allowed select-none"
+                                                                        title="🔒 End Date — Locked"
+                                                                      >
+                                                                        <FiLock
                                                                           size={
                                                                             9.5
                                                                           }
-                                                                          className="text-rose-600 dark:text-rose-400 shrink-0"
+                                                                          className="text-amber-600 dark:text-amber-400 shrink-0"
                                                                         />
                                                                         <span className="whitespace-nowrap">
                                                                           {new Date(
@@ -6664,31 +6751,9 @@ const ProjectTaskBoard = ({
                                                                             },
                                                                           )}
                                                                         </span>
-                                                                        {isAdminOrManager && (
-                                                                          <button
-                                                                            type="button"
-                                                                            onClick={(
-                                                                              e,
-                                                                            ) => {
-                                                                              e.stopPropagation();
-                                                                              handleSubtaskFieldChange(
-                                                                                task,
-                                                                                sub._id,
-                                                                                {
-                                                                                  dueDate:
-                                                                                    null,
-                                                                                },
-                                                                              );
-                                                                            }}
-                                                                            className="ml-1 text-rose-505 hover:text-rose-650 dark:text-rose-455 dark:hover:text-rose-455 relative z-10 transition-colors cursor-pointer"
-                                                                          >
-                                                                            <FiX
-                                                                              size={
-                                                                                9
-                                                                              }
-                                                                            />
-                                                                          </button>
-                                                                        )}
+                                                                        <span className="ml-0.5 text-[8px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest shrink-0">
+                                                                          🔒
+                                                                        </span>
                                                                       </div>
                                                                     ) : (
                                                                       <div className="flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-rose-300 dark:border-rose-800/80 text-rose-605 dark:text-rose-400/90 hover:border-rose-400 hover:text-rose-750 dark:hover:text-rose-300 dark:hover:border-rose-600/80 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-955/50 transition-all text-[8px] font-bold">
@@ -6703,49 +6768,40 @@ const ProjectTaskBoard = ({
                                                                         </span>
                                                                       </div>
                                                                     )}
-                                                                    {isAdminOrManager && (
-                                                                      <input
-                                                                        type="date"
-                                                                        value={
-                                                                          sub.dueDate
-                                                                            ? new Date(
-                                                                                sub.dueDate,
-                                                                              )
-                                                                                .toISOString()
-                                                                                .split(
-                                                                                  "T",
-                                                                                )[0]
-                                                                            : ""
-                                                                        }
-                                                                        min={
-                                                                          sub.startDate
-                                                                            ? new Date(
-                                                                                sub.startDate,
-                                                                              )
-                                                                                .toISOString()
-                                                                                .split(
-                                                                                  "T",
-                                                                                )[0]
-                                                                            : ""
-                                                                        }
-                                                                        onChange={(
-                                                                          e,
-                                                                        ) =>
-                                                                          handleSubtaskFieldChange(
-                                                                            task,
-                                                                            sub._id,
-                                                                            {
-                                                                              dueDate:
-                                                                                e
-                                                                                  .target
-                                                                                  .value ||
-                                                                                null,
-                                                                            },
-                                                                          )
-                                                                        }
-                                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                                      />
-                                                                    )}
+                                                                    {isAdminOrManager &&
+                                                                      !sub.dueDate && (
+                                                                        <input
+                                                                          type="date"
+                                                                          value=""
+                                                                          min={
+                                                                            sub.startDate
+                                                                              ? new Date(
+                                                                                  sub.startDate,
+                                                                                )
+                                                                                  .toISOString()
+                                                                                  .split(
+                                                                                    "T",
+                                                                                  )[0]
+                                                                              : ""
+                                                                          }
+                                                                          onChange={(
+                                                                            e,
+                                                                          ) =>
+                                                                            handleSubtaskFieldChange(
+                                                                              task,
+                                                                              sub._id,
+                                                                              {
+                                                                                dueDate:
+                                                                                  e
+                                                                                    .target
+                                                                                    .value ||
+                                                                                  null,
+                                                                              },
+                                                                            )
+                                                                          }
+                                                                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                                        />
+                                                                      )}
                                                                   </div>
                                                                 </td>
                                                               )}
@@ -6783,6 +6839,21 @@ const ProjectTaskBoard = ({
                                                                       isAdminOrManager={
                                                                         isAdminOrManager
                                                                       }
+                                                                      disabled={
+                                                                        sub.contentType ===
+                                                                        "MOM"
+                                                                      }
+                                                                      isLocked={
+                                                                        sub.contentType ===
+                                                                        "MOM"
+                                                                      }
+                                                                      isMOM={
+                                                                        sub.contentType ===
+                                                                        "MOM"
+                                                                      }
+                                                                      currentUser={
+                                                                        currentUser
+                                                                      }
                                                                       getAvatarColor={
                                                                         getAvatarColor
                                                                       }
@@ -6815,6 +6886,29 @@ const ProjectTaskBoard = ({
                                                                             e
                                                                               .target
                                                                               .value;
+                                                                          const creatorId =
+                                                                            sub
+                                                                              .createdBy
+                                                                              ?._id ||
+                                                                            sub
+                                                                              .createdBy
+                                                                              ?.id ||
+                                                                            (typeof sub.createdBy ===
+                                                                            "string"
+                                                                              ? sub.createdBy
+                                                                              : null) ||
+                                                                            task
+                                                                              .createdBy
+                                                                              ?._id ||
+                                                                            task
+                                                                              .createdBy
+                                                                              ?.id ||
+                                                                            (typeof task.createdBy ===
+                                                                            "string"
+                                                                              ? task.createdBy
+                                                                              : null) ||
+                                                                            currentUser?._id ||
+                                                                            currentUser?.id;
                                                                           if (
                                                                             val ===
                                                                             "__ADD_CUSTOM__"
@@ -6828,23 +6922,43 @@ const ProjectTaskBoard = ({
                                                                               customVal.trim() !==
                                                                                 ""
                                                                             ) {
-                                                                              handleSubtaskFieldChange(
-                                                                                task,
-                                                                                sub._id,
+                                                                              const updates =
                                                                                 {
                                                                                   contentType:
                                                                                     customVal.trim(),
-                                                                                },
+                                                                                };
+                                                                              if (
+                                                                                customVal.trim() ===
+                                                                                  "MOM" &&
+                                                                                creatorId
+                                                                              ) {
+                                                                                updates.assignedTo =
+                                                                                  creatorId;
+                                                                              }
+                                                                              handleSubtaskFieldChange(
+                                                                                task,
+                                                                                sub._id,
+                                                                                updates,
                                                                               );
                                                                             }
                                                                           } else {
-                                                                            handleSubtaskFieldChange(
-                                                                              task,
-                                                                              sub._id,
+                                                                            const updates =
                                                                               {
                                                                                 contentType:
                                                                                   val,
-                                                                              },
+                                                                              };
+                                                                            if (
+                                                                              val ===
+                                                                                "MOM" &&
+                                                                              creatorId
+                                                                            ) {
+                                                                              updates.assignedTo =
+                                                                                creatorId;
+                                                                            }
+                                                                            handleSubtaskFieldChange(
+                                                                              task,
+                                                                              sub._id,
+                                                                              updates,
                                                                             );
                                                                           }
                                                                         }}
@@ -6876,7 +6990,10 @@ const ProjectTaskBoard = ({
                                                                                           : sub.contentType ===
                                                                                               "Video shoot"
                                                                                             ? "badge-type-carousel"
-                                                                                            : "badge-type-none"
+                                                                                            : sub.contentType ===
+                                                                                                "MOM"
+                                                                                              ? "badge-type-post"
+                                                                                              : "badge-type-none"
                                                                         }`}
                                                                       >
                                                                         <option value="">
@@ -6910,6 +7027,9 @@ const ProjectTaskBoard = ({
                                                                           Video
                                                                           shoot
                                                                         </option>
+                                                                        <option value="MOM">
+                                                                          🤝 MOM
+                                                                        </option>
                                                                         {sub.contentType &&
                                                                           ![
                                                                             "VIDEO",
@@ -6921,6 +7041,7 @@ const ProjectTaskBoard = ({
                                                                             "Website",
                                                                             "SEO",
                                                                             "Video shoot",
+                                                                            "MOM",
                                                                           ].includes(
                                                                             sub.contentType,
                                                                           ) && (
@@ -6934,10 +7055,13 @@ const ProjectTaskBoard = ({
                                                                               }
                                                                             </option>
                                                                           )}
-                                                                        <option value="__ADD_CUSTOM__">
-                                                                          ➕
-                                                                          Custom...
-                                                                        </option>
+                                                                        {currentUser?.role ===
+                                                                          "admin" && (
+                                                                          <option value="__ADD_CUSTOM__">
+                                                                            ➕
+                                                                            Custom...
+                                                                          </option>
+                                                                        )}
                                                                       </select>
                                                                     ) : (
                                                                       <span
@@ -6979,7 +7103,6 @@ const ProjectTaskBoard = ({
                                                                   </div>
                                                                 </td>
                                                               )}
-
 
                                                               {/* 7. Priority Column */}
                                                               {!hiddenColumns.priority && (
@@ -7127,46 +7250,61 @@ const ProjectTaskBoard = ({
                                                                                       : "badge-status-pending"
                                                                         }`}
                                                                       >
-                                                                        {sub.status ===
-                                                                        "In Review" ||
-                                                                        sub.status ===
-                                                                          "IN-REVIEW" ? (
+                                                                        {sub.contentType ===
+                                                                        "MOM" ? (
+                                                                          <>
+                                                                            <option value="Pending">
+                                                                              Pending
+                                                                            </option>
+
+                                                                            <option value="Completed">
+                                                                              Completed
+                                                                            </option>
+                                                                          </>
+                                                                        ) : sub.status ===
+                                                                            "In Review" ||
+                                                                          sub.status ===
+                                                                            "IN-REVIEW" ? (
                                                                           <>
                                                                             <option value="In Review">
-                                                                              🔍 In Review
+                                                                              In
+                                                                              Review
                                                                             </option>
                                                                             <option value="Correction">
-                                                                              🛠️ Correction
+                                                                              Correction
                                                                             </option>
                                                                             <option value="Completed">
-                                                                              ✅ Completed
+                                                                              Completed
                                                                             </option>
                                                                             <option value="Rejected">
-                                                                              ❌ Rejected
+                                                                              Rejected
                                                                             </option>
                                                                           </>
                                                                         ) : (
                                                                           <>
                                                                             <option value="Pending">
-                                                                              ⏳ Pending
+                                                                              Pending
                                                                             </option>
                                                                             <option value="In Progress">
-                                                                              ⚡ In Progress
+                                                                              In
+                                                                              Progress
                                                                             </option>
                                                                             <option value="In Review">
-                                                                              🔍 In Review
+                                                                              In
+                                                                              Review
                                                                             </option>
                                                                             <option value="Correction">
-                                                                              🛠️ Correction
+                                                                              Correction
                                                                             </option>
                                                                             <option value="Completed">
-                                                                              ✅ Completed
+                                                                              Completed
                                                                             </option>
                                                                             <option value="On Hold">
-                                                                              ⏸️ On Hold
+                                                                              On
+                                                                              Hold
                                                                             </option>
                                                                             <option value="Rejected">
-                                                                              ❌ Rejected
+                                                                              Rejected
                                                                             </option>
                                                                           </>
                                                                         )}
@@ -7196,7 +7334,9 @@ const ProjectTaskBoard = ({
                                                                                     : "badge-status-pending"
                                                                         }`}
                                                                       >
-                                                                        {getStatusWithEmoji(sub.status)}
+                                                                        {getStatusWithEmoji(
+                                                                          sub.status,
+                                                                        )}
                                                                       </span>
                                                                     )}
                                                                   </div>
@@ -7234,6 +7374,7 @@ const ProjectTaskBoard = ({
                                                               {!hiddenColumns.totalHours && (
                                                                 <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
                                                                   <TimeTracker
+                                                                    task={task}
                                                                     startTime={
                                                                       sub.actualStartTime
                                                                     }
@@ -7413,8 +7554,7 @@ const ProjectTaskBoard = ({
                           >
                             {columnTasks.map((task, index) => {
                               const isCompleted = task.status === "Completed";
-                              const isTaskRejected =
-                                task.status === "Rejected";
+                              const isTaskRejected = task.status === "Rejected";
                               const isInReview =
                                 task.status === "In Review" ||
                                 task.status === "IN-REVIEW" ||
@@ -7437,13 +7577,9 @@ const ProjectTaskBoard = ({
                                       className={`p-2.5 rounded-xl border space-y-2 relative group select-none ${
                                         isTaskRejected
                                           ? "!bg-[#fde8e8] dark:!bg-[#2c1214] !border-rose-300 dark:!border-rose-800/60 opacity-80 pointer-events-none"
-                                          : isCompleted
-                                            ? "!bg-[#e6f4ea] dark:!bg-[#0c2919] !border-emerald-200 dark:!border-emerald-800/50 cursor-pointer"
-                                            : isInReview
-                                              ? "!bg-[#fef3c7] dark:!bg-[#2e2305] !border-yellow-300 dark:!border-yellow-800/60 cursor-pointer"
-                                              : snapshot.isDragging
-                                                ? "bg-white dark:bg-[#111111] shadow-2xl ring-2 ring-blue-500 dark:ring-[#3b82f6] scale-[1.03] z-50 border-blue-300 dark:border-[#3b82f6] cursor-pointer"
-                                                : "bg-white dark:bg-[#111111] border-slate-150 dark:border-white/5 hover:shadow-md hover:border-slate-200 dark:hover:border-[#3b82f6]/50 transition-shadow transition-colors cursor-pointer"
+                                          : snapshot.isDragging
+                                            ? "bg-white dark:bg-[#111111] shadow-2xl ring-2 ring-blue-500 dark:ring-[#3b82f6] scale-[1.03] z-50 border-blue-300 dark:border-[#3b82f6] cursor-pointer"
+                                            : "bg-white dark:bg-[#111111] border-slate-150 dark:border-white/5 hover:shadow-md hover:border-slate-200 dark:hover:border-[#3b82f6]/50 transition-shadow transition-colors cursor-pointer"
                                       }`}
                                     >
                                       <div className="flex items-start gap-2">
@@ -7556,7 +7692,16 @@ const ProjectTaskBoard = ({
                                           onClick={(e) => e.stopPropagation()}
                                         >
                                           <AssigneeDropdown
-                                            selectedUser={task.assignedTo}
+                                            selectedUser={
+                                              task.contentType === "MOM"
+                                                ? task.assignedTo ||
+                                                  task.createdBy?._id ||
+                                                  task.createdBy?.id ||
+                                                  task.createdBy ||
+                                                  currentUser?._id ||
+                                                  currentUser?.id
+                                                : task.assignedTo
+                                            }
                                             users={users}
                                             onChange={(userId) =>
                                               handleTaskFieldChange(task._id, {
@@ -7564,6 +7709,14 @@ const ProjectTaskBoard = ({
                                               })
                                             }
                                             isAdminOrManager={isAdminOrManager}
+                                            disabled={
+                                              task.contentType === "MOM"
+                                            }
+                                            isLocked={
+                                              task.contentType === "MOM"
+                                            }
+                                            isMOM={task.contentType === "MOM"}
+                                            currentUser={currentUser}
                                             getAvatarColor={getAvatarColor}
                                             size="md"
                                           />
@@ -7999,9 +8152,25 @@ const ProjectTaskBoard = ({
                         }
                         className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
                       >
-                        {selectedTask.status === "IN-REVIEW" ||
-                        selectedTask.status === "In Review" ||
-                        selectedTask.status === "IN-Review" ? (
+                        {selectedTask.contentType === "MOM" ? (
+                          <>
+                            <option
+                              value="Pending"
+                              className="dark:bg-slate-950 dark:text-slate-200"
+                            >
+                              Pending
+                            </option>
+
+                            <option
+                              value="Completed"
+                              className="dark:bg-slate-950 dark:text-slate-200"
+                            >
+                              Completed
+                            </option>
+                          </>
+                        ) : selectedTask.status === "IN-REVIEW" ||
+                          selectedTask.status === "In Review" ||
+                          selectedTask.status === "IN-Review" ? (
                           <>
                             <option
                               value="IN-REVIEW"
@@ -8078,7 +8247,16 @@ const ProjectTaskBoard = ({
                       <FiUser size={12} /> Assignee
                     </label>
                     <AssigneeDropdown
-                      selectedUser={selectedTask.assignedTo}
+                      selectedUser={
+                        selectedTask.contentType === "MOM"
+                          ? selectedTask.assignedTo ||
+                            selectedTask.createdBy?._id ||
+                            selectedTask.createdBy?.id ||
+                            selectedTask.createdBy ||
+                            currentUser?._id ||
+                            currentUser?.id
+                          : selectedTask.assignedTo
+                      }
                       users={users}
                       onChange={(userId) =>
                         handleTaskFieldChange(selectedTask._id, {
@@ -8086,6 +8264,10 @@ const ProjectTaskBoard = ({
                         })
                       }
                       isAdminOrManager={isAdminOrManager}
+                      disabled={selectedTask.contentType === "MOM"}
+                      isLocked={selectedTask.contentType === "MOM"}
+                      isMOM={selectedTask.contentType === "MOM"}
+                      currentUser={currentUser}
                       getAvatarColor={getAvatarColor}
                       size="lg"
                     />
@@ -8093,19 +8275,20 @@ const ProjectTaskBoard = ({
 
                   {/* Start Date Picker */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400  tracking-wider flex items-center gap-1.5">
-                      <FiCalendar size={12} /> Start Date
+                    <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400 tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <FiCalendar size={12} /> Start Date
+                      </span>
+                      {selectedTask.startDate && (
+                        <span className="text-[9px] text-amber-600 dark:text-amber-400 font-extrabold flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800/40">
+                          🔒 Locked
+                        </span>
+                      )}
                     </label>
-                    {isAdminOrManager ? (
+                    {isAdminOrManager && !selectedTask.startDate ? (
                       <input
                         type="date"
-                        value={
-                          selectedTask.startDate
-                            ? new Date(selectedTask.startDate)
-                                .toISOString()
-                                .split("T")[0]
-                            : ""
-                        }
+                        value=""
                         onChange={(e) =>
                           handleTaskFieldChange(selectedTask._id, {
                             startDate: e.target.value,
@@ -8114,35 +8297,43 @@ const ProjectTaskBoard = ({
                         className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
                       />
                     ) : (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-955/30 border border-blue-200 dark:border-blue-900/60 rounded-xl text-xs font-semibold text-blue-700 dark:text-blue-300">
-                        <FiCalendar
-                          className="text-blue-500 dark:text-blue-400"
+                      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50/80 dark:bg-blue-955/30 border border-blue-200/80 dark:border-blue-900/60 rounded-xl text-xs font-semibold text-blue-700 dark:text-blue-300">
+                        <FiLock
+                          className="text-amber-500 dark:text-amber-400 shrink-0"
                           size={13}
                         />
-                        {selectedTask.startDate
-                          ? new Date(
-                              selectedTask.startDate,
-                            ).toLocaleDateString()
-                          : "N/A"}
+                        <span>
+                          {selectedTask.startDate
+                            ? new Date(
+                                selectedTask.startDate,
+                              ).toLocaleDateString()
+                            : "N/A"}
+                        </span>
+                        {selectedTask.startDate && (
+                          <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider">
+                            🔒 Locked
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
 
                   {/* End Date (Due Date) Picker */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400  tracking-wider flex items-center gap-1.5">
-                      <FiCalendar size={12} /> End Date
+                    <label className="text-[10px] font-bold text-slate-455 dark:text-slate-400 tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <FiCalendar size={12} /> End Date
+                      </span>
+                      {selectedTask.dueDate && (
+                        <span className="text-[9px] text-amber-600 dark:text-amber-400 font-extrabold flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800/40">
+                          🔒 Locked
+                        </span>
+                      )}
                     </label>
-                    {isAdminOrManager ? (
+                    {isAdminOrManager && !selectedTask.dueDate ? (
                       <input
                         type="date"
-                        value={
-                          selectedTask.dueDate
-                            ? new Date(selectedTask.dueDate)
-                                .toISOString()
-                                .split("T")[0]
-                            : ""
-                        }
+                        value=""
                         min={
                           selectedTask.startDate
                             ? new Date(selectedTask.startDate)
@@ -8158,14 +8349,23 @@ const ProjectTaskBoard = ({
                         className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
                       />
                     ) : (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 dark:bg-rose-955/30 border border-rose-200 dark:border-rose-900/60 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-305">
-                        <FiClock
-                          className="text-rose-555 dark:text-rose-400"
+                      <div className="flex items-center gap-2 px-3 py-2 bg-rose-50/80 dark:bg-rose-955/30 border border-rose-200/80 dark:border-rose-900/60 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-300">
+                        <FiLock
+                          className="text-amber-500 dark:text-amber-400 shrink-0"
                           size={13}
                         />
-                        {selectedTask.dueDate
-                          ? new Date(selectedTask.dueDate).toLocaleDateString()
-                          : "N/A"}
+                        <span>
+                          {selectedTask.dueDate
+                            ? new Date(
+                                selectedTask.dueDate,
+                              ).toLocaleDateString()
+                            : "N/A"}
+                        </span>
+                        {selectedTask.dueDate && (
+                          <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider">
+                            🔒 Locked
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -8325,8 +8525,11 @@ const ProjectTaskBoard = ({
                         const drawerEffectiveReviewStart =
                           selectedTask.reviewStartedAt ||
                           selectedTask.lastReviewStartedAt ||
-                          (selectedTask.reviewCycles && selectedTask.reviewCycles.length > 0
-                            ? selectedTask.reviewCycles[selectedTask.reviewCycles.length - 1]?.startedAt
+                          (selectedTask.reviewCycles &&
+                          selectedTask.reviewCycles.length > 0
+                            ? selectedTask.reviewCycles[
+                                selectedTask.reviewCycles.length - 1
+                              ]?.startedAt
                             : null);
 
                         if (drawerEffectiveReviewStart) {

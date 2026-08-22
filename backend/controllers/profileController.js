@@ -11,7 +11,6 @@ exports.createProfile = async (req, res) => {
     const {
       bio,
       phone,
-      address,
     } = req.body;
 
     const user = await User.findById(req.user._id);
@@ -41,7 +40,6 @@ exports.createProfile = async (req, res) => {
       user: req.user._id,
       bio,
       phone,
-      address,
       profileImage: imageData,
     });
 
@@ -93,7 +91,7 @@ exports.getProfile = async (req, res) => {
 // UPDATE PROFILE
 exports.updateProfile = async (req, res) => {
   try {
-    const { bio, phone, address } = req.body;
+    const { bio, phone } = req.body;
 
     const user = await User.findById(req.user._id).populate("profile");
 
@@ -108,7 +106,6 @@ exports.updateProfile = async (req, res) => {
 
     if (bio !== undefined) profile.bio = bio;
     if (phone !== undefined) profile.phone = phone;
-    if (address !== undefined) profile.address = address;
 
     // IMAGE UPDATE
     if (req.file) {

@@ -77,17 +77,16 @@ const ClientBadge = ({ client, size = "md", showName = true, className = "" }) =
 
   return (
     <span
-      className={`inline-flex items-center font-extrabold border shrink-0 ${sizeClasses[size]} ${branding.bgClass} ${branding.textClass} ${branding.borderClass} ${className}`}
-      style={branding.hasCustomColor ? {
+      className={`inline-flex items-center font-extrabold border shrink-0 text-black dark:text-white ${sizeClasses[size]} ${branding.bgClass} ${branding.textClass} ${branding.borderClass} ${className}`}
+      style={{
         backgroundColor: `${branding.color}15`,
         borderColor: `${branding.color}30`,
-        color: branding.color
-      } : {}}
+      }}
       title={client.companyName}
     >
       <div 
         className="flex items-center justify-center shrink-0" 
-        style={!branding.hasCustomColor ? { color: branding.color } : {}}
+        style={{ color: branding.color }}
       >
         <IconComponent size={iconSizes[size]} />
       </div>

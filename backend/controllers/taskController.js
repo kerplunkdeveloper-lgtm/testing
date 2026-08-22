@@ -34,14 +34,293 @@ const hasActiveWork = async (userId, currentTaskId = null, currentSubtaskId = nu
   return !!activeSubtask;
 };
 
-const calculateItemWorkingTime = (item) => {
+const getISTDateStr = (date = new Date()) => {
+  try {
+    return new Date(date).toLocaleDateString("en-US", {
+      timeZone: "Asia/Kolkata",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch (e) {
+    return new Date(date).toDateString();
+  }
+};
+
+const calculateSessionWorkingTime = (item, sessionEndTime = Date.now(), startHour = 9, endHour = 19, workingDays = [1, 2, 3, 4, 5, 6]) => {
   if (!item.actualStartTime) return 0;
+  const start = new Date(item.actualStartTime).getTime();
+  const end = new Date(sessionEndTime).getTime();
+  if (isNaN(start) || isNaN(end) || end <= start) return 0;
+
+  const rawBusinessMs = calculateBusinessMs(start, end, startHour, endHour, workingDays);
+
+  let sessionPauseMs = 0;
+  if (item.blockerHistory && Array.isArray(item.blockerHistory)) {
+    item.blockerHistory.forEach((h) => {
+      if (h.pausedAt) {
+        const p = new Date(h.pausedAt).getTime();
+        let r = h.resumedAt ? new Date(h.resumedAt).getTime() : end;
+        if (r > end) r = end;
+        const oStart = Math.max(p, start);
+        const oEnd = Math.min(r, end);
+        if (oEnd > oStart) {
+          sessionPauseMs += (oEnd - oStart);
+        }
+      }
+    });
+  }
+  if (item.isBlocked && item.blockerPausedAt) {
+    const p = new Date(item.blockerPausedAt).getTime();
+    const oStart = Math.max(p, start);
+    if (end > oStart) {
+      sessionPauseMs += (end - oStart);
+    }
+  }
+
+  return Math.max(0, rawBusinessMs - sessionPauseMs);
+};
+
+const handleItemStatusTransition = (item, prevStatus, newStatus, userId, settings = {}) => {
+  if (!newStatus || newStatus === prevStatus) return;
+
+  const now = new Date();
+  const nowMs = now.getTime();
+  const todayStr = getISTDateStr(now);
+  const currentDateStr = now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const startHour = settings.startHour ?? 9;
+  const endHour = settings.endHour ?? 19;
+  const workingDays = settings.workingDays && settings.workingDays.length > 0 ? settings.workingDays : [1, 2, 3, 4, 5, 6];
+
+  let history = item.statusHistory ? JSON.parse(JSON.stringify(item.statusHistory)) : [];
+
+  // Helper to close the last open status history entry
+  const closeOpenHistoryEntry = (statusToClose, closeEndTime, durationMs = 0) => {
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (!history[i].endTime && (!statusToClose || history[i].status === statusToClose)) {
+        history[i].endTime = closeEndTime;
+        history[i].duration = Math.max(0, Math.round(durationMs));
+        break;
+      }
+    }
+  };
+
+  // 1. Handle LEAVING the previous status
+  if (prevStatus === "In Progress") {
+    // Designer was actively working; freeze / accrue session working time
+    const sessionWorkedMs = calculateSessionWorkingTime(item, nowMs, startHour, endHour, workingDays);
+    item.totalTrackedTime = (item.totalTrackedTime || 0) + sessionWorkedMs;
+
+    const sessionDateStr = item.actualStartTime
+      ? new Date(item.actualStartTime).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
+      : currentDateStr;
+
+    if (sessionDateStr === currentDateStr) {
+      item.dailyTrackedTime = (item.dailyTrackedTime || 0) + sessionWorkedMs;
+    }
+
+    closeOpenHistoryEntry("In Progress", now, sessionWorkedMs);
+
+    // If item was blocked while In Progress, record open blocker segment into blockerHistory
+    if (item.isBlocked && item.blockerPausedAt) {
+      const bStart = new Date(item.blockerPausedAt).getTime();
+      if (nowMs > bStart) {
+        if (!item.blockerHistory) item.blockerHistory = [];
+        item.blockerHistory.push({
+          pausedAt: item.blockerPausedAt,
+          resumedAt: now,
+        });
+      }
+    }
+  } else if (prevStatus === "On Hold") {
+    // Leaving On Hold: calculate business-hour On Hold duration
+    const holdStart = item.holdStartedAt || item.pausedAt || (history.length > 0 ? history[history.length - 1].startTime : now);
+    const onHoldBusinessMs = calculateBusinessMs(holdStart, now, startHour, endHour, workingDays);
+    item.holdEndedAt = now;
+
+    closeOpenHistoryEntry("On Hold", now, onHoldBusinessMs);
+  } else if (prevStatus === "In Review") {
+    const reviewStart = item.reviewStartedAt || nowMs;
+    const reviewBusinessMs = calculateBusinessMs(reviewStart, nowMs, startHour, endHour, workingDays);
+    item.approvalWaitingMs = (item.approvalWaitingMs || 0) + reviewBusinessMs;
+    const newCycle = {
+      startedAt: reviewStart,
+      completedAt: nowMs,
+      durationMs: reviewBusinessMs,
+    };
+    item.reviewCycles = [...(item.reviewCycles || []), newCycle];
+    item.lastReviewStartedAt = reviewStart;
+    item.reviewStartedAt = null;
+
+    closeOpenHistoryEntry("In Review", now, reviewBusinessMs);
+  } else if (prevStatus) {
+    closeOpenHistoryEntry(prevStatus, now, 0);
+  }
+
+  // 2. Handle ENTERING the new status
+  switch (newStatus) {
+    case "Pending":
+      item.actualStartTime = null; // Reset today's timer to start from 00:00:00 when later placed in progress
+      item.actualEndTime = null;
+      item.pausedAt = null;
+      item.holdStartedAt = null;
+      item.holdEndedAt = null;
+      item.autoPaused = false;
+
+      history.push({
+        status: "Pending",
+        startTime: now,
+        endTime: null,
+        duration: 0,
+        date: todayStr,
+        user: userId,
+      });
+      break;
+
+    case "In Progress": {
+      const currentDateStr = now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+      const lastSessionDateStr = item.actualStartTime
+        ? new Date(item.actualStartTime).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
+        : null;
+      const hasHistoryToday = Array.isArray(item.statusHistory) && item.statusHistory.some((h) => {
+        const d = h.date || (h.startTime ? new Date(h.startTime).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : null);
+        return d === currentDateStr;
+      });
+      if (!hasHistoryToday && (!lastSessionDateStr || lastSessionDateStr !== currentDateStr)) {
+        // New day & no session today → start fresh daily counter
+        item.dailyTrackedTime = 0;
+      }
+      // If same day resume (e.g. On Hold -> In Progress), dailyTrackedTime continues accumulating — correct!
+
+      item.actualStartTime = now;
+      item.actualEndTime = null;
+      item.completedAt = null;
+      item.pausedAt = null;
+      item.holdStartedAt = null;
+      item.holdEndedAt = null;
+      item.autoPaused = false;
+
+      // If still blocked, realign blockerPausedAt to match new actualStartTime
+      if (item.isBlocked) {
+        item.blockerPausedAt = now;
+      }
+
+      history.push({
+        status: "In Progress",
+        startTime: now,
+        endTime: null,
+        duration: 0,
+        date: todayStr,
+        user: userId,
+      });
+      break;
+    }
+
+    case "On Hold":
+      item.pausedAt = now;
+      item.holdStartedAt = now;
+      item.holdEndedAt = null;
+      item.autoPaused = false;
+
+      history.push({
+        status: "On Hold",
+        startTime: now,
+        endTime: null,
+        duration: 0,
+        date: todayStr,
+        user: userId,
+      });
+      break;
+
+    case "In Review":
+      item.reviewStartedAt = nowMs;
+      item.lastReviewStartedAt = nowMs;
+      if (!item.actualEndTime) {
+        item.actualEndTime = nowMs;
+      }
+      item.pausedAt = now;
+
+      history.push({
+        status: "In Review",
+        startTime: now,
+        endTime: null,
+        duration: 0,
+        date: todayStr,
+        user: userId,
+      });
+      break;
+
+    case "Completed":
+      item.completedAt = now;
+      if (!item.actualEndTime) {
+        item.actualEndTime = nowMs;
+      }
+      item.pausedAt = null;
+      item.holdStartedAt = null;
+
+      history.push({
+        status: "Completed",
+        startTime: now,
+        endTime: now,
+        duration: 0,
+        date: todayStr,
+        user: userId,
+      });
+      break;
+
+    case "Rejected":
+      item.completedAt = now;
+      if (!item.actualEndTime) {
+        item.actualEndTime = nowMs;
+      }
+      item.pausedAt = null;
+      item.holdStartedAt = null;
+
+      history.push({
+        status: "Rejected",
+        startTime: now,
+        endTime: now,
+        duration: 0,
+        date: todayStr,
+        user: userId,
+      });
+      break;
+
+    case "Correction":
+      item.pausedAt = now;
+      // ✅ FIX Bug 3: Clear stale hold fields so future On Hold → leave doesn't
+      // accidentally use an old holdStartedAt from a previous In Review cycle
+      item.holdStartedAt = null;
+      item.holdEndedAt = null;
+      // Reset actualStartTime so next In Progress session starts a clean timer
+      item.actualStartTime = null;
+
+      history.push({
+        status: "Correction",
+        startTime: now,
+        endTime: null,
+        duration: 0,
+        date: todayStr,
+        user: userId,
+      });
+      break;
+  }
+
+  item.statusHistory = history;
+};
+
+const calculateItemWorkingTime = (item) => {
+  if (!item.actualStartTime) return item.totalTrackedTime || 0;
   const start = new Date(item.actualStartTime).getTime();
   let end = Date.now();
   if (item.actualEndTime) {
     end = new Date(item.actualEndTime).getTime();
-  } else if (item.pausedAt) {
+  } else if (item.status === "In Progress" && item.autoPaused) {
+    end = item.pausedAt ? new Date(item.pausedAt).getTime() : Date.now();
+  } else if (item.pausedAt && item.status !== "In Progress") {
     end = new Date(item.pausedAt).getTime();
+  } else if (item.status === "Pending") {
+    end = item.updatedAt ? new Date(item.updatedAt).getTime() : start;
   }
 
   let totalPauseMs = 0;
@@ -65,7 +344,7 @@ const calculateItemWorkingTime = (item) => {
   }
 
   const elapsed = end - start - (item.totalPausedMs || 0) - totalPauseMs;
-  return Math.max(0, elapsed);
+  return (item.totalTrackedTime || 0) + Math.max(0, elapsed);
 };
 
 
@@ -83,8 +362,24 @@ const calculateItemWorkingTime = (item) => {
 // @desc    Get all tasks
 // @route   GET /api/tasks
 // @access  Private
+
+// ✅ FIX Bug: Debounce — run auto-pause check at most once every 55 seconds
+// Prevents repeated DB writes on every API call when multiple users are active
+let _lastSchedulerRunAt = 0;
+const SCHEDULER_DEBOUNCE_MS = 55 * 1000; // 55 seconds
+
 exports.getTasks = async (req, res) => {
   try {
+    const now = Date.now();
+    if (now - _lastSchedulerRunAt >= SCHEDULER_DEBOUNCE_MS) {
+      _lastSchedulerRunAt = now;
+      const { checkAndAutoPauseTasks } = require("../utils/officeHoursScheduler");
+      const io = req.app ? req.app.get("io") : null;
+      checkAndAutoPauseTasks(io).catch(err =>
+        console.error("[Scheduler] checkAndAutoPauseTasks error:", err)
+      );
+    }
+
     let query = {};
     if (req.user.role !== "admin" && req.user.role !== "operationmanager") {
       const Client = require("../models/Client");
@@ -173,6 +468,16 @@ exports.getTasks = async (req, res) => {
         select: "name email department profile",
         populate: { path: "profile", select: "profileImage" }
       })
+      .populate({
+        path: "statusHistory.user",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.statusHistory.user",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
       .lean();
 
     res.status(200).json({
@@ -185,12 +490,13 @@ exports.getTasks = async (req, res) => {
   }
 };
 
-// Helper for comparing date only
+// Helper for comparing date only — uses IST timezone to avoid UTC midnight offset bug
 const isSameDay = (d1, d2) => {
   if (!d1 || !d2) return false;
   try {
-    const s1 = d1 instanceof Date ? d1.toISOString().split("T")[0] : new Date(d1).toISOString().split("T")[0];
-    const s2 = d2 instanceof Date ? d2.toISOString().split("T")[0] : new Date(d2).toISOString().split("T")[0];
+    const opts = { timeZone: "Asia/Kolkata" };
+    const s1 = new Date(d1).toLocaleDateString("en-CA", opts);
+    const s2 = new Date(d2).toLocaleDateString("en-CA", opts);
     return s1 === s2 && s1 !== "1970-01-01";
   } catch (e) {
     return false;
@@ -229,6 +535,71 @@ exports.createTask = async (req, res) => {
         if (isSameDay(sub.startDate, sub.dueDate)) {
           sub.priority = "Top High";
         }
+      });
+    }
+
+    // Validate that assignee is an active employee
+    if (req.body.assignedTo) {
+      const assignee = await User.findById(req.body.assignedTo);
+      if (assignee && (assignee.employmentStatus === 'relieved' || assignee.accountStatus === 'inactive')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot assign tasks to a relieved/inactive employee.',
+        });
+      }
+    }
+    if (req.body.subtasks && Array.isArray(req.body.subtasks)) {
+      for (const sub of req.body.subtasks) {
+        if (sub.assignedTo) {
+          const subAssignee = await User.findById(sub.assignedTo);
+          if (subAssignee && (subAssignee.employmentStatus === 'relieved' || subAssignee.accountStatus === 'inactive')) {
+            return res.status(400).json({
+              success: false,
+              message: 'Cannot assign subtasks to a relieved/inactive employee.',
+            });
+          }
+        }
+      }
+    }
+
+    const initialStatus = req.body.status || "Pending";
+    const now = new Date();
+    const todayStr = getISTDateStr(now);
+    if (!req.body.statusHistory || req.body.statusHistory.length === 0) {
+      req.body.statusHistory = [
+        {
+          status: initialStatus,
+          startTime: now,
+          endTime: null,
+          duration: 0,
+          date: todayStr,
+          user: req.user._id,
+        }
+      ];
+    }
+    if (initialStatus === "In Progress" && !req.body.actualStartTime) {
+      req.body.actualStartTime = now;
+    }
+
+    if (req.body.subtasks && Array.isArray(req.body.subtasks)) {
+      req.body.subtasks = req.body.subtasks.map(sub => {
+        const subStatus = sub.status || "Pending";
+        if (!sub.statusHistory || sub.statusHistory.length === 0) {
+          sub.statusHistory = [
+            {
+              status: subStatus,
+              startTime: now,
+              endTime: null,
+              duration: 0,
+              date: todayStr,
+              user: sub.assignedTo || req.user._id,
+            }
+          ];
+        }
+        if (subStatus === "In Progress" && !sub.actualStartTime) {
+          sub.actualStartTime = now;
+        }
+        return sub;
       });
     }
 
@@ -292,6 +663,16 @@ exports.createTask = async (req, res) => {
         path: "subtasks.rejectionHistory.rejectedBy",
         select: "name email department profile",
         populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "statusHistory.user",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.statusHistory.user",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
       });
 
     // Real-time Notification
@@ -338,6 +719,30 @@ exports.updateTask = async (req, res) => {
       return res.status(404).json({ success: false, message: "Task not found" });
     }
 
+    // Validate that new assignee is an active employee
+    if (req.body.assignedTo) {
+      const assignee = await User.findById(req.body.assignedTo);
+      if (assignee && (assignee.employmentStatus === 'relieved' || assignee.accountStatus === 'inactive')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot assign tasks to a relieved/inactive employee.',
+        });
+      }
+    }
+    if (req.body.subtasks && Array.isArray(req.body.subtasks)) {
+      for (const sub of req.body.subtasks) {
+        if (sub.assignedTo) {
+          const subAssignee = await User.findById(sub.assignedTo);
+          if (subAssignee && (subAssignee.employmentStatus === 'relieved' || subAssignee.accountStatus === 'inactive')) {
+            return res.status(400).json({
+              success: false,
+              message: 'Cannot assign subtasks to a relieved/inactive employee.',
+            });
+          }
+        }
+      }
+    }
+
     const previousStatus = task.status;
     const previousAssignee = task.assignedTo;
     const previousSubtasks = task.subtasks ? JSON.parse(JSON.stringify(task.subtasks)) : [];
@@ -369,8 +774,9 @@ exports.updateTask = async (req, res) => {
         const OfficeSettings = require("../models/OfficeSettings");
         const settings = await OfficeSettings.findOne({ key: "global" }) || { endHour: 19 };
         
-        let pausedAtTime = new Date();
-        pausedAtTime.setHours(settings.endHour, 0, 0, 0);
+        const dateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        const hourStr = String(settings.endHour || 19).padStart(2, "0");
+        const pausedAtTime = new Date(`${dateStr}T${hourStr}:00:00+05:30`);
 
         return res.status(400).json({
           success: false,
@@ -389,363 +795,204 @@ exports.updateTask = async (req, res) => {
 
    
 // .........................................Time tracking logic for parent task...........................................
-if (req.body.status && req.body.status !== previousStatus) {
+    const OfficeSettings = require("../models/OfficeSettings");
+    const officeSettings = (await OfficeSettings.findOne({ key: "global" })) || {
+      startHour: 9,
+      endHour: 19,
+      workingDays: [1, 2, 3, 4, 5, 6],
+    };
 
-   if (req.body.status === "In Progress") {
-      if (task.assignedTo) {
-        const hasActive = await hasActiveWork(
-          task.assignedTo,
-          task._id,
-          null
-        );
+    if (req.body.status && req.body.status !== previousStatus) {
+      if (req.body.status === "In Progress") {
+        if (task.assignedTo) {
+          const hasActive = await hasActiveWork(
+            task.assignedTo,
+            task._id,
+            null
+          );
 
-        if (hasActive) {
-          return res.status(409).json({
-            success: false,
-            message: "You already have one active task or subtask.",
+          if (hasActive) {
+            return res.status(409).json({
+              success: false,
+              message: "You already have one active task or subtask.",
+            });
+          }
+        }
+      }
+
+      if (req.body.status === "On Hold") {
+        const isMOMTask = task.contentType === "MOM" || req.body.contentType === "MOM";
+        if (!task.actualStartTime && !task.totalTrackedTime && !isMOMTask) {
+          return res.status(400).json({
+            message: "Please start the task by setting its status to 'In Progress' first before placing it on hold.",
           });
         }
       }
-   }
 
-  // Handle leaving 'In Review' state
-  const wasInReview = previousStatus === "In Review";
-  const isNowInReview = req.body.status === "In Review";
-  
-  if (wasInReview && !isNowInReview) {
-     const reviewStart = task.reviewStartedAt || Date.now();
-     const durationMs = calculateBusinessMs(reviewStart, Date.now());
-     req.body.approvalWaitingMs = (task.approvalWaitingMs || 0) + durationMs;
-     
-     const newCycle = {
-       startedAt: reviewStart,
-       completedAt: Date.now(),
-       durationMs
-     };
-     req.body.reviewCycles = [...(task.reviewCycles || []), newCycle];
-     req.body.lastReviewStartedAt = reviewStart;
-     req.body.reviewStartedAt = null;
-  }
-
-  switch (req.body.status) {
-
-    case "Pending":
-      req.body.actualStartTime = null;
-      req.body.actualEndTime = null;
-      req.body.pausedAt = null;
-      break;
-
-    case "In Progress":
-      if (!task.actualStartTime) {
-        req.body.actualStartTime = Date.now();
-      }
-      req.body.actualEndTime = null;
-      req.body.completedAt = null;
-
-      if (task.pausedAt) {
-        req.body.totalPausedMs =
-          (task.totalPausedMs || 0) +
-          (Date.now() - new Date(task.pausedAt).getTime());
-        req.body.businessTotalPausedMs =
-          (task.businessTotalPausedMs || 0) +
-          calculateBusinessMs(task.pausedAt, Date.now());
-      }
-
-      if (previousStatus === "Correction") {
-        const currentHist = task.correctionHistory ? JSON.parse(JSON.stringify(task.correctionHistory)) : [];
-        if (currentHist.length > 0) {
-          currentHist[currentHist.length - 1].resumedAt = new Date();
-          req.body.correctionHistory = currentHist;
+      if (req.body.status === "In Review") {
+        if (!task.actualStartTime && !task.totalTrackedTime) {
+          return res.status(400).json({
+            message: "Please start the task by setting its status to 'In Progress' first before submitting it for review.",
+          });
         }
       }
 
-      req.body.pausedAt = null;
-      break;
-
-    case "Completed":
-      if (task.pausedAt) {
-        req.body.totalPausedMs =
-          (task.totalPausedMs || 0) +
-          (Date.now() - new Date(task.pausedAt).getTime());
-        req.body.businessTotalPausedMs =
-          (task.businessTotalPausedMs || 0) +
-          calculateBusinessMs(task.pausedAt, Date.now());
+      if (req.body.status === "Correction") {
+        const nextRev = (task.revisions || 0) + 1;
+        req.body.revisions = nextRev;
+        const corrReason = req.body.correctionReason || req.body.reason || "Corrections requested";
+        const corrEntry = {
+          revision: nextRev,
+          reason: corrReason,
+          requestedBy: req.user._id,
+          requestedAt: new Date(),
+        };
+        req.body.correctionHistory = [...(task.correctionHistory || []), corrEntry];
+        const corrFeedback = {
+          type: "Correction",
+          text: corrReason,
+          addedBy: req.user._id,
+          addedAt: new Date(),
+        };
+        req.body.feedbacks = [...(task.feedbacks || []), corrFeedback];
       }
-      if (!task.actualEndTime) {
-        req.body.actualEndTime = Date.now();
+
+      if (req.body.status === "Rejected") {
+        const rejReason = req.body.rejectionReason || req.body.reason || "Task rejected";
+        const rejEntry = {
+          reason: rejReason,
+          rejectedBy: req.user._id,
+          rejectedAt: new Date(),
+        };
+        if (req.body.rejectionHistory && Array.isArray(req.body.rejectionHistory)) {
+          req.body.rejectionHistory = req.body.rejectionHistory.map((item) => ({
+            ...item,
+            rejectedBy: item.rejectedBy || req.user._id,
+            rejectedAt: item.rejectedAt || new Date(),
+          }));
+        } else {
+          req.body.rejectionHistory = [...(task.rejectionHistory || []), rejEntry];
+        }
+        const rejFeedback = {
+          type: "Rejected",
+          text: rejReason,
+          addedBy: req.user._id,
+          addedAt: new Date(),
+        };
+        req.body.feedbacks = [...(task.feedbacks || []), rejFeedback];
       }
-      req.body.completedAt = Date.now();
-      req.body.pausedAt = null;
-      break;
 
-    case "On Hold":
-      if (!task.actualStartTime) {
-        return res.status(400).json({
-          message: "Please start the task by setting its status to 'In Progress' first before placing it on hold.",
-        });
-      }
-      if (!task.pausedAt) {
-        req.body.pausedAt = Date.now();
-      }
-      break;
+      handleItemStatusTransition(task, previousStatus, req.body.status, req.user._id, officeSettings);
 
-    case "Correction":
-      const nextRev = (task.revisions || 0) + 1;
-      req.body.revisions = nextRev;
-      if (!task.pausedAt) {
-        req.body.pausedAt = Date.now();
-      }
-      const corrReason = req.body.correctionReason || req.body.reason || "Corrections requested";
-      const corrEntry = {
-        revision: nextRev,
-        reason: corrReason,
-        requestedBy: req.user._id,
-        requestedAt: new Date(),
-      };
-      req.body.correctionHistory = [...(task.correctionHistory || []), corrEntry];
-      const corrFeedback = {
-        type: "Correction",
-        text: corrReason,
-        addedBy: req.user._id,
-        addedAt: new Date(),
-      };
-      req.body.feedbacks = [...(task.feedbacks || []), corrFeedback];
-      break;
-
-    case "Rejected":
-      if (!task.actualEndTime) {
-        req.body.actualEndTime = Date.now();
-      }
-      req.body.completedAt = Date.now();
-      req.body.pausedAt = null;
-
-      const rejReason = req.body.rejectionReason || req.body.reason || "Task rejected";
-      const rejEntry = {
-        reason: rejReason,
-        rejectedBy: req.user._id,
-        rejectedAt: new Date(),
-      };
-      if (req.body.rejectionHistory && Array.isArray(req.body.rejectionHistory)) {
-        req.body.rejectionHistory = req.body.rejectionHistory.map((item) => ({
-          ...item,
-          rejectedBy: item.rejectedBy || req.user._id,
-          rejectedAt: item.rejectedAt || new Date(),
-        }));
-      } else {
-        req.body.rejectionHistory = [...(task.rejectionHistory || []), rejEntry];
-      }
-      const rejFeedback = {
-        type: "Rejected",
-        text: rejReason,
-        addedBy: req.user._id,
-        addedAt: new Date(),
-      };
-      req.body.feedbacks = [...(task.feedbacks || []), rejFeedback];
-      break;
-
-    case "In Review":
-      if (!task.actualStartTime) {
-        return res.status(400).json({
-          message: "Please start the task by setting its status to 'In Progress' first before submitting it for review.",
-        });
-      }
-      if (!task.pausedAt) {
-        req.body.pausedAt = Date.now();
-      }
-      if (!task.reviewStartedAt || !wasInReview) {
-        const nowMs = Date.now();
-        req.body.reviewStartedAt = nowMs;
-        req.body.lastReviewStartedAt = nowMs;
-      }
-      break;
-  }
-}
-    // .........................................Time tracking logic for subtasks...........................................    
-   // .........................................Time tracking logic for subtasks...........................................
-
-
-
-for (const sub of req.body.subtasks || []) {
-
-  const prevSub = previousSubtasks.find(
-    (p) => p._id?.toString() === sub._id?.toString()
-  );
-
-  if (
-    prevSub &&
-    sub.status === "In Progress" &&
-    prevSub.status !== "In Progress" &&
-    sub.assignedTo
-  ) {
-
-    const hasActive = await hasActiveWork(
-      sub.assignedTo,
-      null,
-      sub._id
-    );
-
-    if (hasActive) {
-      return res.status(409).json({
-        success: false,
-        message: "You already have one active task or subtask.",
-      });
+      req.body.statusHistory = task.statusHistory;
+      req.body.totalTrackedTime = task.totalTrackedTime;
+      req.body.dailyTrackedTime = task.dailyTrackedTime;
+      req.body.actualStartTime = task.actualStartTime;
+      req.body.actualEndTime = task.actualEndTime;
+      req.body.holdStartedAt = task.holdStartedAt;
+      req.body.holdEndedAt = task.holdEndedAt;
+      req.body.pausedAt = task.pausedAt;
+      req.body.autoPaused = task.autoPaused;
+      req.body.reviewStartedAt = task.reviewStartedAt;
+      req.body.lastReviewStartedAt = task.lastReviewStartedAt;
+      req.body.approvalWaitingMs = task.approvalWaitingMs;
+      req.body.reviewCycles = task.reviewCycles;
+      req.body.completedAt = task.completedAt;
     }
-  }
-}
 
+    // .........................................Time tracking logic for subtasks...........................................
+    if (req.body.subtasks && Array.isArray(req.body.subtasks)) {
+      for (const sub of req.body.subtasks) {
+        const prevSub = previousSubtasks.find(
+          (p) => p._id?.toString() === sub._id?.toString()
+        );
 
+        if (
+          prevSub &&
+          sub.status === "In Progress" &&
+          prevSub.status !== "In Progress" &&
+          sub.assignedTo
+        ) {
+          const hasActive = await hasActiveWork(
+            sub.assignedTo,
+            null,
+            sub._id
+          );
 
-
-if (req.body.subtasks) {
-  req.body.subtasks = req.body.subtasks.map((sub) => {
-
-    const prevSub = previousSubtasks.find(
-      (p) => p._id && sub._id && p._id.toString() === sub._id.toString()
-    );
-
-    if (prevSub && sub.status && sub.status !== prevSub.status) {
-
-      // Handle leaving 'In Review' state for subtask
-      const wasSubInReview = prevSub.status === "In Review";
-      const isSubNowInReview = sub.status === "In Review";
-      
-      if (wasSubInReview && !isSubNowInReview) {
-         const reviewStart = prevSub.reviewStartedAt || Date.now();
-         const durationMs = calculateBusinessMs(reviewStart, Date.now());
-         sub.approvalWaitingMs = (prevSub.approvalWaitingMs || 0) + durationMs;
-         
-         const newCycle = {
-           startedAt: reviewStart,
-           completedAt: Date.now(),
-           durationMs
-         };
-         sub.reviewCycles = [...(prevSub.reviewCycles || []), newCycle];
-         sub.lastReviewStartedAt = reviewStart;
-         sub.reviewStartedAt = null;
-      }
-
-      switch (sub.status) {
-
-        case "Pending":
-          sub.actualStartTime = null;
-          sub.actualEndTime = null;
-          sub.pausedAt = null;
-          break;
-
-        case "In Progress":
-          if (!prevSub.actualStartTime && !sub.actualStartTime) {
-            sub.actualStartTime = Date.now();
-          }
-          sub.actualEndTime = null;
-          sub.completedAt = null;
-
-          if (prevSub.pausedAt) {
-            sub.totalPausedMs =
-              (prevSub.totalPausedMs || 0) +
-              (Date.now() - new Date(prevSub.pausedAt).getTime());
-            sub.businessTotalPausedMs =
-              (prevSub.businessTotalPausedMs || 0) +
-              calculateBusinessMs(prevSub.pausedAt, Date.now());
-          }
-
-          if (prevSub.status === "Correction") {
-            const currentSubHist = prevSub.correctionHistory ? JSON.parse(JSON.stringify(prevSub.correctionHistory)) : [];
-            if (currentSubHist.length > 0) {
-              currentSubHist[currentSubHist.length - 1].resumedAt = new Date();
-              sub.correctionHistory = currentSubHist;
-            }
-          }
-
-          sub.pausedAt = null;
-          sub.autoPaused = false;
-          break;
-
-        case "Completed":
-          if (prevSub.pausedAt) {
-            sub.totalPausedMs =
-              (prevSub.totalPausedMs || 0) +
-              (Date.now() - new Date(prevSub.pausedAt).getTime());
-            sub.businessTotalPausedMs =
-              (prevSub.businessTotalPausedMs || 0) +
-              calculateBusinessMs(prevSub.pausedAt, Date.now());
-          }
-          if (!prevSub.actualEndTime && !sub.actualEndTime) {
-            sub.actualEndTime = Date.now();
-          }
-          sub.completedAt = Date.now();
-          sub.pausedAt = null;
-          break;
-
-        case "On Hold":
-          if (!prevSub.actualStartTime && !sub.actualStartTime) {
-            return res.status(400).json({
-              message: "Please start the subtask by setting its status to 'In Progress' first before placing it on hold.",
+          if (hasActive) {
+            return res.status(409).json({
+              success: false,
+              message: "You already have one active task or subtask.",
             });
           }
-          if (!prevSub.pausedAt) {
-            sub.pausedAt = Date.now();
-          }
-          break;
+        }
+      }
 
-        case "Correction":
-          const nextSubRev = (prevSub.revisions || 0) + 1;
-          sub.revisions = nextSubRev;
-          if (!prevSub.pausedAt) {
-            sub.pausedAt = Date.now();
-          }
-          const subCorrReason = sub.correctionReason || sub.reason || "Corrections requested";
-          sub.correctionHistory = [
-            ...(prevSub.correctionHistory || []),
-            {
-              revision: nextSubRev,
-              reason: subCorrReason,
-              requestedBy: req.user._id,
-              requestedAt: new Date(),
-            }
-          ];
-          break;
+      req.body.subtasks = req.body.subtasks.map((sub) => {
+        const prevSub = previousSubtasks.find(
+          (p) => p._id && sub._id && p._id.toString() === sub._id.toString()
+        );
 
-        case "Rejected":
-          if (!prevSub.actualEndTime && !sub.actualEndTime) {
-            sub.actualEndTime = Date.now();
+        if (prevSub && sub.status && sub.status !== prevSub.status) {
+          const isSubMOM = (sub && sub.contentType === "MOM") || (prevSub && prevSub.contentType === "MOM") || task.contentType === "MOM";
+          // ✅ FIX Bug 2: Enforce On Hold validation for subtasks (same rule as parent task)
+          if (sub.status === "On Hold" && !prevSub.actualStartTime && !prevSub.totalTrackedTime && !isSubMOM) {
+            throw Object.assign(
+              new Error("Please start the subtask by setting its status to 'In Progress' first before placing it on hold."),
+              { statusCode: 400, isValidationError: true }
+            );
           }
-          sub.completedAt = Date.now();
-          sub.pausedAt = null;
 
-          const subRejReason = sub.rejectionReason || sub.reason || "Subtask rejected";
-          if (!sub.rejectionHistory) {
-            sub.rejectionHistory = [
-              ...(prevSub.rejectionHistory || []),
+          if (sub.status === "Correction") {
+            const nextSubRev = (prevSub.revisions || 0) + 1;
+            sub.revisions = nextSubRev;
+            const subCorrReason = sub.correctionReason || sub.reason || "Corrections requested";
+            sub.correctionHistory = [
+              ...(prevSub.correctionHistory || []),
               {
-                reason: subRejReason,
-                rejectedBy: req.user._id,
-                rejectedAt: new Date(),
+                revision: nextSubRev,
+                reason: subCorrReason,
+                requestedBy: req.user._id,
+                requestedAt: new Date(),
               }
             ];
           }
-          break;
 
-        case "In Review":
-          if (!prevSub.actualStartTime && !sub.actualStartTime) {
-            return res.status(400).json({
-              message: "Please start the subtask by setting its status to 'In Progress' first before submitting it for review.",
-            });
+          if (sub.status === "Rejected") {
+            const subRejReason = sub.rejectionReason || sub.reason || "Subtask rejected";
+            if (!sub.rejectionHistory) {
+              sub.rejectionHistory = [
+                ...(prevSub.rejectionHistory || []),
+                {
+                  reason: subRejReason,
+                  rejectedBy: req.user._id,
+                  rejectedAt: new Date(),
+                }
+              ];
+            }
           }
-          if (!prevSub.pausedAt) {
-            sub.pausedAt = Date.now();
-          }
-          if (!prevSub.reviewStartedAt || !wasSubInReview) {
-            const nowMs = Date.now();
-            sub.reviewStartedAt = nowMs;
-            sub.lastReviewStartedAt = nowMs;
-          }
-          break;
-      }
+
+          handleItemStatusTransition(prevSub, prevSub.status, sub.status, req.user._id, officeSettings);
+
+          sub.statusHistory = prevSub.statusHistory;
+          sub.totalTrackedTime = prevSub.totalTrackedTime;
+          sub.dailyTrackedTime = prevSub.dailyTrackedTime;
+          sub.actualStartTime = prevSub.actualStartTime;
+          sub.actualEndTime = prevSub.actualEndTime;
+          sub.holdStartedAt = prevSub.holdStartedAt;
+          sub.holdEndedAt = prevSub.holdEndedAt;
+          sub.pausedAt = prevSub.pausedAt;
+          sub.autoPaused = prevSub.autoPaused;
+          sub.reviewStartedAt = prevSub.reviewStartedAt;
+          sub.lastReviewStartedAt = prevSub.lastReviewStartedAt;
+          sub.approvalWaitingMs = prevSub.approvalWaitingMs;
+          sub.reviewCycles = prevSub.reviewCycles;
+          sub.completedAt = prevSub.completedAt;
+        }
+
+        return sub;
+      });
     }
-
-    return sub;
-  });
-}
 
     const effectiveStart = req.body.startDate !== undefined ? req.body.startDate : task.startDate;
     const effectiveEnd = req.body.dueDate !== undefined ? req.body.dueDate : task.dueDate;
@@ -825,6 +1072,16 @@ if (req.body.subtasks) {
       })
       .populate({
         path: "subtasks.rejectionHistory.rejectedBy",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "statusHistory.user",
+        select: "name email department profile",
+        populate: { path: "profile", select: "profileImage" }
+      })
+      .populate({
+        path: "subtasks.statusHistory.user",
         select: "name email department profile",
         populate: { path: "profile", select: "profileImage" }
       });
@@ -1028,7 +1285,10 @@ if (req.body.subtasks) {
       data: task,
     });
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    // ✅ Validation errors (e.g. subtask On Hold before starting) → 400
+    // Unexpected server errors → 500
+    const statusCode = err.isValidationError ? 400 : (err.statusCode || 400);
+    res.status(statusCode).json({ success: false, message: err.message });
   }
 };
 

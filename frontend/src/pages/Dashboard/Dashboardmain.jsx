@@ -3,12 +3,24 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import WelcomeUser from "../admin/partnerhub/components/WelcomeUser";
 import DashboardCards from "./cards/DashboardCards";
-import GraphicDesignerDashboard from "./cards/GraphicDesignerDashboard";
-import WebDeveloperDashboard from "./cards/WebDeveloperDashboard";
-import SocialMediaManagerDashboard from "./cards/SocialMediaManagerDashboard";
-import SEOSpecialistDashboard from "./cards/SEOSpecialistDashboard";
-import PerformanceMarketerDashboard from "./cards/PerformanceMarketerDashboard";
-import { getEvents } from "../../features/events/eventSlice";
+const GraphicDesignerDashboard = React.lazy(
+  () => import("./cards/GraphicDesignerDashboard"),
+);
+const WebDeveloperDashboard = React.lazy(
+  () => import("./cards/WebDeveloperDashboard"),
+);
+const MobileDeveloperDashboard = React.lazy(
+  () => import("./cards/MobileDeveloperDashboard"),
+);
+const SocialMediaManagerDashboard = React.lazy(
+  () => import("./cards/SocialMediaManagerDashboard"),
+);
+const SEOSpecialistDashboard = React.lazy(
+  () => import("./cards/SEOSpecialistDashboard"),
+);
+const PerformanceMarketerDashboard = React.lazy(
+  () => import("./cards/PerformanceMarketerDashboard"),
+);
 import {
   getProjects,
   createProject,
@@ -59,33 +71,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import ProjectIcon from "../../components/common/ProjectIcon";
 import ClientBadge from "../../components/common/ClientBadge";
 import { useTheme } from "../../context/ThemeContext";
-
-const TYPE_CONFIG = {
-  Post: {
-    color: "text-blue-500 bg-blue-500/10 border-blue-500/20",
-    icon: FiInstagram,
-  },
-  Reel: {
-    color: "text-rose-500 bg-rose-500/10 border-rose-500/20",
-    icon: FiVideo,
-  },
-  Story: {
-    color: "text-purple-500 bg-purple-500/10 border-purple-500/20",
-    icon: FiLayers,
-  },
-  Ad: {
-    color: "text-amber-500 bg-amber-500/10 border-amber-500/20",
-    icon: FiTarget,
-  },
-  Report: {
-    color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
-    icon: FiFileText,
-  },
-  "Birthday Celebration": {
-    color: "text-pink-500 bg-pink-500/10 border-pink-500/20",
-    icon: FiCalendar,
-  },
-};
 
 const ACCENT_COLOR_MAP = {
   default: "bg-blue-600 dark:bg-blue-500",
@@ -155,10 +140,9 @@ const isSameDateHelper = (d1, d2) => {
 
 const GraphicDesignerDeadlines = ({ user }) => {
   const navigate = useNavigate();
-  const { users = [] } = useSelector((state) => state.users || {});
-  const { data: tasks = [], isLoading } = useGetTasksQuery(undefined, {
-    refetchOnMountOrArgChange: true,
-  });
+  const usersState = useSelector((state) => state.users);
+  const users = usersState?.users || [];
+  const { data: tasks = [], isLoading } = useGetTasksQuery();
 
   const getTodayDateString = () => {
     const today = new Date();
@@ -422,7 +406,7 @@ const GraphicDesignerDeadlines = ({ user }) => {
       </div>
 
       {/* Task List */}
-      <div className="space-y-3 overflow-y-auto max-h-[400px] pr-2 scrollbar-thin">
+      <div className="space-y-2 overflow-y-auto max-h-[380px] pr-1.5 scrollbar-thin">
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task) => {
             const daysLeft = getDaysRemaining(task.dueDate);
@@ -433,6 +417,11 @@ const GraphicDesignerDeadlines = ({ user }) => {
               daysLeft !== null &&
               daysLeft === 0;
             const isCompleted = task.status === "Completed";
+            const isInReview =
+              task.status === "IN-REVIEW" ||
+              task.status === "In Review" ||
+              task.status === "in review" ||
+              task.status === "in-review";
 
             const createdByUserId =
               typeof task.createdBy === "object"
@@ -454,27 +443,33 @@ const GraphicDesignerDeadlines = ({ user }) => {
               : task.priority === "High"
                 ? "border-l-4 border-l-pink-500 dark:border-l-pink-600"
                 : task.priority === "Medium"
-                  ? "border-l-4  border-l-amber-500 dark:border-l-amber-600"
+                  ? "border-l-4 border-l-amber-500 dark:border-l-amber-600"
                   : "border-l-4 border-l-slate-400 dark:border-l-slate-600";
+
+            const isColoredCard = isCompleted || isInReview || isTopHigh;
+
+            const cardBgStyle = isCompleted
+              ? "bg-emerald-600 dark:bg-emerald-700 text-white border-2 border-emerald-400 dark:border-emerald-500 shadow-md"
+              : isInReview
+                ? "bg-orange-500 dark:bg-orange-600 text-white border-2 border-orange-400 dark:border-orange-500 shadow-md"
+                : isTopHigh
+                  ? "bg-red-600 dark:bg-rose-950 text-white border-2 border-yellow-400 animate-pulse shadow-yellow-500/20"
+                  : `border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 hover:bg-slate-50/50 dark:hover:bg-slate-800/80 ${priorityBorder}`;
 
             return (
               <div
                 key={task._id}
-                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl transition-all duration-200 shadow-sm ${
-                  isTopHigh
-                    ? "bg-red-600 dark:bg-rose-950 text-white border-2 border-yellow-400 animate-pulse shadow-yellow-500/20"
-                    : `border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 hover:bg-slate-50/50 dark:hover:bg-slate-800/80 ${priorityBorder}`
-                }`}
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 sm:p-3 rounded-xl transition-all duration-200 shadow-sm ${cardBgStyle}`}
               >
                 {/* Left side: Title, Details */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
                     {/* Client Badge */}
                     {task.client && (
                       <span
-                        className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
-                          isTopHigh
-                            ? "bg-white/20 text-yellow-200 border border-white/20"
+                        className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                          isColoredCard
+                            ? "bg-white/20 text-white border border-white/20"
                             : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
                         }`}
                       >
@@ -488,8 +483,8 @@ const GraphicDesignerDeadlines = ({ user }) => {
                     {/* Content Type Badge */}
                     {task.contentType && (
                       <span
-                        className={`text-[12px] px-2 py-0.5 rounded-full font-bold ${
-                          isTopHigh
+                        className={`text-[9.5px] px-1.5 py-0.5 rounded-full font-bold ${
+                          isColoredCard
                             ? "bg-white/20 text-white border border-white/20"
                             : "bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-white border border-blue-200 dark:border-blue-700"
                         }`}
@@ -499,18 +494,18 @@ const GraphicDesignerDeadlines = ({ user }) => {
                     )}
                     {/* Status Badge */}
                     <span
-                      className={`text-[13px] px-2 py-0.5 rounded-full font-black ${
-                        isTopHigh
-                          ? "bg-white/20 text-white border border-white/20"
+                      className={`text-[9.5px] px-2 py-0.5 rounded-full font-black ${
+                        isColoredCard
+                          ? "bg-white/30 text-white border border-white/30"
                           : task.status === "Completed"
-                            ? "bg-emerald-400 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
+                            ? "bg-emerald-500 dark:bg-emerald-600 text-white border border-emerald-600 dark:border-emerald-500 shadow-2xs"
                             : task.status === "Pending"
                               ? "bg-slate-400 dark:bg-blue-900 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-700"
                               : task.status === "In Progress"
                                 ? "bg-amber-400 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
                                 : task.status === "IN-REVIEW" ||
                                     task.status === "In Review"
-                                  ? "bg-sky-400 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border border-sky-300 dark:border-sky-700"
+                                  ? "bg-orange-500 dark:bg-orange-600 text-white border border-orange-600 dark:border-orange-500 shadow-2xs"
                                   : task.status === "On Hold"
                                     ? "bg-rose-400 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700"
                                     : task.status === "Rejected"
@@ -523,14 +518,16 @@ const GraphicDesignerDeadlines = ({ user }) => {
 
                     {/* Priority Badge */}
                     <span
-                      className={`text-[13px] px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider ${
+                      className={`text-[9.5px] px-1.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider ${
                         isTopHigh
-                          ? "bg-yellow-300 text-red-950 border border-yellow-200 shadow-sm"
-                          : task.priority === "High"
-                            ? "bg-pink-100 dark:bg-pink-950 text-pink-800 dark:text-pink-300 border border-pink-300 dark:border-pink-700"
-                            : task.priority === "Medium"
-                              ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
-                              : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700"
+                          ? "bg-yellow-300 text-slate-950 border border-yellow-200 shadow-sm"
+                          : isColoredCard
+                            ? "bg-white/20 text-white border border-white/20"
+                            : task.priority === "High"
+                              ? "bg-pink-100 dark:bg-pink-950 text-pink-800 dark:text-pink-300 border border-pink-300 dark:border-pink-700"
+                              : task.priority === "Medium"
+                                ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700"
                       }`}
                     >
                       {isSameDateHelper(task.startDate, task.dueDate)
@@ -540,17 +537,17 @@ const GraphicDesignerDeadlines = ({ user }) => {
 
                     {/* Creator Badge */}
                     <span
-                      className={`text-[13px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border ${
-                        isTopHigh
+                      className={`text-[9.5px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-1 border ${
+                        isColoredCard
                           ? "bg-white/20 text-white border-white/20"
                           : "bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700"
                       }`}
                     >
                       <FiUser
-                        size={10}
+                        size={9}
                         className={
-                          isTopHigh
-                            ? "text-yellow-300"
+                          isColoredCard
+                            ? "text-yellow-200"
                             : "text-indigo-600 dark:text-indigo-400"
                         }
                       />
@@ -559,8 +556,8 @@ const GraphicDesignerDeadlines = ({ user }) => {
                   </div>
 
                   <h3
-                    className={`text-md font-bold leading-snug ${
-                      isTopHigh
+                    className={`text-xs sm:text-[13px] font-bold leading-snug ${
+                      isColoredCard
                         ? "text-white"
                         : isCompleted
                           ? "line-through text-slate-400 dark:text-white font-medium"
@@ -572,16 +569,16 @@ const GraphicDesignerDeadlines = ({ user }) => {
                 </div>
 
                 {/* Right side: Deadline */}
-                <div className="flex items-center gap-3 shrink-0 flex-wrap justify-between sm:justify-end">
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-between sm:justify-end">
                   {/* Deadline Label */}
                   {task.dueDate ? (
                     <div className="flex items-center gap-1.5">
                       <span
-                        className={`text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider flex items-center gap-1 ${
-                          isTopHigh
-                            ? "bg-yellow-300 text-red-950 border border-yellow-200 font-extrabold"
+                        className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider flex items-center gap-1 ${
+                          isColoredCard
+                            ? "bg-white/30 text-white border border-white/30"
                             : isCompleted
-                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
+                              ? "bg-emerald-500 dark:bg-emerald-600 text-white border border-emerald-600 dark:border-emerald-500"
                               : isOverdue
                                 ? "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700 animate-pulse"
                                 : isToday
@@ -589,8 +586,8 @@ const GraphicDesignerDeadlines = ({ user }) => {
                                   : "bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-slate-200 border border-blue-200 dark:border-slate-700"
                         }`}
                       >
-                        {isOverdue && <FiAlertCircle size={10} />}
-                        {isToday && <FiClock size={10} />}
+                        {isOverdue && <FiAlertCircle size={9} />}
+                        {isToday && <FiClock size={9} />}
                         {isCompleted
                           ? "Done"
                           : isOverdue
@@ -603,14 +600,14 @@ const GraphicDesignerDeadlines = ({ user }) => {
                       </span>
 
                       <span
-                        className={`text-[10px] font-bold ${isTopHigh ? "text-yellow-200" : "text-slate-500 dark:text-slate-300"}`}
+                        className={`text-[9px] font-bold ${isColoredCard ? "text-white/90" : "text-slate-500 dark:text-slate-300"}`}
                       >
                         ({formatDate(task.dueDate)})
                       </span>
                     </div>
                   ) : (
                     <span
-                      className={`text-[10px] font-bold italic ${isTopHigh ? "text-yellow-200" : "text-slate-500 dark:text-slate-400"}`}
+                      className={`text-[9px] font-bold italic ${isColoredCard ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}
                     >
                       No Deadline Set
                     </span>
@@ -652,7 +649,6 @@ const Dashboardmain = () => {
   const { data: tasks = [] } = useGetTasksQuery();
   const [updateTask] = useUpdateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
-  const { events, loading } = useSelector((state) => state.events);
   const { projects } = useSelector((state) => state.projects);
   const { clients } = useSelector((state) => state.clients);
   const { users } = useSelector((state) => state.users);
@@ -740,6 +736,8 @@ const Dashboardmain = () => {
     setGoalPage(1);
   }, [goalTab]);
 
+  const [projectPage, setProjectPage] = useState(1);
+
   const userProjects = React.useMemo(() => {
     if (!projects) return [];
     const currentUserId = user?._id || user?.id;
@@ -748,6 +746,32 @@ const Dashboardmain = () => {
       return creatorId === currentUserId;
     });
   }, [projects, user]);
+
+  const PROJECTS_PER_PAGE = 5;
+  const totalProjectPages =
+    Math.ceil((userProjects?.length || 0) / PROJECTS_PER_PAGE) || 1;
+
+  const paginatedUserProjects = React.useMemo(() => {
+    return (userProjects || []).slice(
+      (projectPage - 1) * PROJECTS_PER_PAGE,
+      projectPage * PROJECTS_PER_PAGE,
+    );
+  }, [userProjects, projectPage]);
+
+  const getClientObjectForProject = (proj) => {
+    if (!proj || !proj.client) return null;
+    if (typeof proj.client === "object" && proj.client.companyName) {
+      return proj.client;
+    }
+    const clientId =
+      typeof proj.client === "object" ? proj.client._id : proj.client;
+    const matched = clients?.find((c) => c._id === clientId);
+    if (matched) return matched;
+    if (typeof proj.client === "string") return { companyName: proj.client };
+    if (proj.client?.companyName || proj.client?.name)
+      return { companyName: proj.client.companyName || proj.client.name };
+    return null;
+  };
 
   const formatGoalDates = (startStr, endStr) => {
     if (!startStr && !endStr) return null;
@@ -1344,37 +1368,85 @@ const Dashboardmain = () => {
   }, [clients, clientSearchQuery]);
 
   const uniqueDepartments = React.useMemo(() => {
-    if (!users || users.length === 0)
-      return ["Graphic Designer", "VideoGrapher", "Editor"];
-    const depts = users
+    const depts = (users || [])
       .map((u) => u.department)
       .filter((d) => d && d.trim() !== "");
     const unique = Array.from(new Set(depts));
 
-    const middleDepts = [];
+    const isExcluded = (d) => {
+      const lower = (d || "").trim().toLowerCase();
+      return (
+        lower.includes("managing partner") ||
+        lower.includes("managingpartner") ||
+        lower.includes("operation manager") ||
+        lower.includes("operationmanager") ||
+        lower.includes("operations manager")
+      );
+    };
 
-    unique.forEach((d) => {
-      const lower = d.toLowerCase();
+    const isGraphic = (d) => {
+      const lower = (d || "").trim().toLowerCase();
+      return lower.includes("graphic") || lower.includes("design");
+    };
+
+    const isCinema = (d) => {
+      const lower = (d || "").trim().toLowerCase();
+      return (
+        lower.includes("cinematog") ||
+        lower.includes("video") ||
+        lower.includes("cinema") ||
+        lower.includes("edit")
+      );
+    };
+
+    const isSocialMedia = (d) => {
+      const lower = (d || "").trim().toLowerCase();
+      return lower.includes("social media") || lower.includes("social");
+    };
+
+    const isWebDev = (d) => {
+      const lower = (d || "").trim().toLowerCase();
+      return lower.includes("web");
+    };
+
+    const isMobileDev = (d) => {
+      const lower = (d || "").trim().toLowerCase();
+      return (
+        lower.includes("mobile") ||
+        lower.includes("flutter") ||
+        lower.includes("react native") ||
+        lower.includes("android") ||
+        lower.includes("ios") ||
+        lower.includes("app")
+      );
+    };
+
+    // Find actual department key present in database or fallback to formatted default name
+    const graphicKey = unique.find(isGraphic) || "Graphic Designer";
+    const cinemaKey = unique.find(isCinema) || "Cinematographer";
+    const socialKey = unique.find(isSocialMedia) || "Social Media Manager";
+    const webKey = unique.find(isWebDev) || "Web Developer";
+    const mobileKey = unique.find(isMobileDev) || "Mobile Developer";
+
+    // Specified order: 1. Graphic Designer, 2. Cinematographer, 3. Social Media Manager, 4. Web Developer, 5. Mobile Developer
+    const ordered = [graphicKey, cinemaKey, socialKey, webKey, mobileKey];
+
+    // Filter remaining department keys (e.g. SEO Specialist, Performance Marketer, etc.)
+    const remainingDepts = unique.filter((d) => {
+      if (ordered.includes(d)) return false;
+      if (isExcluded(d)) return false;
       if (
-        !lower.includes("managing partner") &&
-        !lower.includes("operation manager") &&
-        !lower.includes("graphic designer") &&
-        !lower.includes("videographer") &&
-        !lower.includes("editor")
-      ) {
-        middleDepts.push(d);
-      }
+        isGraphic(d) ||
+        isCinema(d) ||
+        isSocialMedia(d) ||
+        isWebDev(d) ||
+        isMobileDev(d)
+      )
+        return false;
+      return true;
     });
 
-    // Priority Order: 1. Graphic Designer, 2. VideoGrapher, 3. Editor, followed by others
-    const ordered = ["Graphic Designer", "VideoGrapher", "Editor"];
-    middleDepts.forEach((d) => {
-      if (!ordered.includes(d)) {
-        ordered.push(d);
-      }
-    });
-
-    return ordered;
+    return [...ordered, ...remainingDepts];
   }, [users]);
 
   const getInitials = (name) => {
@@ -1387,17 +1459,16 @@ const Dashboardmain = () => {
   };
 
   useEffect(() => {
-    dispatch(getEvents());
-    dispatch(getProjects());
-    dispatch(getUsers());
+    if (!projects || projects.length === 0) dispatch(getProjects());
+    if (!users || users.length === 0) dispatch(getUsers());
     if (
       user?.role === "admin" ||
       user?.role === "operationmanager" ||
       user?.role === "team"
     ) {
-      dispatch(getClients());
+      if (!clients || clients.length === 0) dispatch(getClients());
     }
-  }, [dispatch, user?._id, user?.role]);
+  }, [dispatch, user?._id, user?.role, projects, users, clients]);
 
   useEffect(() => {
     if (clients && clients.length > 0 && !clientId && clients[0]?._id) {
@@ -1431,49 +1502,6 @@ const Dashboardmain = () => {
     "bg-rose-300 text-rose-900 dark:bg-rose-400 dark:text-rose-950",
     "bg-cyan-300 text-cyan-900 dark:bg-cyan-400 dark:text-cyan-950",
   ];
-
-  // Filter and sort upcoming events (today and future)
-  const upcomingEvents = React.useMemo(() => {
-    if (!events) return [];
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    return events
-      .filter((event) => new Date(event.date) >= todayStart)
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(0, 4); // Limit to top 4 upcoming events
-  }, [events]);
-
-  const getRelativeTimeString = (eventDateStr) => {
-    const eventDate = new Date(eventDateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const eventDay = new Date(eventDate);
-    eventDay.setHours(0, 0, 0, 0);
-
-    const timeString = eventDate.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    if (eventDay.getTime() === today.getTime()) {
-      return `Today at ${timeString}`;
-    } else if (eventDay.getTime() === tomorrow.getTime()) {
-      return `Tomorrow at ${timeString}`;
-    } else {
-      return `${eventDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${timeString}`;
-    }
-  };
-
-  const isToday = (eventDateStr) => {
-    const eventDate = new Date(eventDateStr);
-    const today = new Date();
-    return eventDate.toDateString() === today.toDateString();
-  };
 
   const handleToggleTaskComplete = async (task) => {
     const isCompleted = task.status === "Completed";
@@ -1623,7 +1651,7 @@ const Dashboardmain = () => {
     user?.profile?.department ||
     ""
   ).toLowerCase();
-  const canSeeGoalsAndProjects =
+  const canSeeProjectsShortcut =
     roleNorm === "admin" ||
     roleNorm === "operationmanager" ||
     roleNorm === "socialmediamanager" ||
@@ -1637,37 +1665,38 @@ const Dashboardmain = () => {
       {/* GREETING */}
       <WelcomeUser />
 
-      {/* Goal tasks & My Projects shortcut - shown ONLY for Admin, Operation Manager, and Social Media Manager */}
-      {canSeeGoalsAndProjects && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2 relative z-10">
+      {/* Goal tasks (All Users) & My Projects shortcut (Admin, Ops Manager, Social Media Manager only) */}
+      <div className={`grid grid-cols-1 ${canSeeProjectsShortcut ? "lg:grid-cols-2" : "lg:grid-cols-1"} gap-4 mt-2 relative z-10`}>
           {/* My Goals tasks card */}
-          <div className="sidebar-bg rounded-xl border border-slate-200 dark:border-white/5 shadow-xs p-6 flex flex-col min-h-[400px] relative w-full">
+          <div className="sidebar-bg rounded-xl border border-slate-200 dark:border-white/5 shadow-xs p-4 sm:p-5 flex flex-col min-h-[340px] relative w-full">
             {/* Header: Avatar, Title, Lock, and Dots menu */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
                 {/* Yellow initials avatar */}
-                <div className="w-10 h-10 rounded-full bg-[#f5d05e] dark:bg-[#eab308]/90 text-[#543d02] font-semibold text-sm flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-full bg-[#f5d05e] dark:bg-[#eab308]/90 text-[#543d02] font-semibold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                   {getInitials(user?.name) || "Aw"}
                 </div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-medium">My Goals tasks</h3>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+                    My Goals tasks
+                  </h3>
                   <FiLock
-                    size={14}
+                    size={12}
                     className="text-slate-400 dark:text-slate-500 fill-slate-400 dark:fill-slate-500"
                   />
                 </div>
               </div>
 
               {/* Rounded rectangular ... button */}
-              <button className="w-9 h-7 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 flex items-center justify-center text-slate-400 cursor-pointer">
-                <span className="text-base font-bold tracking-widest leading-none">
+              <button className="w-7 h-6 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 flex items-center justify-center text-slate-400 cursor-pointer">
+                <span className="text-xs font-bold tracking-widest leading-none">
                   •••
                 </span>
               </button>
             </div>
 
             {/* Tabs matching reference image */}
-            <div className="flex items-center gap-6 border-b border-slate-100 dark:border-white/5 pb-0.5 mb-2">
+            <div className="flex items-center gap-4 sm:gap-5 border-b border-slate-100 dark:border-white/5 pb-0.5 mb-1.5">
               {[
                 {
                   id: "Upcoming",
@@ -1690,9 +1719,9 @@ const Dashboardmain = () => {
                       setGoalTab(tab.id);
                       setEditingGoalId(null);
                     }}
-                    className={`text-[13px] font-medium pb-2 cursor-pointer relative transition-colors ${
+                    className={`text-xs font-medium pb-1.5 cursor-pointer relative transition-colors ${
                       isActive
-                        ? "text-slate-900 dark:text-slate-500 font-semibold"
+                        ? "text-slate-900 dark:text-slate-300 font-semibold"
                         : "text-slate-455 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-400"
                     }`}
                   >
@@ -1712,13 +1741,13 @@ const Dashboardmain = () => {
             {goalTab === "Upcoming" && (
               <button
                 onClick={() => handleCreateGoal(null, "")}
-                className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors text-[13px] py-2 cursor-pointer pl-1"
+                className="flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors text-xs py-1.5 cursor-pointer pl-0.5"
               >
-                <FiPlus size={14} className="text-slate-455" />
+                <FiPlus size={13} className="text-slate-455" />
                 <span>Create task</span>
               </button>
             )}
-            <div className="flex-1 flex flex-col pt-1">
+            <div className="flex-1 flex flex-col pt-0.5">
               {/* Tasks List with bottom border lines */}
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 mt-0.5 divide-y divide-slate-100 dark:divide-white/5">
                 {paginatedGoals.map((g) => {
@@ -1731,9 +1760,9 @@ const Dashboardmain = () => {
                   return (
                     <div
                       key={g._id}
-                      className="flex items-center justify-between py-2 bg-transparent group/row"
+                      className="flex items-center justify-between py-1.5 bg-transparent group/row"
                     >
-                      <div className="flex items-center gap-3 min-w-0 flex-1 pl-1">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1 pl-0.5">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1743,13 +1772,13 @@ const Dashboardmain = () => {
                           className="shrink-0 focus:outline-none cursor-pointer"
                         >
                           {g.completed ? (
-                            <div className="w-5 h-5 rounded-full border border-slate-350 dark:border-slate-650 flex items-center justify-center text-slate-450">
-                              <FiCheck size={11} className="stroke-[3]" />
+                            <div className="w-4.5 h-4.5 rounded-full border border-slate-350 dark:border-slate-650 flex items-center justify-center text-slate-450">
+                              <FiCheck size={10} className="stroke-[3]" />
                             </div>
                           ) : (
-                            <div className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-300 dark:text-slate-700 hover:border-slate-455 transition-all">
+                            <div className="w-4.5 h-4.5 rounded-full border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-300 dark:text-slate-700 hover:border-slate-455 transition-all">
                               <FiCheck
-                                size={11}
+                                size={10}
                                 className="text-slate-100 dark:text-[#1e1e1e]"
                               />
                             </div>
@@ -1790,14 +1819,14 @@ const Dashboardmain = () => {
                                 handleExistingGoalEnter(g, e.target.value);
                               }
                             }}
-                            className={`goal-inline-input text-[13px] w-full focus:outline-none ${
+                            className={`goal-inline-input text-xs w-full focus:outline-none py-0.5 ${
                               g.completed
                                 ? "goal-completed-text"
                                 : "text-slate-700 dark:text-slate-200"
                             }`}
                           />
                           {g.completed && g.completedAt && (
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500 block -mt-0.5 font-medium pl-0.5">
+                            <span className="text-[9px] text-slate-400 dark:text-slate-500 block -mt-0.5 font-medium pl-0.5">
                               {(() => {
                                 const d = new Date(g.completedAt);
                                 const timeStr = d.toLocaleTimeString([], {
@@ -1816,7 +1845,7 @@ const Dashboardmain = () => {
                       </div>
 
                       {/* Right Date and Actions */}
-                      <div className="flex items-center gap-2.5 shrink-0 pr-1">
+                      <div className="flex items-center gap-2 shrink-0 pr-0.5">
                         {/* Start Date Badge */}
                         <div
                           onClick={(e) => {
@@ -1826,11 +1855,11 @@ const Dashboardmain = () => {
                             );
                             setCalendarTarget("start");
                           }}
-                          className="text-[12px] text-slate-450 dark:text-slate-500 font-normal cursor-pointer hover:underline flex items-center gap-1"
+                          className="text-[11px] text-slate-450 dark:text-slate-500 font-normal cursor-pointer hover:underline flex items-center gap-1"
                         >
                           {dateText ? (
                             <span
-                              className={`px-2 py-0.5 rounded-full font-semibold text-[11px] border ${
+                              className={`px-1.5 py-0.5 rounded-full font-semibold text-[10px] border ${
                                 isOverdueGoal
                                   ? "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/25"
                                   : "bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-white/5"
@@ -1840,8 +1869,8 @@ const Dashboardmain = () => {
                             </span>
                           ) : (
                             /* Dashed circle wrapper around calendar icon when date is missing */
-                            <div className="w-6 h-6 rounded-full border border-dashed border-slate-350 dark:border-slate-650 flex items-center justify-center text-slate-455 hover:text-blue-500 cursor-pointer">
-                              <FiCalendar size={11} />
+                            <div className="w-5 h-5 rounded-full border border-dashed border-slate-350 dark:border-slate-650 flex items-center justify-center text-slate-455 hover:text-blue-500 cursor-pointer">
+                              <FiCalendar size={10} />
                             </div>
                           )}
                         </div>
@@ -1852,9 +1881,9 @@ const Dashboardmain = () => {
                             e.stopPropagation();
                             handleDeleteGoalClick(g._id);
                           }}
-                          className="w-6 h-6 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors cursor-pointer shrink-0 opacity-0 group-hover/row:opacity-100"
+                          className="w-5 h-5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/20 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors cursor-pointer shrink-0 opacity-0 group-hover/row:opacity-100"
                         >
-                          <FiTrash2 size={12} />
+                          <FiTrash2 size={11} />
                         </button>
                       </div>
                     </div>
@@ -1862,9 +1891,9 @@ const Dashboardmain = () => {
                 })}
 
                 {activeTabGoals.length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center text-center py-10">
-                    <FiCheck className="w-7 h-7 text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 rounded-full p-1.5 mb-1.5 animate-bounce" />
-                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <div className="h-full flex flex-col items-center justify-center text-center py-8">
+                    <FiCheck className="w-6 h-6 text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 rounded-full p-1 mb-1 animate-bounce" />
+                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Target & Overdue Tasks
                     </span>
                   </div>
@@ -1873,8 +1902,8 @@ const Dashboardmain = () => {
 
               {/* Pagination Controls */}
               {totalGoalPages > 1 && (
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-white/5 mt-auto bg-transparent px-1">
-                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-550 select-none">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-white/5 mt-auto bg-transparent px-0.5">
+                  <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-550 select-none">
                     Page {goalPage} of {totalGoalPages}
                   </span>
                   <div className="flex items-center gap-1">
@@ -1883,7 +1912,7 @@ const Dashboardmain = () => {
                         setGoalPage((prev) => Math.max(prev - 1, 1))
                       }
                       disabled={goalPage === 1}
-                      className="w-7 h-7 rounded-lg border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-455 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-white/5 transition-all cursor-pointer"
+                      className="w-6 h-6 rounded-md border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs text-slate-455 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-white/5 transition-all cursor-pointer"
                     >
                       &lt;
                     </button>
@@ -1894,7 +1923,7 @@ const Dashboardmain = () => {
                         )
                       }
                       disabled={goalPage === totalGoalPages}
-                      className="w-7 h-7 rounded-lg border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-455 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-white/5 transition-all cursor-pointer"
+                      className="w-6 h-6 rounded-md border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs text-slate-455 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-white/5 transition-all cursor-pointer"
                     >
                       &gt;
                     </button>
@@ -1931,68 +1960,163 @@ const Dashboardmain = () => {
             )}
           </div>
 
-          {/* MY PROJECTS card */}
-          <div className="sidebar-bg rounded-xl border border-slate-200 dark:border-white/5 shadow-xs p-6 flex flex-col min-h-[400px]">
-            {/* Header: Title and Go to project page link */}
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-[13px] font-black text-[#2e1d6c] dark:text-[#a594fd] uppercase tracking-wider">
-                My Projects
-              </h3>
-              <Link
-                to={`/${user?.role}/projects`}
-                className="text-[13px] font-bold text-[#8370ec] dark:text-[#9b89ff] hover:underline cursor-pointer"
-              >
-                Go to project page
-              </Link>
-            </div>
+          {/* MY PROJECTS card - shown ONLY for Admin, Operation Manager, and Social Media Manager */}
+          {canSeeProjectsShortcut && (
+            <div className="sidebar-bg rounded-xl border border-slate-200 dark:border-white/5 shadow-xs p-4 sm:p-5 flex flex-col justify-between min-h-[200px]">
+              <div>
+                {/* Header: Title, Count, Go to project page, Pagination */}
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-xs font-black text-[#2e1d6c] dark:text-[#a594fd] uppercase tracking-wider">
+                      My Projects
+                    </h3>
+                    <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/50 text-[#8370ec] dark:text-[#9b89ff]">
+                      {userProjects?.length || 0}
+                    </span>
+                  </div>
 
-            {/* Grid list of project blocks */}
-            <div className="flex flex-wrap gap-4 align-top content-start">
-              {/* Dashed Create Project Button */}
-              <div
-                onClick={() => setShowCreateModal(true)}
-                className="w-44 h-20 border-2 border-dashed border-[#8d7df5]/60 hover:border-[#8d7df5] dark:border-purple-600/40 rounded-2xl flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-white/20 dark:bg-white/5 hover:bg-white/40 dark:hover:bg-white/10 transition-all text-[#2e1d6c] dark:text-purple-300"
-              >
-                <span className="text-xl font-bold font-sans">+</span>
-                <span className="text-[10px] font-black uppercase tracking-wider">
-                  Create Project
-                </span>
+                  <div className="flex items-center gap-2.5">
+                    <Link
+                      to={`/${user?.role}/projects`}
+                      className="text-[11px] font-bold text-[#8370ec] dark:text-[#9b89ff] hover:underline cursor-pointer flex items-center gap-0.5"
+                    >
+                      <span>Go to project page</span>
+                      <FiChevronRight size={12} />
+                    </Link>
+
+                    {/* Header Quick Pagination Controls */}
+                    {totalProjectPages > 1 && (
+                      <div className="flex items-center gap-1 bg-white/40 dark:bg-white/5 border border-purple-200/50 dark:border-white/10 rounded-lg p-0.5">
+                        <button
+                          type="button"
+                          disabled={projectPage === 1}
+                          onClick={() =>
+                            setProjectPage((prev) => Math.max(1, prev - 1))
+                          }
+                          className="w-4.5 h-4.5 rounded flex items-center justify-center text-[10px] font-bold text-[#2e1d6c] dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-all"
+                          title="Previous page"
+                        >
+                          ‹
+                        </button>
+                        <span className="text-[9px] font-bold text-[#2e1d6c] dark:text-purple-200 px-0.5">
+                          {projectPage}/{totalProjectPages}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={projectPage >= totalProjectPages}
+                          onClick={() =>
+                            setProjectPage((prev) =>
+                              Math.min(totalProjectPages, prev + 1),
+                            )
+                          }
+                          className="w-4.5 h-4.5 rounded flex items-center justify-center text-[10px] font-bold text-[#2e1d6c] dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-all"
+                          title="Next page"
+                        >
+                          ›
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Grid list of project blocks */}
+                <div className="flex flex-wrap gap-2 items-center align-top content-start">
+                  {/* Compact Dashed Create Project Button */}
+                  <div
+                    onClick={() => setShowCreateModal(true)}
+                    className="w-32 h-11 border-2 border-dashed border-[#8d7df5]/60 hover:border-[#8d7df5] dark:border-purple-600/40 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer bg-white/20 dark:bg-white/5 hover:bg-white/40 dark:hover:bg-white/10 transition-all text-[#2e1d6c] dark:text-purple-300 px-2.5 py-1.5 shrink-0 group shadow-2xs"
+                  >
+                    <div className="w-5 h-5 rounded-md bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center text-[#8d7df5] dark:text-purple-300 group-hover:scale-110 transition-transform">
+                      <FiPlus size={12} className="stroke-[3]" />
+                    </div>
+                    <span className="text-[10px] font-bold tracking-tight truncate">
+                      Create Project
+                    </span>
+                  </div>
+
+                  {/* Paginated projects list */}
+                  {paginatedUserProjects &&
+                    paginatedUserProjects.map((proj) => {
+                      const clientObj = getClientObjectForProject(proj);
+                      return (
+                        <Link
+                          key={proj._id}
+                          to={`/${user?.role}/projects?id=${proj._id}`}
+                          className="w-44 sm:w-48 h-12 bg-white/80 dark:bg-white/5 rounded-xl px-2.5 py-1.5 flex items-center gap-2 border border-white/60 dark:border-white/5 shadow-2xs hover:shadow-sm hover:border-purple-300/50 dark:hover:border-purple-500/30 transition-all cursor-pointer text-left block shrink-0 group"
+                        >
+                          <div className="w-6.5 h-6.5 rounded-md bg-purple-100/80 dark:bg-purple-950/40 flex items-center justify-center text-[#8d7df5] dark:text-purple-300 shrink-0 border border-purple-200/40 dark:border-white/5 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                            <FiLayers size={12} />
+                          </div>
+                          <div className="min-w-0 flex-1 flex flex-col justify-center">
+                            <h4 className="text-[10.5px] font-bold text-[#2e1d6c] dark:text-purple-200 truncate leading-tight group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors">
+                              {proj.name}
+                            </h4>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              {clientObj && (
+                                <ClientBadge
+                                  client={clientObj}
+                                  size="sm"
+                                  className="!text-[7.5px] !py-[0.5px] !px-1 font-bold"
+                                />
+                              )}
+                              <span className="text-[7.5px] font-extrabold text-[#8d7df5] dark:text-purple-400 uppercase tracking-wider">
+                                {proj.status || "Active"}
+                              </span>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                </div>
               </div>
 
-              {/* Loop through projects created by current user */}
-              {userProjects &&
-                userProjects.slice(0, 3).map((proj) => (
-                  <Link
-                    key={proj._id}
-                    to={`/${user?.role}/projects?id=${proj._id}`}
-                    className="w-52 h-20 bg-white/80 dark:bg-white/5 rounded-2xl p-4 flex items-center gap-3 border border-white/40 dark:border-white/5 shadow-xs hover:shadow-md transition-all cursor-pointer text-left block"
-                  >
-                    <div className="flex items-center gap-3 w-full">
-                      <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950/30 flex items-center justify-center text-[#8d7df5] dark:text-purple-300 shrink-0 border border-purple-200/40 dark:border-white/5">
-                        <FiLayers size={16} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-[12px] font-bold text-[#2e1d6c] dark:text-purple-200 truncate leading-tight">
-                          {proj.name}
-                        </h4>
-                        <span className="text-[9px] font-black text-[#8d7df5] dark:text-purple-400 uppercase tracking-widest block mt-1">
-                          {proj.status || "Active"}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+              {/* Footer Pagination Bar */}
+              {totalProjectPages > 1 && (
+                <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-200/50 dark:border-white/5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  <span>
+                    Showing {(projectPage - 1) * PROJECTS_PER_PAGE + 1}–
+                    {Math.min(
+                      projectPage * PROJECTS_PER_PAGE,
+                      userProjects?.length || 0,
+                    )}{" "}
+                    of {userProjects?.length || 0} projects
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={projectPage === 1}
+                      onClick={() =>
+                        setProjectPage((prev) => Math.max(1, prev - 1))
+                      }
+                      className="px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10 text-[11px] font-semibold hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all flex items-center gap-1"
+                    >
+                      <span>Prev</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={projectPage >= totalProjectPages}
+                      onClick={() =>
+                        setProjectPage((prev) =>
+                          Math.min(totalProjectPages, prev + 1),
+                        )
+                      }
+                      className="px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10 text-[11px] font-semibold hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all flex items-center gap-1"
+                    >
+                      <span>Next</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
-      )}
 
       {/* .................................................Dashboard Cards / Assigned Clients.............................. */}
       {(() => {
         const isAdminOrOpManager =
           user?.role === "admin" || user?.role === "operationmanager";
         return isAdminOrOpManager ? (
-          <div className="mb-4 p-4">
+          <div className="mb-4 md:p-4">
             <DashboardCards />
           </div>
         ) : (
@@ -2042,9 +2166,13 @@ const Dashboardmain = () => {
         user?.department?.toLowerCase() === "social media manager") && (
         <div className="w-full py-4 md:py-10">
           {/* Department Tabs */}
-          <div className="flex justify-center w-full mb-8">
+          <div className="flex justify-center w-full mb-8 px-2">
             <div
-              className={`flex gap-1.5 p-2.5  border rounded-full shadow-inner max-w-full overflow-x-auto scrollbar-hide backdrop-blur-md ${isDark ? "bg-slate-50 border-slate-100" : "bg-slate-100/80 border-slate-200/50"}`}
+              className={`flex gap-1.5 p-2.5 border rounded-full shadow-inner max-w-full overflow-x-auto scrollbar-hide no-scrollbar backdrop-blur-md ${isDark ? "bg-slate-50 border-slate-100" : "bg-slate-100/80 border-slate-200/50"}`}
+              style={{
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
             >
               {uniqueDepartments.map((dept) => {
                 const isActive = activeDeptTab === dept;
@@ -2079,42 +2207,50 @@ const Dashboardmain = () => {
           </div>
 
           {/* Tab Content */}
-          {["Graphic Designer", "VideoGrapher", "Editor"].includes(
-            activeDeptTab,
-          ) && <GraphicDesignerDashboard targetDept={activeDeptTab} />}
-          {activeDeptTab?.toLowerCase().includes("web") && (
-            <WebDeveloperDashboard targetDept={activeDeptTab} />
-          )}
-          {activeDeptTab?.toLowerCase().includes("social") && (
-            <SocialMediaManagerDashboard targetDept={activeDeptTab} />
-          )}
-          {activeDeptTab?.toLowerCase().includes("seo") && (
-            <SEOSpecialistDashboard targetDept={activeDeptTab} />
-          )}
-          {activeDeptTab?.toLowerCase().includes("performance") && (
-            <PerformanceMarketerDashboard targetDept={activeDeptTab} />
-          )}
-
-          {!["Graphic Designer", "VideoGrapher", "Editor"].includes(
-            activeDeptTab,
-          ) &&
-            !activeDeptTab?.toLowerCase().includes("web") &&
-            !activeDeptTab?.toLowerCase().includes("social") &&
-            !activeDeptTab?.toLowerCase().includes("seo") &&
-            !activeDeptTab?.toLowerCase().includes("performance") && (
-              <div className="theme-bg-card border theme-border border-dashed rounded-2xl p-12 text-center flex flex-col items-center justify-center min-h-[200px]">
-                <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400 border theme-border">
-                  <FiLayers size={22} />
-                </div>
-                <h3 className="font-bold theme-text-primary mt-4 text-sm">
-                  No stats card for {activeDeptTab}
-                </h3>
-                <p className="text-xs theme-text-secondary mt-1 max-w-xs">
-                  Stats dashboard configuration is currently pending for this
-                  department.
-                </p>
+          {/* Tab Content */}
+          <React.Suspense
+            fallback={
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-8 w-8 border-2 border-blue-500 rounded-full border-t-transparent"></div>
               </div>
+            }
+          >
+            {(["Graphic Designer", "VideoGrapher", "Cinematographer"].some(
+              (k) => activeDeptTab?.toLowerCase().includes(k.toLowerCase()),
+            ) ||
+              activeDeptTab?.toLowerCase().includes("design") ||
+              activeDeptTab?.toLowerCase().includes("cinema") ||
+              activeDeptTab?.toLowerCase().includes("video")) && (
+              <GraphicDesignerDashboard targetDept={activeDeptTab} />
             )}
+            {activeDeptTab?.toLowerCase().includes("web") && (
+              <WebDeveloperDashboard targetDept={activeDeptTab} />
+            )}
+            {activeDeptTab?.toLowerCase().includes("mobile") && (
+              <MobileDeveloperDashboard targetDept={activeDeptTab} />
+            )}
+            {activeDeptTab?.toLowerCase().includes("social") && (
+              <SocialMediaManagerDashboard targetDept={activeDeptTab} />
+            )}
+            {activeDeptTab?.toLowerCase().includes("seo") && (
+              <SEOSpecialistDashboard targetDept={activeDeptTab} />
+            )}
+            {activeDeptTab?.toLowerCase().includes("performance") && (
+              <PerformanceMarketerDashboard targetDept={activeDeptTab} />
+            )}
+
+            {!activeDeptTab?.toLowerCase().includes("graphic") &&
+              !activeDeptTab?.toLowerCase().includes("design") &&
+              !activeDeptTab?.toLowerCase().includes("cinema") &&
+              !activeDeptTab?.toLowerCase().includes("video") &&
+              !activeDeptTab?.toLowerCase().includes("web") &&
+              !activeDeptTab?.toLowerCase().includes("mobile") &&
+              !activeDeptTab?.toLowerCase().includes("social") &&
+              !activeDeptTab?.toLowerCase().includes("seo") &&
+              !activeDeptTab?.toLowerCase().includes("performance") && (
+                <GraphicDesignerDashboard targetDept={activeDeptTab} />
+              )}
+          </React.Suspense>
         </div>
       )}
       {/* end................................................................................................... */}
@@ -2129,332 +2265,6 @@ const Dashboardmain = () => {
           </div>
         )}
 
-      {/* user details list name and email */}
-      {(user?.role === "admin" || user?.role === "operationmanager") && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-          {/* Left Side: Users List */}
-          <div className="theme-bg-card theme-border border rounded-2xl p-5 shadow-sm flex flex-col h-[400px]">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[14px] font-bold theme-text-primary flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-[var(--accent-light-bg-subtle)] dark:bg-[var(--accent-dark-bg-subtle)] flex items-center justify-center">
-                  <FiUser
-                    size={12}
-                    className="text-[var(--accent-color)] dark:text-[var(--accent-color-dark)]"
-                  />
-                </span>
-                Team Members
-              </h3>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 tracking-wider">
-                {users?.length || 0} USERS
-              </span>
-            </div>
-
-            {/* Scrollable List */}
-            <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-2">
-              {users?.map((u) => {
-                const avatarUrl =
-                  u.profile?.profileImage?.url || u.profileImage?.url;
-                const initial = u.name?.charAt(0).toUpperCase() || "?";
-                return (
-                  <div
-                    key={u._id}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-800/40 hover:border-[var(--accent-color)]/30 dark:hover:border-[var(--accent-color-dark)]/30 hover:shadow-md dark:hover:bg-slate-800/70 transition-all duration-200 group"
-                  >
-                    {/* Avatar */}
-                    <div className="relative shrink-0">
-                      {avatarUrl ? (
-                        <img
-                          src={avatarUrl}
-                          alt={u.name}
-                          className="w-11 h-11 rounded-full object-cover shadow-sm ring-2 ring-white dark:ring-slate-700 group-hover:ring-[var(--accent-color)]/40 dark:group-hover:ring-[var(--accent-color-dark)]/30 transition-all"
-                        />
-                      ) : (
-                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-[#3b82f6] dark:to-emerald-400 flex items-center justify-center text-white dark:text-black font-black text-base shadow-sm ring-2 ring-white dark:ring-slate-700">
-                          {initial}
-                        </div>
-                      )}
-                      {/* Online dot */}
-                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white dark:border-slate-800 shadow-sm" />
-                    </div>
-
-                    {/* Info */}
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-[13px] font-bold text-slate-800 dark:text-white truncate leading-tight group-hover:text-[var(--accent-color)] dark:group-hover:text-[var(--accent-color-dark)] transition-colors">
-                        {u.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 dark:text-slate-400 truncate mt-0.5">
-                        {u.email}
-                      </p>
-                    </div>
-
-                    {/* Department badge */}
-                    {u.department && (
-                      <div className="shrink-0 px-2 py-1 rounded-lg bg-[var(--accent-light-bg-subtle)] dark:bg-[var(--accent-dark-bg-subtle)] border border-[var(--accent-color)]/20 dark:border-[var(--accent-color-dark)]/15">
-                        <span className="text-[9px] font-extrabold text-[var(--accent-color)] dark:text-[var(--accent-color-dark)] uppercase tracking-wider whitespace-nowrap">
-                          {u.department}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              {!users?.length && (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 opacity-60 pt-10">
-                  <FiUser size={32} />
-                  <p className="text-xs font-semibold">No users found</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Side: Department Chart */}
-          <div className="theme-bg-card theme-border border rounded-2xl p-5 shadow-sm flex flex-col h-[400px]">
-            <h3 className="text-[14px] font-bold theme-text-primary mb-2 flex items-center gap-2">
-              <FiTarget className="text-[var(--accent-color)] dark:text-[var(--accent-color-dark)]" />
-              Department Distribution
-            </h3>
-            <div className="flex-1 relative w-full flex items-center justify-center min-h-[300px]">
-              {Object.keys(departmentCounts).length > 0 ? (
-                <Doughnut data={chartData} options={chartOptions} />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-slate-400 gap-2 opacity-60">
-                  <FiAlertCircle size={32} />
-                  <p className="text-xs font-semibold">No department data</p>
-                </div>
-              )}
-
-              {/* Center Label inside Doughnut */}
-              {Object.keys(departmentCounts).length > 0 && (
-                <div
-                  className={`absolute inset-0 flex flex-col items-center justify-center pointer-events-none transition-all duration-300 ${
-                    isMobile ? "pb-[30px]" : "pr-[120px]"
-                  }`}
-                >
-                  <span className="text-3xl font-black theme-text-primary">
-                    {users?.filter((u) => u.department).length || 0}
-                  </span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    Assigned
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TWO-COLUMN LOWER DASHBOARD SECTION */}
-      {(user?.role === "admin" || user?.role === "operationmanager") && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
-          {/* UPCOMING EVENTS SECTION */}
-          <div className="lg:col-span-2 theme-bg-card border theme-border rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-4 border-b theme-border pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-sm">
-                  <FiCalendar size={15} />
-                </div>
-                <div>
-                  <h2 className="text-[13px] font-black theme-text-primary uppercase tracking-wider">
-                    Upcoming Events & Deliverables
-                  </h2>
-                  <p className="text-[10px] theme-text-secondary font-bold">
-                    Next scheduled calendar initiatives and marketing deadlines
-                  </p>
-                </div>
-              </div>
-
-              <Link
-                to={`/${user?.role}/calendar`}
-                className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-350 flex items-center gap-1 uppercase tracking-wider transition-colors"
-              >
-                Calendar Page
-                <FiChevronRight size={10} className="stroke-[3]" />
-              </Link>
-            </div>
-
-            {/* Live Events List */}
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <div className="w-7 h-7 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-[10px] theme-text-secondary font-bold">
-                  Refreshing schedule...
-                </span>
-              </div>
-            ) : upcomingEvents.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {upcomingEvents.map((event) => {
-                  const conf = TYPE_CONFIG[event.type] || {
-                    color: "text-slate-500 bg-slate-500/10 border-slate-500/20",
-                    icon: FiCalendar,
-                  };
-                  const EventIcon = conf.icon;
-                  const eventIsToday = isToday(event.date);
-
-                  return (
-                    <motion.div
-                      whileHover={{ y: -2, transition: { duration: 0.15 } }}
-                      key={event._id}
-                      className={`relative overflow-hidden p-3.5 rounded-xl border flex flex-col justify-between transition-all theme-bg-main ${
-                        eventIsToday
-                          ? "border-indigo-500/40 dark:border-indigo-900/40 ring-1 ring-indigo-500/10 shadow-[0_0_15px_rgba(99,102,241,0.05)]"
-                          : "theme-border hover:border-slate-300 dark:hover:border-slate-750"
-                      }`}
-                    >
-                      {/* Live Pulse Badge for Today's events */}
-                      {eventIsToday && (
-                        <span className="absolute top-3 right-3 flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
-                        </span>
-                      )}
-
-                      <div>
-                        {/* Meta header */}
-                        <div className="flex items-center justify-between mb-2.5">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${conf.color} flex items-center gap-1`}
-                          >
-                            <EventIcon size={9} />
-                            {event.type}
-                          </span>
-
-                          <span className="text-[9px] theme-text-secondary font-bold flex items-center gap-1">
-                            <FiClock size={10} />
-                            {getRelativeTimeString(event.date)}
-                          </span>
-                        </div>
-
-                        {/* Event Title */}
-                        <h3 className="text-xs font-black theme-text-primary line-clamp-1">
-                          {event.title}
-                        </h3>
-
-                        {/* Description */}
-                        {event.description && (
-                          <p className="text-[10px] theme-text-secondary mt-1 leading-normal font-medium line-clamp-2">
-                            {event.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Client Footer */}
-                      <div className="mt-3.5 pt-2.5 border-t theme-border flex items-center justify-between text-[9px] font-bold">
-                        <span className="theme-text-secondary uppercase tracking-wider">
-                          Client Account
-                        </span>
-                        <div className="max-w-[150px] flex justify-end truncate">
-                          {event.client ? (
-                            <ClientBadge
-                              client={event.client}
-                              size="sm"
-                              className="!text-[8px] !px-1.5 !py-0.5"
-                            />
-                          ) : (
-                            <span className="theme-text-primary font-extrabold truncate">
-                              Internal Event
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-12 flex flex-col items-center justify-center text-center">
-                <div className="w-12 h-12 rounded-full theme-bg-main flex items-center justify-center mb-3 theme-icon">
-                  <FiAlertCircle size={18} />
-                </div>
-                <h4 className="text-xs font-bold theme-text-primary">
-                  No Upcoming Scheduled Initiatives
-                </h4>
-                <p className="text-[10px] theme-text-secondary mt-1 max-w-xs">
-                  There are no scheduled events, reports, or content
-                  deliverables listed for today or the coming week.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* WORKSPACE & ACTION SHORTCUTS */}
-          <div className="theme-bg-card border theme-border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-4 border-b theme-border pb-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 shadow-sm">
-                  <FiTarget size={15} />
-                </div>
-                <div>
-                  <h2 className="text-[13px] font-black theme-text-primary uppercase tracking-wider">
-                    Shortcut Navigation
-                  </h2>
-                  <p className="text-[10px] theme-text-secondary font-bold">
-                    Quick access to operational zones
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Link
-                  to={`/${user?.role}/projects`}
-                  className="flex items-center justify-between p-3 rounded-xl theme-bg-main hover:bg-slate-100/70 border theme-border transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-6 h-6 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
-                      <FiLayers size={12} />
-                    </span>
-                    <span className="text-[11px] font-bold theme-text-primary truncate">
-                      Active Projects & Tasks
-                    </span>
-                  </div>
-                  <FiChevronRight
-                    size={12}
-                    className="theme-icon group-hover:translate-x-0.5 transition-transform"
-                  />
-                </Link>
-
-                <Link
-                  to={`/${user?.role}/chat`}
-                  className="flex items-center justify-between p-3 rounded-xl theme-bg-main hover:bg-slate-100/70 border theme-border transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-6 h-6 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0">
-                      <FiUser size={12} />
-                    </span>
-                    <span className="text-[11px] font-bold theme-text-primary truncate">
-                      Team Chats & Rooms
-                    </span>
-                  </div>
-                  <FiChevronRight
-                    size={12}
-                    className="theme-icon group-hover:translate-x-0.5 transition-transform"
-                  />
-                </Link>
-
-                {user?.role === "admin" && (
-                  <Link
-                    to={`/admin/clients`}
-                    className="flex items-center justify-between p-3 rounded-xl theme-bg-main hover:bg-slate-100/70 border theme-border transition-all group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                        <FiUser size={12} />
-                      </span>
-                      <span className="text-[11px] font-bold theme-text-primary truncate">
-                        Manage clients profiles
-                      </span>
-                    </div>
-                    <FiChevronRight
-                      size={12}
-                      className="theme-icon group-hover:translate-x-0.5 transition-transform"
-                    />
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* CREATE PROJECT OFFCANVAS DRAWER */}
       <AnimatePresence>
         {showCreateModal && (

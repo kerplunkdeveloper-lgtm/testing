@@ -106,7 +106,10 @@ exports.createClient = async (req, res) => {
 exports.getClients = async (req, res) => {
   try {
     let query = {};
-    if (req.user.role !== "admin" && req.user.role !== "operationmanager") {
+    if (
+      (req.user.role !== "admin" && req.user.role !== "operationmanager") ||
+      req.query.assignedOnly === "true"
+    ) {
       query.assignedTo = req.user._id;
     }
 

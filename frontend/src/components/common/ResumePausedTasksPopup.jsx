@@ -2,9 +2,17 @@ import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useGetTasksQuery, useUpdateTaskMutation } from "../../features/api/apiSlice";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiPlay, FiX } from "react-icons/fi";
+import { FiArrowRight, FiCheckCircle, FiClock, FiX } from "react-icons/fi";
 import axiosInstance from "../../services/axiosInstance";
 import toast from "react-hot-toast";
+
+const formatDurationHM = (ms = 0) => {
+  if (!ms || isNaN(ms)) return "0h 00m";
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  return `${h}h ${m.toString().padStart(2, "0")}m`;
+};
 
 const ResumePausedTasksPopup = () => {
   const { user } = useSelector((state) => state.auth);
@@ -28,6 +36,7 @@ const ResumePausedTasksPopup = () => {
           setOfficeHours({
             startHour: data.data.startHour,
             endHour: data.data.endHour,
+            workingDays: data.data.workingDays || [1, 2, 3, 4, 5, 6],
           });
         }
       } catch (err) {
@@ -42,43 +51,19 @@ const ResumePausedTasksPopup = () => {
   const isCurrentlyInBusinessHours = () => {
     const now = new Date();
     const day = now.getDay();
-    if (day === 0 || day === 6) return false; // weekends
+    const workingDays =
+      officeHours.workingDays && officeHours.workingDays.length > 0
+        ? officeHours.workingDays
+        : [1, 2, 3, 4, 5, 6];
+    if (!workingDays.includes(day)) return false;
     const hour = now.getHours();
     return hour >= officeHours.startHour && hour < officeHours.endHour;
-  };
-
-  const formatPausedTime = (dateVal) => {
-    if (!dateVal) return "";
-    const date = new Date(dateVal);
-    const now = new Date();
-    
-    const isTodayVal = date.toDateString() === now.toDateString();
-    
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const isYesterdayVal = date.toDateString() === yesterday.toDateString();
-
-    let hours = date.getHours();
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    const ampm = hours >= 12 ? "PM" : "AM";
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    const timeStr = `${hours}:${minutes} ${ampm}`;
-
-    if (isTodayVal) {
-      return `Today ${timeStr}`;
-    } else if (isYesterdayVal) {
-      return `Yesterday ${timeStr}`;
-    } else {
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      return `${months[date.getMonth()]} ${date.getDate()}, ${timeStr}`;
-    }
   };
 
   useEffect(() => {
     if (!tasks || tasks.length === 0 || !currentUserId) return;
 
-    // Check if prompt was already shown today
+    // Check if prompt was already dismissed today
     const todayStr = new Date().toDateString();
     const storageKey = `resume_prompt_shown_${currentUserId}_${todayStr}`;
     if (localStorage.getItem(storageKey)) return;
@@ -86,40 +71,48 @@ const ResumePausedTasksPopup = () => {
     // Check if we are currently in business hours
     if (!isCurrentlyInBusinessHours()) return;
 
-    // Find all paused tasks/subtasks assigned to the user
-    const pausedItems = [];
+    // Find tasks/subtasks assigned to user that are in "On Hold"
+    const onHoldItems = [];
 
     tasks.forEach((t) => {
-      const isAssignee = (t.assignedTo?._id || t.assignedTo) === currentUserId;
-      if (isAssignee && t.status === "On Hold") {
-        pausedItems.push({
+      const isAssignee = Array.isArray(t.assignedTo)
+        ? t.assignedTo.some((u) => (u?._id || u) === currentUserId)
+        : (t.assignedTo?._id || t.assignedTo) === currentUserId;
+
+      if (isAssignee && t.status === "On Hold" && t.autoPaused) {
+        onHoldItems.push({
           task: t,
           target: t,
           isSubtask: false,
-          pausedAt: t.pausedAt ? new Date(t.pausedAt) : new Date(t.updatedAt),
+          totalTrackedTime: t.totalTrackedTime || 0,
+          pausedAt: t.holdStartedAt ? new Date(t.holdStartedAt) : t.pausedAt ? new Date(t.pausedAt) : new Date(t.updatedAt),
         });
       }
 
       t.subtasks?.forEach((sub) => {
-        const isSubAssignee = (sub.assignedTo?._id || sub.assignedTo) === currentUserId;
-        if (isSubAssignee && sub.status === "On Hold") {
-          pausedItems.push({
+        const isSubAssignee = Array.isArray(sub.assignedTo)
+          ? sub.assignedTo.some((u) => (u?._id || u) === currentUserId)
+          : (sub.assignedTo?._id || sub.assignedTo) === currentUserId;
+
+        if (isSubAssignee && sub.status === "On Hold" && sub.autoPaused) {
+          onHoldItems.push({
             task: t,
             target: sub,
             isSubtask: true,
-            pausedAt: sub.pausedAt ? new Date(sub.pausedAt) : new Date(t.updatedAt),
+            totalTrackedTime: sub.totalTrackedTime || 0,
+            pausedAt: sub.holdStartedAt ? new Date(sub.holdStartedAt) : sub.pausedAt ? new Date(sub.pausedAt) : new Date(t.updatedAt),
           });
         }
       });
     });
 
-    if (pausedItems.length > 0) {
-      // Sort to get the most recently paused one first
-      pausedItems.sort((a, b) => b.pausedAt - a.pausedAt);
+    if (onHoldItems.length > 0) {
+      // Sort most recently paused first
+      onHoldItems.sort((a, b) => b.pausedAt - a.pausedAt);
 
       setResumeTaskData({
-        totalCount: pausedItems.length,
-        item: pausedItems[0],
+        totalCount: onHoldItems.length,
+        item: onHoldItems[0],
       });
       setIsOpen(true);
     }
@@ -132,11 +125,10 @@ const ResumePausedTasksPopup = () => {
     setIsOpen(false);
   };
 
-  const handleResume = async () => {
+  const handleContinueTask = async () => {
     if (!resumeTaskData) return;
     const { item } = resumeTaskData;
-    
-    // Mark as shown for today
+
     const todayStr = new Date().toDateString();
     const storageKey = `resume_prompt_shown_${currentUserId}_${todayStr}`;
     localStorage.setItem(storageKey, "true");
@@ -146,7 +138,7 @@ const ResumePausedTasksPopup = () => {
       if (item.isSubtask) {
         const updatedSubtasks = item.task.subtasks.map((sub) => {
           if (sub._id === item.target._id) {
-            return { ...sub, status: "In Progress" };
+            return { ...sub, status: "Pending" };
           }
           return sub;
         });
@@ -157,13 +149,13 @@ const ResumePausedTasksPopup = () => {
       } else {
         await updateTask({
           id: item.task._id,
-          taskData: { status: "In Progress" },
+          taskData: { status: "Pending" },
         }).unwrap();
       }
-      toast.success("Task resumed successfully!");
+      toast.success("Task status updated to Pending. Ready for today's work!");
     } catch (err) {
-      console.error("Failed to resume task:", err);
-      toast.error(err?.data?.message || "Failed to resume task.");
+      console.error("Failed to continue task:", err);
+      toast.error(err?.data?.message || "Failed to update task status.");
     }
   };
 
@@ -172,15 +164,15 @@ const ResumePausedTasksPopup = () => {
       {isOpen && resumeTaskData && (
         <div className="fixed inset-0 z-[999998] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            initial={{ opacity: 0, scale: 0.92, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ type: "spring", duration: 0.5 }}
-            className="w-full max-w-sm bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl text-center relative overflow-hidden"
+            exit={{ opacity: 0, scale: 0.92, y: 16 }}
+            transition={{ type: "spring", duration: 0.45 }}
+            className="w-full max-w-md bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden"
           >
             {/* Decorative top strip */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500" />
-            
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-blue-500 to-indigo-600" />
+
             {/* Close button */}
             <button
               onClick={handleClose}
@@ -189,50 +181,77 @@ const ResumePausedTasksPopup = () => {
               <FiX size={16} />
             </button>
 
-            <div className="flex flex-col items-center gap-3">
-              <span className="text-4xl mt-2 animate-bounce">👋</span>
-              <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                Welcome Back
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                You have {resumeTaskData.totalCount} paused {resumeTaskData.totalCount === 1 ? "task" : "tasks"}.
-              </p>
-            </div>
-
-            {/* Task Info Panel */}
-            <div className="my-5 p-4 rounded-2xl bg-slate-50/85 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-left space-y-3">
-              <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">
-                Continue where you left off.
+            {/* Header */}
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0 text-2xl">
+                ⏳
               </div>
-              <div className="h-px bg-slate-200/60 dark:bg-slate-800/80" />
-              <div className="space-y-2">
-                <div>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
-                    Task
-                  </span>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug truncate block">
-                    {resumeTaskData.item.target.title}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
-                    Paused
-                  </span>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                    {formatPausedTime(resumeTaskData.item.pausedAt)}
-                  </span>
-                </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight">
+                  Task was On Hold yesterday
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                  This task was placed On Hold at the end of the previous working day.
+                </p>
               </div>
             </div>
 
-            <div className="pt-2">
+            {/* Task Title */}
+            <div className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 text-left mb-4">
+              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-0.5">
+                Task
+              </span>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
+                {resumeTaskData.item.target.title || resumeTaskData.item.task.title}
+              </span>
+            </div>
+
+            {/* Status Transition Badge */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-slate-50 via-blue-50/50 to-slate-50 dark:from-slate-900/80 dark:via-blue-950/20 dark:to-slate-900/80 border border-slate-200/80 dark:border-slate-800 mb-4">
+              <div className="text-left space-y-0.5">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
+                  Status will change:
+                </span>
+                <div className="flex items-center gap-2 font-black text-xs">
+                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 text-[10px]">
+                    ON HOLD
+                  </span>
+                  <FiArrowRight size={12} className="text-blue-500" />
+                  <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 text-[10px]">
+                    PENDING
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
+                  Yesterday's Tracked:
+                </span>
+                <span className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  {formatDurationHM(resumeTaskData.item.totalTrackedTime)}
+                </span>
+              </div>
+            </div>
+
+            {/* Timer Notice */}
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 text-left mb-5">
+              <FiClock size={16} className="text-blue-600 dark:text-blue-400 shrink-0" />
+              <div className="text-[11px] text-blue-900 dark:text-blue-200 font-semibold leading-tight">
+                Today's productivity tracking will start from:{" "}
+                <span className="font-mono font-black text-blue-700 dark:text-blue-300">
+                  00:00:00
+                </span>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <div>
               <button
                 type="button"
-                onClick={handleResume}
-                className="w-full py-3 px-5 rounded-2xl text-xs font-black text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                onClick={handleContinueTask}
+                className="w-full py-3.5 px-5 rounded-2xl text-xs font-black uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/25 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
               >
-                <FiPlay size={12} fill="currentColor" />
-                Resume
+                <FiCheckCircle size={15} />
+                Continue Task
               </button>
             </div>
           </motion.div>
@@ -243,3 +262,4 @@ const ResumePausedTasksPopup = () => {
 };
 
 export default ResumePausedTasksPopup;
+

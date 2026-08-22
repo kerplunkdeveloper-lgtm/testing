@@ -34,6 +34,11 @@ const SubtaskSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  feedbackMom: {
+    type: String,
+    default: "",
+    trim: true,
+  },
   actualStartTime: {
     type: Date,
   },
@@ -131,6 +136,55 @@ const SubtaskSchema = new mongoose.Schema({
   ],
 
 
+  totalTrackedTime: {
+    type: Number,
+    default: 0,
+  },
+  dailyTrackedTime: {
+    type: Number,
+    default: 0,
+  },
+  holdStartedAt: {
+    type: Date,
+    default: null,
+  },
+  holdEndedAt: {
+    type: Date,
+    default: null,
+  },
+  statusHistory: [
+    {
+      status: {
+        type: String,
+        enum: ["Pending", "In Progress", "Completed", "On Hold", "In Review", "Rejected", "Correction"],
+        required: true,
+      },
+      startTime: {
+        type: Date,
+        required: true,
+      },
+      endTime: {
+        type: Date,
+        default: null,
+      },
+      duration: {
+        type: Number,
+        default: 0,
+      },
+      date: {
+        type: String,
+        default: "",
+      },
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      comment: {
+        type: String,
+        default: "",
+      },
+    },
+  ],
   correctionHistory: [
     {
       revision: {
@@ -240,6 +294,11 @@ const TaskSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    feedbackMom: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     actualStartTime: {
       type: Date,
     },
@@ -336,6 +395,55 @@ const TaskSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",
     },
+    totalTrackedTime: {
+      type: Number,
+      default: 0,
+    },
+    dailyTrackedTime: {
+      type: Number,
+      default: 0,
+    },
+    holdStartedAt: {
+      type: Date,
+      default: null,
+    },
+    holdEndedAt: {
+      type: Date,
+      default: null,
+    },
+    statusHistory: [
+      {
+        status: {
+          type: String,
+          enum: ["Pending", "In Progress", "Completed", "On Hold", "In Review", "Rejected", "Correction"],
+          required: true,
+        },
+        startTime: {
+          type: Date,
+          required: true,
+        },
+        endTime: {
+          type: Date,
+          default: null,
+        },
+        duration: {
+          type: Number,
+          default: 0,
+        },
+        date: {
+          type: String,
+          default: "",
+        },
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        comment: {
+          type: String,
+          default: "",
+        },
+      },
+    ],
     correctionHistory: [
       {
         revision: {

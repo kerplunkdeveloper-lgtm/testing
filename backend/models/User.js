@@ -36,6 +36,12 @@ const userSchema = new mongoose.Schema({
     type: String,
   },
 
+  location: {
+    type: String,
+    default: "",
+    trim: true,
+  },
+
   salary: {
     type: Number,
     default: function() {
@@ -95,6 +101,40 @@ const userSchema = new mongoose.Schema({
   sidebarLayout: {
     type: String,
     default: 'vertical',
+  },
+
+  lastSeen: {
+    type: Date,
+    default: Date.now,
+  },
+
+  employmentStatus: {
+    type: String,
+    enum: ['active', 'relieved'],
+    default: 'active',
+  },
+
+  accountStatus: {
+    type: String,
+    enum: ['active', 'inactive'],
+    default: 'active',
+  },
+
+  relievedAt: {
+    type: Date,
+    default: null,
+  },
+
+  relievedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+
+  relievedReason: {
+    type: String,
+    default: '',
+    trim: true,
   },
 
   createdAt: {

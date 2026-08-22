@@ -49,3 +49,19 @@ export const deleteUserAPI = async (id) => {
 
   return response.data;
 };
+
+// RELIEVE USER
+export const relieveUserAPI = async (id, reason = "") => {
+
+  const response = await axiosInstance.put(`/users/${id}/relieve`, { reason });
+
+  return response.data;
+};
+
+// REACTIVATE USER
+export const reactivateUserAPI = async (id) => {
+
+  const response = await axiosInstance.put(`/users/${id}/reactivate`);
+
+  return response.data;
+};

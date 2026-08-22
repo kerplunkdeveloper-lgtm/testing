@@ -3,37 +3,36 @@ import {
   LuFolderKanban,
   LuLayoutTemplate,
   LuUsers,
-  LuCalendarDays,
   LuHandshake,
   LuMessagesSquare,
   LuClipboardCheck,
   LuFolderOpen,
   LuActivity,
   LuStickyNote,
+  LuPhoneCall,
 } from "react-icons/lu";
 import { TbPencilHeart } from "react-icons/tb";
-import { FiBarChart2, FiUser, FiHome, FiBell, FiSettings } from "react-icons/fi";
+import { FiBarChart2, FiUser, FiHome, FiBell, FiSettings, FiFileText, FiKey } from "react-icons/fi";
 
 export const sidebarConfig = {
   admin: [
     { name: "Home", path: "/admin", icon: FiHome },
     { name: "Sticky Notes", path: "/admin/stickynotes", icon: TbPencilHeart },
     { name: "Chat", path: "/admin/chat", icon: LuMessagesSquare },
+    { name: "Client Calls", path: "/admin/client-calls", icon: LuPhoneCall },
+    { name: "SM Tasks", path: "/admin/sm-tasks", icon: LuClipboardCheck },
     { name: "Users", path: "/admin/users", icon: LuUsers, permissionKey: "manage_users" },
+    { name: "MOM/ClientCall", path: "/admin/mom-client-report", icon: FiFileText, permissionKey: "manage_users" },
+    { name: "Workload", path: "/admin/workload", icon: LuActivity },
+    { name: "SM Credentials", path: "/admin/social-accounts", icon: FiKey, permissionKey: "manage_clients" },
     { name: "Clients", path: "/admin/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
     { name: "Projects", path: "/admin/projects", icon: LuFolderKanban, permissionKey: "manage_projects" },
     { name: "Tasks", path: "/admin/tasks", icon: LuClipboardCheck, permissionKey: "manage_tasks" },
-    { name: "Portfolio", path: "/admin/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
-  
-    { name: "Template", path: "/admin/template-library", icon: LuLayoutTemplate, permissionKey: "manage_settings" },
-
-  
     { name: "Reports", path: "/admin/eod-reports", icon: FiBarChart2, permissionKey: "view_reports" },
-    { name: "Calendar", path: "/admin/calendar", icon: LuCalendarDays },
+    { name: "Portfolio", path: "/admin/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
+    // { name: "Template", path: "/admin/template-library", icon: LuLayoutTemplate, permissionKey: "manage_settings" },
     { name: "PartnerHub", path: "/admin/partnerhub", icon: LuHandshake, permissionKey: "manage_settings" },
     { name: "Profile", path: "/admin/profile", icon: FiUser },
-  
-    
     { name: "Settings", path: "/admin/settings", icon: FiSettings },
   ],
 
@@ -41,18 +40,19 @@ export const sidebarConfig = {
     { name: "Home", path: "/operationmanager", icon: FiHome },
     { name: "Sticky Notes", path: "/operationmanager/stickynotes", icon: TbPencilHeart },
     { name: "Chat", path: "/operationmanager/chat", icon: LuMessagesSquare },
+    { name: "Client Calls", path: "/operationmanager/client-calls", icon: LuPhoneCall },
+    { name: "SM Tasks", path: "/operationmanager/sm-tasks", icon: LuClipboardCheck },
     { name: "Users", path: "/operationmanager/users", icon: LuUsers, permissionKey: "manage_users" },
+    { name: "MOM/ClientCall", path: "/operationmanager/mom-client-report", icon: FiFileText, permissionKey: "manage_users" },
+    { name: "Workload", path: "/operationmanager/workload", icon: LuActivity },
+    { name: "SM Credentials", path: "/operationmanager/social-accounts", icon: FiKey, permissionKey: "manage_clients" },
+    { name: "Reports", path: "/operationmanager/eod-reports", icon: FiBarChart2, permissionKey: "view_reports" },
     { name: "Clients", path: "/operationmanager/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
     { name: "Projects", path: "/operationmanager/projects", icon: LuFolderKanban, permissionKey: "manage_projects" },
     { name: "Tasks", path: "/operationmanager/tasks", icon: LuClipboardCheck, permissionKey: "manage_tasks" },
     { name: "Portfolio", path: "/operationmanager/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
-    { name: "Template Library", path: "/operationmanager/template-library", icon: LuLayoutTemplate, permissionKey: "manage_settings" },
-    { name: "Calendar", path: "/operationmanager/calendar", icon: LuCalendarDays },
-  
-    { name: "Reports", path: "/operationmanager/eod-reports", icon: FiBarChart2, permissionKey: "view_reports" },
+    // { name: "Template Library", path: "/operationmanager/template-library", icon: LuLayoutTemplate, permissionKey: "manage_settings" },
     { name: "Profile", path: "/operationmanager/profile", icon: FiUser },
-
-
     { name: "Settings", path: "/operationmanager/settings", icon: FiSettings },
   ],
 
@@ -60,15 +60,17 @@ export const sidebarConfig = {
     { name: "Home", path: "/team", icon: FiHome },
     { name: "Sticky Notes", path: "/team/stickynotes", icon: TbPencilHeart},
     { name: "Chat", path: "/team/chat", icon: LuMessagesSquare },
+    { name: "Client Calls", path: "/team/client-calls", icon: LuPhoneCall },
+    { name: "SM Tasks", path: "/team/sm-tasks", icon: LuClipboardCheck },
+    { name: "Workload", path: "/team/workload", icon: LuActivity },
     { name: "Clients", path: "/team/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
+    { name: "SM Credentials", path: "/team/social-accounts", icon: FiKey, permissionKey: "manage_clients" },
     { name: "Projects", path: "/team/projects", icon: LuFolderKanban, permissionKey: "manage_projects" },
     { name: "Tasks", path: "/team/tasks", icon: LuClipboardCheck, permissionKey: "manage_tasks" },
-    { name: "Portfolio", path: "/team/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
     { name: "My Reports", path: "/team/eod-reports", icon: FiBarChart2, permissionKey: "view_reports" },
+    { name: "Portfolio", path: "/team/portfolio", icon: LuFolderOpen, permissionKey: "manage_portfolios" },
     { name: "Users", path: "/team/users", icon: LuUsers, permissionKey: "manage_users" },
     { name: "Profile", path: "/team/profile", icon: FiUser },
-      { name: "Calendar", path: "/team/calendar", icon: LuCalendarDays },
- 
     { name: "Settings", path: "/team/settings", icon: FiSettings },
   ],
 };

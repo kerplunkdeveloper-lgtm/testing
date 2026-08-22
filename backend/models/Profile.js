@@ -17,10 +17,6 @@ const profileSchema = new mongoose.Schema({
     default: "",
   },
 
-  address: {
-    type: String,
-    default: "",
-  },
 
   profileImage: {
     public_id: {

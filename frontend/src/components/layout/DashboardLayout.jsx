@@ -9,6 +9,7 @@ import { exitImpersonation } from "../../features/auth/authSlice";
 import { apiSlice } from "../../features/api/apiSlice";
 import HorizontalSidebar from "./HorizontalSidebar";
 import { useTheme } from "../../context/ThemeContext";
+import { preloadAllRoutes } from "../../routes/AppRoutes";
 
 const DashboardLayout = ({ role }) => {
   const { sidebarLayout } = useTheme();
@@ -23,6 +24,11 @@ const DashboardLayout = ({ role }) => {
   );
   const { user, originalAdminUser } = useSelector((state) => state.auth);
   const mainContainerRef = useRef(null);
+
+  // Preload all core page chunks in the background for zero-delay sidebar navigation
+  useEffect(() => {
+    preloadAllRoutes();
+  }, []);
 
   // Reset scroll position to top when navigating to a new page
   useEffect(() => {
@@ -118,7 +124,7 @@ const DashboardLayout = ({ role }) => {
               isChatPage
                 ? "h-full theme-bg-card"
                 : `min-h-full ${
-                    sidebarLayout === "horizontal" ? "max-w-7xl mt-20 " : "max-w-8xl "
+                    sidebarLayout === "horizontal" ? "max-w-8xl mt-20  " : "max-w-8xl "
                   } mx-auto w-full dark:shadow-none p-2 sm:p-3 md:p-2`
             }
           >

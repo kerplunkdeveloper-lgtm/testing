@@ -17,6 +17,8 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  relieveUser,
+  reactivateUser,
   clearUserError,
 } from "../../features/users/userSlice";
 
@@ -27,6 +29,7 @@ import UserTable from "./users/UserTable";
 import UserModal from "./users/UserModel";
 import DeleteUserModal from "./users/DeleteUserModal";
 import PermissionsModal from "./users/PermissionsModal";
+import RelieveUserModal from "./users/RelieveUserModal";
 
 const USERS_PER_PAGE = 7;
 
@@ -58,13 +61,24 @@ const AdminUsers = () => {
     useState(null);
 
   const [currentPage, setCurrentPage] =
-    useState(1);
+    useState(() => parseInt(localStorage.getItem("adminUsers_currentPage")) || 1);
 
   const [searchTerm, setSearchTerm] =
-    useState("");
+    useState(() => localStorage.getItem("adminUsers_searchTerm") || "");
 
   const [filterDept, setFilterDept] =
-    useState("");
+    useState(() => localStorage.getItem("adminUsers_filterDept") || "");
+
+  const [filterLocation, setFilterLocation] = useState(() => localStorage.getItem("adminUsers_filterLocation") || "");
+  const [filterRelieved, setFilterRelieved] = useState(() => localStorage.getItem("adminUsers_filterRelieved") || "active");
+
+  useEffect(() => {
+    localStorage.setItem("adminUsers_currentPage", currentPage);
+    localStorage.setItem("adminUsers_searchTerm", searchTerm);
+    localStorage.setItem("adminUsers_filterDept", filterDept);
+    localStorage.setItem("adminUsers_filterLocation", filterLocation);
+    localStorage.setItem("adminUsers_filterRelieved", filterRelieved);
+  }, [currentPage, searchTerm, filterDept, filterLocation, filterRelieved]);
 
   const [openDeleteModal, setOpenDeleteModal] =
     useState(false);
@@ -74,6 +88,11 @@ const AdminUsers = () => {
 
   const [openPermissionsModal, setOpenPermissionsModal] = useState(false);
   const [permissionsUser, setPermissionsUser] = useState(null);
+
+  const [openRelieveModal, setOpenRelieveModal] = useState(false);
+  const [relieveTargetUser, setRelieveTargetUser] = useState(null);
+  const [relieveMode, setRelieveMode] = useState("relieve");
+  const [relieveLoading, setRelieveLoading] = useState(false);
 
 
 
@@ -100,7 +119,7 @@ const AdminUsers = () => {
   // RESET PAGE ON FILTER
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterDept]);
+  }, [searchTerm, filterDept, filterLocation, filterRelieved]);
 
   // CREATE USER
   const handleCreateUser = async (
@@ -190,14 +209,56 @@ const AdminUsers = () => {
     }
   };
 
+  // RELIEVE USER MODAL TRIGGER
+  const handleRequestRelieve = (user) => {
+    setRelieveTargetUser(user);
+    setRelieveMode("relieve");
+    setOpenRelieveModal(true);
+  };
+
+  // REACTIVATE USER MODAL TRIGGER
+  const handleRequestReactivate = (user) => {
+    setRelieveTargetUser(user);
+    setRelieveMode("reactivate");
+    setOpenRelieveModal(true);
+  };
+
+  // CONFIRM RELIEVE / REACTIVATE
+  const handleConfirmRelieve = async (user, reason) => {
+    setRelieveLoading(true);
+    try {
+      if (relieveMode === "relieve") {
+        await dispatch(relieveUser({ id: user._id, reason })).unwrap();
+        toast.success("User has been successfully relieved.");
+      } else {
+        await dispatch(reactivateUser(user._id)).unwrap();
+        toast.success("User has been successfully reactivated.");
+      }
+      setOpenRelieveModal(false);
+      setRelieveTargetUser(null);
+    } catch (err) {
+      toast.error(err || "Action failed");
+    } finally {
+      setRelieveLoading(false);
+    }
+  };
+
   // FILTER & SORT LOGIC
   const filteredUsers = [...users]
     .filter((user) => {
       const matchesSearch =
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase());
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.location && user.location.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesDept = filterDept === "" || user.department === filterDept;
-      return matchesSearch && matchesDept;
+      const matchesLoc = filterLocation === "" || user.location === filterLocation;
+      
+      let matchesRelieved = true;
+      const isRelieved = user.employmentStatus === "relieved" || user.accountStatus === "inactive";
+      if (filterRelieved === "active") matchesRelieved = !isRelieved;
+      else if (filterRelieved === "relieved") matchesRelieved = isRelieved;
+
+      return matchesSearch && matchesDept && matchesLoc && matchesRelieved;
     })
     .sort((a, b) => {
       if (a.role === 'admin' && b.role !== 'admin') return -1;
@@ -262,6 +323,10 @@ const AdminUsers = () => {
         setSearchTerm={setSearchTerm}
         filterDept={filterDept}
         setFilterDept={setFilterDept}
+        filterLocation={filterLocation}
+        setFilterLocation={setFilterLocation}
+        filterRelieved={filterRelieved}
+        setFilterRelieved={setFilterRelieved}
         isReadOnly={isReadOnly}
       />
 
@@ -272,8 +337,22 @@ const AdminUsers = () => {
 
     <div className="px-3 py-1">
       <span className="font-semibold">Department:</span>{" "}
-      <span className="font-medium  italic">
+      <span className="font-light">
         {filterDept || "All Departments"}
+      </span>
+    </div>
+
+    <div className="px-3 py-1">
+      <span className="font-semibold">Location:</span>{" "}
+      <span className="font-light ">
+        {filterLocation || "All Locations"}
+      </span>
+    </div>
+
+    <div className="px-3 py-1">
+      <span className="font-semibold">Status:</span>{" "}
+      <span className="font-light ">
+        {filterRelieved === "all" ? "All Users" : filterRelieved === "active" ? "Active Users" : "Relieved Users"}
       </span>
     </div>
 
@@ -295,6 +374,8 @@ const AdminUsers = () => {
         handleDeleteUser={
           requestDeleteUser
         }
+        handleRequestRelieve={handleRequestRelieve}
+        handleRequestReactivate={handleRequestReactivate}
         setOpenModal={setOpenModal}
         setEditUser={setEditUser}
         handleImpersonate={handleImpersonate}
@@ -379,6 +460,16 @@ const AdminUsers = () => {
         setOpen={setOpenDeleteModal}
         onConfirm={handleDeleteUser}
         user={userToDelete}
+      />
+
+      {/* RELIEVE / REACTIVATE MODAL */}
+      <RelieveUserModal
+        open={openRelieveModal}
+        setOpen={setOpenRelieveModal}
+        onConfirm={handleConfirmRelieve}
+        user={relieveTargetUser}
+        mode={relieveMode}
+        loading={relieveLoading}
       />
 
       {/* PERMISSIONS MODAL */}

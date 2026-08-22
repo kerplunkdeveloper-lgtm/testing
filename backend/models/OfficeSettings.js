@@ -29,6 +29,11 @@ const OfficeSettingsSchema = new mongoose.Schema({
       message: "End hour must be greater than start hour.",
     },
   },
+
+  workingDays: {
+    type: [Number],
+    default: [1, 2, 3, 4, 5, 6], // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  },
 }, {
   timestamps: true,
 });

@@ -122,6 +122,12 @@ const clientSchema = new mongoose.Schema(
       type: String,
       default: "FaRegBuilding",
     },
+    
+    status: {
+      type: String,
+      enum: ["Active", "Inactive"],
+      default: "Active",
+    },
   },
   {
     timestamps: true,

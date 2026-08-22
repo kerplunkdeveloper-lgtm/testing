@@ -6,8 +6,10 @@ import {
   useUpdateTaskMutation,
 } from "../../features/api/apiSlice";
 import { getUsers } from "../../features/users/userSlice";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import toast from "react-hot-toast";
+import { calculateTaskProductivityForDate } from "../Dashboard/cards/GraphicDesignerDashboard";
+import axiosInstance from "../../services/axiosInstance";
 import {
   getDesignerEodReports,
   createDesignerEodReport,
@@ -25,6 +27,10 @@ import {
   FiX,
   FiEdit2,
   FiFileText,
+  FiSearch,
+  FiFilter,
+  FiCheck,
+  FiLayers,
 } from "react-icons/fi";
 
 // Helper: get priority badge colors based on priority value
@@ -50,28 +56,28 @@ const getTaskCodeStyle = (code) => {
   }
   const colors = [
     {
-      bg: "bg-indigo-50/80 text-indigo-600 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30",
+      bg: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800/60",
     },
     {
-      bg: "bg-rose-50/80 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30",
+      bg: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/60",
     },
     {
-      bg: "bg-amber-50/80 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30",
+      bg: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60",
     },
     {
-      bg: "bg-emerald-50/80 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30",
+      bg: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60",
     },
     {
-      bg: "bg-blue-50/80 text-blue-600 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30",
+      bg: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/60",
     },
     {
-      bg: "bg-purple-50/80 text-purple-650 border-purple-200 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30",
+      bg: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60",
     },
     {
-      bg: "bg-cyan-50/80 text-cyan-600 border-cyan-200 dark:bg-cyan-950/20 dark:text-cyan-400 dark:border-cyan-900/30",
+      bg: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800/60",
     },
     {
-      bg: "bg-fuchsia-50/80 text-fuchsia-600 border-fuchsia-200 dark:bg-fuchsia-950/20 dark:text-fuchsia-400 dark:border-fuchsia-900/30",
+      bg: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-950/60 dark:text-fuchsia-300 dark:border-fuchsia-800/60",
     },
   ];
   const idx = Math.abs(hash) % colors.length;
@@ -104,19 +110,36 @@ const safeFormatDateTime = (timeStr, formatPattern = "MMM dd, yyyy h:mm a") => {
   }
 };
 
+const formatMsToDuration = (ms) => {
+  if (!ms || ms <= 0) return "0s";
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+};
+
 const formatElapsed = (
   startTime,
   endTime,
-  pausedAt = null,
+  pausedAt,
   totalPausedMs = 0,
+  status = "",
+  autoPaused = false,
 ) => {
   if (!startTime) return "";
   const start = new Date(startTime).getTime();
   const end = endTime
     ? new Date(endTime).getTime()
-    : pausedAt
-      ? new Date(pausedAt).getTime()
-      : Date.now();
+    : status === "In Progress" && autoPaused
+      ? pausedAt
+        ? new Date(pausedAt).getTime()
+        : Date.now()
+      : pausedAt && status !== "In Progress"
+        ? new Date(pausedAt).getTime()
+        : Date.now();
 
   const paused = totalPausedMs || 0;
 
@@ -134,41 +157,157 @@ const formatElapsed = (
   return `${seconds}s`;
 };
 
-const LiveTimeTracker = ({ task, allTasks, isSubmitted }) => {
-  const [elapsedStr, setElapsedStr] = React.useState(task.time || "");
+const getTaskInprogressTime = (task, selDateObj, officeHours) => {
+  if (!task) return "0s";
+  const loggedMs = calculateTaskProductivityForDate(
+    task,
+    selDateObj,
+    officeHours,
+  );
+  if (loggedMs > 0) {
+    return formatMsToDuration(loggedMs);
+  }
+  return task.time || "0s";
+};
+
+const LiveTimeTracker = ({
+  task,
+  allTasks,
+  isSubmitted,
+  selectedDate,
+  officeHours,
+}) => {
+  const selDateObj = React.useMemo(() => {
+    if (!selectedDate) return new Date();
+    return typeof selectedDate === "string"
+      ? parseISO(selectedDate)
+      : selectedDate;
+  }, [selectedDate]);
+
+  const originalTask = React.useMemo(() => {
+    return allTasks.find((t) => t._id === (task.taskId || task.id));
+  }, [allTasks, task]);
+
+  const calculateCurrentMs = React.useCallback(() => {
+    const target = originalTask || task;
+    if (!target) return 0;
+    const activeMs = calculateTaskProductivityForDate(
+      target,
+      selDateObj,
+      officeHours,
+    );
+
+    let blockerMs = 0;
+    const selDateStr = selDateObj.toLocaleDateString("en-CA", {
+      timeZone: "Asia/Kolkata",
+    });
+    if (Array.isArray(target.blockerHistory)) {
+      target.blockerHistory.forEach((b) => {
+        if (!b.pausedAt) return;
+        const pDate = new Date(b.pausedAt).toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+        const pMs = new Date(b.pausedAt).getTime();
+        const rMs = b.resumedAt ? new Date(b.resumedAt).getTime() : Date.now();
+        if (pDate === selDateStr) {
+          blockerMs += Math.max(0, rMs - pMs);
+        }
+      });
+    }
+    if (target.isBlocked && target.blockerPausedAt) {
+      const pDate = new Date(target.blockerPausedAt).toLocaleDateString(
+        "en-CA",
+        { timeZone: "Asia/Kolkata" },
+      );
+      if (pDate === selDateStr) {
+        blockerMs += Math.max(
+          0,
+          Date.now() - new Date(target.blockerPausedAt).getTime(),
+        );
+      }
+    }
+
+    return activeMs + blockerMs;
+  }, [originalTask, task, selDateObj, officeHours]);
+
+  const [elapsedStr, setElapsedStr] = React.useState(() => {
+    const ms = calculateCurrentMs();
+    return ms > 0 ? formatMsToDuration(ms) : task.time || "0s";
+  });
 
   React.useEffect(() => {
     if (isSubmitted) {
-      setElapsedStr(task.time || "");
+      setElapsedStr(task.time || "0s");
       return;
     }
 
-    const originalTask = allTasks.find((t) => t._id === (task.taskId || task.id));
-    if (!originalTask || !originalTask.actualStartTime || originalTask.actualEndTime || originalTask.pausedAt) {
-      setElapsedStr(task.time || "");
-      return;
+    const updateDisplay = () => {
+      const ms = calculateCurrentMs();
+      setElapsedStr(ms > 0 ? formatMsToDuration(ms) : task.time || "0s");
+    };
+
+    updateDisplay();
+
+    const target = originalTask || task;
+    const isRunning =
+      target &&
+      target.status === "In Progress" &&
+      !target.actualEndTime &&
+      !target.autoPaused;
+
+    if (isRunning) {
+      const interval = setInterval(updateDisplay, 1000);
+      return () => clearInterval(interval);
     }
+  }, [
+    allTasks,
+    task,
+    isSubmitted,
+    selectedDate,
+    originalTask,
+    calculateCurrentMs,
+  ]);
 
-    const interval = setInterval(() => {
-      setElapsedStr(
-        formatElapsed(
-          originalTask.actualStartTime,
-          originalTask.actualEndTime,
-          originalTask.pausedAt,
-          originalTask.totalPausedMs
-        )
-      );
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [task, allTasks, isSubmitted]);
-
-  return <span>Time spent: {elapsedStr}</span>;
+  return <span className="whitespace-nowrap">{elapsedStr}</span>;
 };
 
 // Helper: map task board status to EOD status enum
 const mapTaskStatusToEodStatus = (status) => {
   return status || "Pending";
+};
+
+// Helper: Priority sorting order (In Progress = 1, On Hold = 2, In Review = 3, Pending = 4, Completed = 5)
+const getStatusPriority = (status) => {
+  const s = (status || "Pending").toUpperCase();
+  if (s.includes("PROGRESS")) return 1;
+  if (s.includes("HOLD")) return 2;
+  if (s.includes("REVIEW")) return 3;
+  if (s.includes("PENDING")) return 4;
+  if (s.includes("REJECTED")) return 5;
+  if (s.includes("COMPLETED")) return 6;
+  return 7;
+};
+
+const getCardBgStyle = (status) => {
+  const s = (status || "Pending").toUpperCase();
+  switch (s) {
+    case "COMPLETED":
+      return "bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-800";
+    case "IN PROGRESS":
+    case "IN_PROGRESS":
+      return "bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 shadow-xs hover:shadow-md hover:border-blue-300 dark:hover:border-blue-800";
+    case "IN-REVIEW":
+    case "IN REVIEW":
+    case "IN_REVIEW":
+      return "bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 shadow-xs hover:shadow-md hover:border-amber-300 dark:hover:border-amber-800";
+    case "ON HOLD":
+    case "ON_HOLD":
+      return "bg-orange-50/70 dark:bg-orange-950/30 border border-orange-200/80 dark:border-orange-900/50 shadow-xs";
+    case "REJECTED":
+      return "bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/50 shadow-xs";
+    default: // Pending
+      return "bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700";
+  }
 };
 
 const getStatusBadgeStyle = (status) => {
@@ -182,14 +321,14 @@ const getStatusBadgeStyle = (status) => {
     case "IN-REVIEW":
     case "IN REVIEW":
     case "IN_REVIEW":
-      return "bg-purple-50 text-purple-600 border-purple-200/50 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30";
+      return "bg-amber-50 text-amber-700 border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30";
     case "ON HOLD":
     case "ON_HOLD":
       return "bg-amber-50 text-amber-600 border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30";
     case "REJECTED":
       return "bg-rose-50 text-rose-600 border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30";
     default: // Pending
-      return "bg-slate-50 text-slate-655 border border-slate-200/60 dark:bg-slate-900/10 dark:text-slate-400 dark:border-slate-800/60";
+      return "bg-slate-50 text-slate-600 border border-slate-200/60 dark:bg-slate-900/10 dark:text-slate-400 dark:border-slate-800/60";
   }
 };
 
@@ -197,44 +336,99 @@ const getStatusTextColor = (status) => {
   const s = (status || "Pending").toUpperCase();
   switch (s) {
     case "COMPLETED":
-      return "text-emerald-600 dark:text-emerald-400";
+      return "text-emerald-700 dark:text-emerald-400";
     case "IN PROGRESS":
     case "IN_PROGRESS":
-      return "text-blue-600 dark:text-blue-400";
+      return "text-blue-700 dark:text-blue-400";
     case "IN-REVIEW":
     case "IN REVIEW":
     case "IN_REVIEW":
-      return "text-purple-605 dark:text-purple-400";
+      return "text-amber-700 dark:text-amber-400";
     case "ON HOLD":
     case "ON_HOLD":
-      return "text-amber-600 dark:text-amber-400";
+      return "text-amber-700 dark:text-amber-400";
     case "REJECTED":
-      return "text-rose-600 dark:text-rose-400";
+      return "text-rose-700 dark:text-rose-400";
     default: // Pending
-      return "text-slate-500 dark:text-slate-400";
+      return "text-slate-600 dark:text-slate-400";
   }
 };
 
-const calculateTotalLoggedTime = (tasks) => {
-  let totalMinutes = 0;
-  (tasks || []).forEach((t) => {
-    const timeStr = t.time || "";
-    const hoursMatch = timeStr.match(/(\d+)\s*h/i);
-    const minsMatch = timeStr.match(/(\d+)\s*m/i);
-    const secsMatch = timeStr.match(/(\d+)\s*s/i);
+const calculateTotalLoggedTime = (
+  tasks,
+  allTasks = [],
+  selectedDate,
+  officeHours,
+) => {
+  const selDateObj = selectedDate ? parseISO(selectedDate) : new Date();
+  const selDateStr = selDateObj.toLocaleDateString("en-CA", {
+    timeZone: "Asia/Kolkata",
+  });
+  let totalMs = 0;
 
-    if (hoursMatch) {
-      totalMinutes += parseInt(hoursMatch[1], 10) * 60;
+  (tasks || []).forEach((t) => {
+    const originalTask = (allTasks || []).find(
+      (at) => at._id === (t.taskId?._id || t.taskId || t.id || t._id),
+    );
+    const target = originalTask || t;
+
+    const msToday = calculateTaskProductivityForDate(
+      target,
+      selDateObj,
+      officeHours,
+    );
+
+    let blockerMs = 0;
+    if (target && Array.isArray(target.blockerHistory)) {
+      target.blockerHistory.forEach((b) => {
+        if (!b.pausedAt) return;
+        const pDate = new Date(b.pausedAt).toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+        const pMs = new Date(b.pausedAt).getTime();
+        const rMs = b.resumedAt ? new Date(b.resumedAt).getTime() : Date.now();
+        if (pDate === selDateStr) {
+          blockerMs += Math.max(0, rMs - pMs);
+        }
+      });
     }
-    if (minsMatch) {
-      totalMinutes += parseInt(minsMatch[1], 10);
+    if (target && target.isBlocked && target.blockerPausedAt) {
+      const pDate = new Date(target.blockerPausedAt).toLocaleDateString(
+        "en-CA",
+        { timeZone: "Asia/Kolkata" },
+      );
+      if (pDate === selDateStr) {
+        blockerMs += Math.max(
+          0,
+          Date.now() - new Date(target.blockerPausedAt).getTime(),
+        );
+      }
     }
-    if (secsMatch && !hoursMatch && !minsMatch) {
-      const secs = parseInt(secsMatch[1], 10);
-      if (secs > 0) totalMinutes += Math.ceil(secs / 60);
+
+    const taskTotalToday = msToday + blockerMs;
+
+    if (taskTotalToday > 0) {
+      totalMs += taskTotalToday;
+    } else {
+      const timeStr = t.time || "";
+      const hoursMatch = timeStr.match(/(\d+)\s*h/i);
+      const minsMatch = timeStr.match(/(\d+)\s*m/i);
+      const secsMatch = timeStr.match(/(\d+)\s*s/i);
+
+      let mins = 0;
+      if (hoursMatch) mins += parseInt(hoursMatch[1], 10) * 60;
+      if (minsMatch) mins += parseInt(minsMatch[1], 10);
+      if (secsMatch && !hoursMatch && !minsMatch) {
+        const secs = parseInt(secsMatch[1], 10);
+        if (secs > 0) mins += Math.ceil(secs / 60);
+      }
+      totalMs += mins * 60 * 1000;
     }
   });
 
+  if (totalMs <= 0) return "0m";
+
+  const totalMinutes = Math.floor(totalMs / (1000 * 60));
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
 
@@ -263,6 +457,7 @@ const EodReports = () => {
 
   // State fields
   const [tasksState, setTasksState] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [daySummary, setDaySummary] = useState({
     toolsIssues: "None",
     clientCalls: "",
@@ -272,6 +467,7 @@ const EodReports = () => {
   const [overallStatus, setOverallStatus] = useState("On Track");
   const [reportId, setReportId] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [officeHours, setOfficeHours] = useState({ startHour: 9, endHour: 19 });
 
   const getLocalDateString = (date = new Date()) => {
     const year = date.getFullYear();
@@ -281,6 +477,26 @@ const EodReports = () => {
   };
 
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+
+  // Fetch office hours configuration
+  useEffect(() => {
+    const fetchOfficeHours = async () => {
+      try {
+        const res = await axiosInstance.get("/settings/office-hours");
+        const settings = res.data?.data || res.data;
+        if (settings) {
+          setOfficeHours({
+            startHour: settings.startHour ?? 9,
+            endHour: settings.endHour ?? 19,
+            workingDays: settings.workingDays || [1, 2, 3, 4, 5, 6],
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching office hours in EOD reports:", err);
+      }
+    };
+    fetchOfficeHours();
+  }, []);
 
   // Fetch users and designer EOD report
   useEffect(() => {
@@ -293,57 +509,89 @@ const EodReports = () => {
     }
   }, [dispatch, selectedDate]);
 
-  // Filter tasks assigned to me for the selected date
+  // Filter tasks assigned to me that belong to the selected date.
+  // Rule: a task appears in EOD ONLY if actual work/productivity happened on that date,
+  // OR if it is actively In Progress right now (today only).
+  // completedAt / actualEndTime alone is NOT sufficient — a task completed on a date
+  // with zero productivity on that date must NOT appear in EOD for that date.
   const myTasks = React.useMemo(() => {
+    const selDateObj = selectedDate ? parseISO(selectedDate) : new Date();
+
+    const getLocalDateStr = (date) => {
+      if (!date) return null;
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return null;
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
     return allTasks.filter((task) => {
       const assigneeId = task.assignedTo?._id || task.assignedTo;
       const isAssignedToMe = assigneeId === (user?._id || user?.id);
       if (!isAssignedToMe) return false;
 
-      const taskCreatedDate = task.createdAt ? new Date(task.createdAt) : null;
-      const taskDueDate = task.dueDate ? new Date(task.dueDate) : null;
-      const taskStartDate = task.startDate ? new Date(task.startDate) : null;
+      // 1. Check logged productivity for selectedDate
+      const loggedMsToday = calculateTaskProductivityForDate(
+        task,
+        selDateObj,
+        officeHours,
+      );
+      if (loggedMsToday > 0) return true;
 
-      const getLocalDateStr = (date) => {
-        if (!date) return null;
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
-      };
+      // 2. Check if actively running right now (for today only)
+      const todayStr = getLocalDateStr(new Date());
+      const isSelectedToday = selectedDate === todayStr;
+      const isActivelyRunningNow =
+        isSelectedToday &&
+        task.status === "In Progress" &&
+        !task.actualEndTime &&
+        !task.autoPaused;
 
-      const createdDateStr = getLocalDateStr(taskCreatedDate);
-      const dueDateStr = getLocalDateStr(taskDueDate);
-      const startDateStr = getLocalDateStr(taskStartDate);
+      if (isActivelyRunningNow) return true;
 
-      const statusLower = task.status?.toLowerCase() || "";
-      const isCompleted = statusLower === "completed" || statusLower.includes("approve");
+      // 3. For tasks in "Completed" status:
+      // If completed with 0 productivity on selectedDate, NEVER show in EOD for this date
+      if (task.status === "Completed") {
+        if (loggedMsToday <= 0) return false;
+      }
 
-      // Helper to check if a date string is on or before selectedDate (YYYY-MM-DD comparison)
-      const isOnOrBeforeSelectedDate = (dateStr) => {
-        if (!dateStr) return false;
-        return dateStr <= selectedDate;
-      };
+      // 4. For tasks in "In Review" status:
+      const isInReview = [
+        "In Review",
+        "In-Review",
+        "IN_REVIEW",
+      ].includes(task.status);
 
-      // 1. If it's not completed: show it if the selectedDate is on or after its start/creation date
-      if (!isCompleted) {
-        const startCheckDateStr = startDateStr || createdDateStr;
-        if (startCheckDateStr && isOnOrBeforeSelectedDate(startCheckDateStr)) {
-          return true;
+      if (isInReview) {
+        const reviewDate = getLocalDateStr(
+          task.reviewStartedAt ||
+            task.lastReviewStartedAt ||
+            task.updatedAt,
+        );
+
+        if (reviewDate && reviewDate < selectedDate && loggedMsToday <= 0) {
+          return false;
         }
       }
 
-      // 2. If it is completed: ONLY show it strictly on the day it was completed
-      if (isCompleted) {
-        const completedDate = task.completedAt ? new Date(task.completedAt) : (task.updatedAt ? new Date(task.updatedAt) : null);
-        const completedDateStr = getLocalDateStr(completedDate);
-        return completedDateStr ? completedDateStr === selectedDate : false;
+      // 5. Date matching for new / pending / active tasks for selectedDate
+      if (getLocalDateStr(task.startDate) === selectedDate) return true;
+      if (getLocalDateStr(task.dueDate) === selectedDate) return true;
+      if (getLocalDateStr(task.createdAt) === selectedDate) return true;
+      if (getLocalDateStr(task.actualStartTime) === selectedDate) return true;
+      if (
+        (task.reviewStartedAt || task.lastReviewStartedAt) &&
+        getLocalDateStr(task.reviewStartedAt || task.lastReviewStartedAt) ===
+          selectedDate
+      ) {
+        return true;
       }
 
-      // Fallback for active tasks: show if its due date matches selectedDate
-      return dueDateStr === selectedDate;
+      return false;
     });
-  }, [allTasks, user, selectedDate]);
+  }, [allTasks, user, selectedDate, officeHours]);
 
   // Generate task display ID (e.g. WBLT1)
   const getTaskDisplayId = (task) => {
@@ -388,6 +636,8 @@ const EodReports = () => {
 
   // Populate form state when EOD Report or tasks load
   useEffect(() => {
+    const selDateObj = selectedDate ? parseISO(selectedDate) : new Date();
+
     if (todayReport) {
       setReportId(todayReport._id);
       setIsSubmitted(!todayReport.isDraft);
@@ -400,58 +650,85 @@ const EodReports = () => {
       setOverallStatus(todayReport.overallStatus || "On Track");
 
       if (todayReport.tasks && todayReport.tasks.length > 0) {
-        const savedTasks = todayReport.tasks.map((t) => {
-          const correspondingTask = myTasks.find(
-            (mt) => mt._id === (t.taskId?._id || t.taskId),
-          );
-          const actualStatus = correspondingTask
-            ? mapTaskStatusToEodStatus(correspondingTask.status)
-            : t.statusAtEod || "Pending";
-          const taskCode = correspondingTask
-            ? getTaskDisplayId(correspondingTask)
-            : "";
+        const myTaskIdsSet = new Set(
+          myTasks.map((mt) => (mt._id || mt.id).toString()),
+        );
 
-          const creator = correspondingTask?.createdBy || t.reviewedBy;
-          const creatorName =
-            creator && typeof creator === "object"
-              ? creator.name
-              : users.find(
-                  (u) =>
-                    u._id ===
-                    (typeof creator === "string" ? creator : creator?._id),
-                )?.name || "Admin";
-          const creatorId =
-            creator && typeof creator === "object"
-              ? creator._id
-              : creator || "";
+        const savedTasks = todayReport.tasks
+          .filter((t) => {
+            if (!todayReport.isDraft) return true; // Keep exact history for submitted reports
+            const tId = (t.taskId?._id || t.taskId || t._id)?.toString();
+            return myTaskIdsSet.has(tId);
+          })
+          .map((t) => {
+            const correspondingTask = myTasks.find(
+              (mt) => mt._id === (t.taskId?._id || t.taskId),
+            );
+            const actualStatus = t.statusAtEod
+              ? t.statusAtEod
+              : correspondingTask
+                ? mapTaskStatusToEodStatus(correspondingTask.status)
+                : "Pending";
+            const taskCode = correspondingTask
+              ? getTaskDisplayId(correspondingTask)
+              : "";
 
-          return {
-            id: t.taskId || t._id,
-            taskId: t.taskId?._id || t.taskId || t._id,
-            title: t.title,
-            project: t.project,
-            priority: t.priority,
-            contentType: t.contentType || "",
-            client: t.client,
-            revision: correspondingTask
-              ? correspondingTask.revisions || 0
-              : t.revisions || 0,
-            time: t.loggedTime || "",
-            statusAtEod: actualStatus,
-            outputLink: t.outputLink || "",
-            reason: t.reason || "",
-            nextAction: t.nextAction || "",
-            reviewedBy: creatorId,
-            assignedByName: creatorName,
-            code: taskCode,
-            createdAt: correspondingTask?.createdAt || t.createdAt,
-          };
-        });
+            const creator = correspondingTask?.createdBy || t.reviewedBy;
+            const creatorName =
+              creator && typeof creator === "object"
+                ? creator.name
+                : users.find(
+                    (u) =>
+                      u._id ===
+                      (typeof creator === "string" ? creator : creator?._id),
+                  )?.name || "Admin";
+            const creatorId =
+              !todayReport.isDraft && t.reviewedBy
+                ? typeof t.reviewedBy === "object"
+                  ? t.reviewedBy._id
+                  : t.reviewedBy
+                : creator && typeof creator === "object"
+                  ? creator._id
+                  : creator || "";
+            const calculatedTimeStr = correspondingTask
+              ? getTaskInprogressTime(
+                  correspondingTask,
+                  selDateObj,
+                  officeHours,
+                )
+              : "0s";
 
-        // Merge any new tasks from myTasks that are not in the saved report tasks
+            return {
+              id: t.taskId || t._id,
+              taskId: t.taskId?._id || t.taskId || t._id,
+              title: t.title,
+              project: t.project,
+              priority: t.priority,
+              contentType: t.contentType || "",
+              client: t.client,
+              revision: correspondingTask
+                ? correspondingTask.revisions || 0
+                : t.revisions || 0,
+              time: !todayReport.isDraft
+                ? t.loggedTime || t.time || calculatedTimeStr
+                : calculatedTimeStr !== "0s"
+                  ? calculatedTimeStr
+                  : t.loggedTime || calculatedTimeStr,
+              statusAtEod: actualStatus,
+              outputLink: t.outputLink || "",
+              reason: t.reason || "",
+              nextAction: t.nextAction || "",
+              reviewedBy: creatorId,
+              assignedByName: creatorName,
+              code: taskCode,
+              createdAt: correspondingTask?.createdAt || t.createdAt,
+            };
+          });
+
+        // Merge any tasks from myTasks that were not in the saved report tasks
         const savedTaskIds = new Set(
-          todayReport.tasks.map((t) =>
-            (t.taskId?._id || t.taskId || t._id).toString(),
+          savedTasks.map((t) =>
+            (t.taskId?._id || t.taskId || t.id || t._id).toString(),
           ),
         );
         const newUnsavedTasks = myTasks.filter(
@@ -461,12 +738,7 @@ const EodReports = () => {
         const unsavedMapped = newUnsavedTasks.map((t) => {
           const clientName = t.project?.client?.companyName || "Internal";
           const projectName = t.project?.name || "Internal";
-          const elapsedStr = formatElapsed(
-            t.actualStartTime,
-            t.actualEndTime,
-            t.pausedAt,
-            t.totalPausedMs,
-          );
+          const elapsedStr = getTaskInprogressTime(t, selDateObj, officeHours);
           const taskCode = getTaskDisplayId(t);
 
           const creator = t.createdBy;
@@ -510,11 +782,10 @@ const EodReports = () => {
           myTasks.map((t) => {
             const clientName = t.project?.client?.companyName || "Internal";
             const projectName = t.project?.name || "Internal";
-            const elapsedStr = formatElapsed(
-              t.actualStartTime,
-              t.actualEndTime,
-              t.pausedAt,
-              t.totalPausedMs,
+            const elapsedStr = getTaskInprogressTime(
+              t,
+              selDateObj,
+              officeHours,
             );
             const taskCode = getTaskDisplayId(t);
 
@@ -561,12 +832,7 @@ const EodReports = () => {
         myTasks.map((t) => {
           const clientName = t.project?.client?.companyName || "Internal";
           const projectName = t.project?.name || "Internal";
-          const elapsedStr = formatElapsed(
-            t.actualStartTime,
-            t.actualEndTime,
-            t.pausedAt,
-            t.totalPausedMs,
-          );
+          const elapsedStr = getTaskInprogressTime(t, selDateObj, officeHours);
           const taskCode = getTaskDisplayId(t);
 
           const creator = t.createdBy;
@@ -626,11 +892,13 @@ const EodReports = () => {
       setReportId(null);
       setIsSubmitted(false);
     }
-  }, [todayReport, myTasks, projects, users]);
+  }, [todayReport, myTasks, projects, users, officeHours]);
 
   // Sync task status, code, and elapsed time dynamically from allTasks/myTasks
   useEffect(() => {
     if (myTasks.length > 0 && tasksState.length > 0 && projects.length > 0) {
+      const selDateObj = selectedDate ? parseISO(selectedDate) : new Date();
+
       setTasksState((prev) =>
         prev.map((t) => {
           const correspondingTask = myTasks.find((mt) => mt._id === t.taskId);
@@ -638,11 +906,10 @@ const EodReports = () => {
             const mappedStatus = mapTaskStatusToEodStatus(
               correspondingTask.status,
             );
-            const elapsedStr = formatElapsed(
-              correspondingTask.actualStartTime,
-              correspondingTask.actualEndTime,
-              correspondingTask.pausedAt,
-              correspondingTask.totalPausedMs,
+            const calculatedTimeStr = getTaskInprogressTime(
+              correspondingTask,
+              selDateObj,
+              officeHours,
             );
             const taskCode = getTaskDisplayId(correspondingTask);
 
@@ -662,20 +929,30 @@ const EodReports = () => {
 
             const taskRevision = correspondingTask.revisions || 0;
 
+            const targetStatus = t.statusAtEod || mappedStatus;
+            const targetTime =
+              isSubmitted && t.time
+                ? t.time
+                : calculatedTimeStr !== "0s"
+                  ? calculatedTimeStr
+                  : t.time || calculatedTimeStr;
+            const targetReviewedBy =
+              isSubmitted && t.reviewedBy ? t.reviewedBy : creatorId;
+
             if (
-              t.statusAtEod !== mappedStatus ||
-              t.time !== elapsedStr ||
+              t.statusAtEod !== targetStatus ||
+              t.time !== targetTime ||
               t.code !== taskCode ||
-              t.reviewedBy !== creatorId ||
+              t.reviewedBy !== targetReviewedBy ||
               t.assignedByName !== creatorName ||
               t.revision !== taskRevision
             ) {
               return {
                 ...t,
-                statusAtEod: mappedStatus,
-                time: elapsedStr,
+                statusAtEod: targetStatus,
+                time: targetTime,
                 code: taskCode,
-                reviewedBy: creatorId,
+                reviewedBy: targetReviewedBy,
                 assignedByName: creatorName,
                 revision: taskRevision,
               };
@@ -685,29 +962,21 @@ const EodReports = () => {
         }),
       );
     }
-  }, [myTasks, projects, users]);
+  }, [myTasks, projects, users, selectedDate, isSubmitted, officeHours]);
 
   // Automatically calculate overallStatus from tasksState
   useEffect(() => {
     if (tasksState.length > 0) {
       const hasPending = tasksState.some(
-        (t) =>
-          !["Completed", "In Review"].includes(
-            t.statusAtEod,
-          ),
+        (t) => !["Completed", "In Review"].includes(t.statusAtEod),
       );
-      const hasInReview = tasksState.some((t) =>
-        t.statusAtEod === "In Review",
-      );
-      const allCompleted = tasksState.every(
-        (t) => t.statusAtEod === "Completed",
+      const allCompletedOrInReview = tasksState.every((t) =>
+        ["Completed", "In Review"].includes(t.statusAtEod),
       );
 
       if (hasPending) {
         setOverallStatus("Delayed");
-      } else if (hasInReview) {
-        setOverallStatus("On Track");
-      } else if (allCompleted) {
+      } else if (allCompletedOrInReview) {
         setOverallStatus("Completed");
       } else {
         setOverallStatus("On Track");
@@ -795,7 +1064,17 @@ const EodReports = () => {
     }
   };
 
-  // Dynamic stats
+  // Helper to format date string
+  const getLocalDateStr = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return null;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const totalTasks = tasksState.length;
   const completedCount = tasksState.filter(
     (t) => t.statusAtEod === "Completed",
@@ -809,8 +1088,8 @@ const EodReports = () => {
   const onHoldCount = tasksState.filter(
     (t) => t.statusAtEod === "On Hold",
   ).length;
-  const inReviewCount = tasksState.filter((t) =>
-    t.statusAtEod === "In Review",
+  const inReviewCount = tasksState.filter(
+    (t) => t.statusAtEod === "In Review",
   ).length;
   const revisionCount = tasksState.filter((t) =>
     ["Revision", "Revision Pending"].includes(t.statusAtEod),
@@ -834,6 +1113,64 @@ const EodReports = () => {
     return `${actionWord} ${clientPart}${titlePart}`;
   });
 
+  const completedTasks = React.useMemo(
+    () => tasksState.filter((t) => t.statusAtEod === "Completed"),
+    [tasksState],
+  );
+
+  const todayProductivityTasks = React.useMemo(
+    () =>
+      tasksState
+        .filter((t) => t.statusAtEod !== "Completed")
+        .sort(
+          (a, b) =>
+            getStatusPriority(a.statusAtEod) - getStatusPriority(b.statusAtEod),
+        ),
+    [tasksState],
+  );
+
+  const filteredTasks = React.useMemo(() => {
+    const selDateObj = selectedDate ? parseISO(selectedDate) : new Date();
+    let list = tasksState.filter((t) => {
+      if (t.statusAtEod === "Completed") {
+        const correspondingTask = (allTasks || []).find(
+          (at) => at._id === (t.taskId?._id || t.taskId || t.id || t._id),
+        );
+        const target = correspondingTask || t;
+        const loggedMs = calculateTaskProductivityForDate(
+          target,
+          selDateObj,
+          officeHours,
+        );
+        const timeStr = t.time || "";
+        const isZeroTime =
+          loggedMs <= 0 &&
+          (!timeStr || timeStr === "0s" || timeStr === "0m" || timeStr === "0");
+        if (isZeroTime) return false;
+      }
+      return true;
+    });
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter(
+        (t) =>
+          (t.title && t.title.toLowerCase().includes(q)) ||
+          (t.code && t.code.toLowerCase().includes(q)) ||
+          (t.client && t.client.toLowerCase().includes(q)) ||
+          (t.project && t.project.toLowerCase().includes(q)) ||
+          (t.assignedByName && t.assignedByName.toLowerCase().includes(q)) ||
+          (t.statusAtEod && t.statusAtEod.toLowerCase().includes(q)) ||
+          (t.priority && t.priority.toLowerCase().includes(q)),
+      );
+    }
+
+    return list.sort(
+      (a, b) =>
+        getStatusPriority(a.statusAtEod) - getStatusPriority(b.statusAtEod),
+    );
+  }, [tasksState, searchTerm, allTasks, selectedDate, officeHours]);
+
   if (tasksLoading || reportLoading || projectsLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
@@ -846,9 +1183,9 @@ const EodReports = () => {
   }
 
   return (
-    <div className="min-h-screen max-w-7xl  mx-auto">
+    <div className="min-h-screen max-w-7xl mx-auto">
       {/* Header Card */}
-      <div className="theme-bg-card  ">
+      <div className="theme-bg-card">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="text-left">
             <h1 className="text-md font-bold theme-text-primary text-left">
@@ -864,8 +1201,8 @@ const EodReports = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-800 border theme-border px-4 py-2.5 rounded-xl text-slate-700 dark:text-slate-300 self-start lg:self-auto shadow-sm">
-            <FiCalendar className="shrink-0 text-indigo-500" />
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-800 border theme-border px-4 py-2 rounded-xl text-slate-700 dark:text-slate-300 self-start lg:self-auto shadow-xs">
+            <FiCalendar className="shrink-0 text-indigo-500" size={15} />
             <input
               type="date"
               value={selectedDate}
@@ -876,7 +1213,7 @@ const EodReports = () => {
         </div>
       </div>
 
-      {/* Task Cards Grid */}
+      {/* Task Table Section */}
       {tasksState.length === 0 ? (
         <div className="mt-8 theme-bg-card border border-dashed theme-border rounded-2xl p-12 text-center flex flex-col items-center justify-center">
           <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400 border theme-border">
@@ -894,147 +1231,284 @@ const EodReports = () => {
           </p>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {tasksState.map((task) => {
-            const assignerUser = users.find((u) => u._id === task.reviewedBy);
-            const assignerName =
-              assignerUser?.name || task.assignedByName || "Admin";
-            const assignerDept = assignerUser?.department || "Management";
-            const avatarUrl = assignerUser
-              ? (typeof assignerUser.profile?.profileImage === "object"
-                  ? assignerUser.profile?.profileImage?.url
-                  : assignerUser.profile?.profileImage) ||
-                (typeof assignerUser.profileImage === "object"
-                  ? assignerUser.profileImage?.url
-                  : assignerUser.profileImage) ||
-                assignerUser.profilePic ||
-                assignerUser.profile?.profilePic ||
-                assignerUser.profile?.avatar
-              : "";
+        <div className="mt-5 space-y-4">
+          {/* Controls Bar: Task Count & Search */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-slate-900/60 p-2.5 rounded-2xl border theme-border shadow-2xs">
+            <div className="flex items-center gap-2 px-1">
+              <h2 className="text-xs font-bold theme-text-primary uppercase tracking-wider">
+                All Tasks
+              </h2>
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                {filteredTasks.length}
+              </span>
+            </div>
 
-            return (
-              <div
-                key={task.id}
-                className="theme-bg-card border border-slate-100 dark:border-slate-800/80 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700/80 transition-all duration-300 text-left relative overflow-hidden"
-              >
-                {/* Task Top Meta info */}
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-sm theme-text-primary flex items-center gap-2 flex-wrap leading-relaxed">
-                      {task.code && (
-                        <span
-                          className={`px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border tracking-wider select-none ${getTaskCodeStyle(task.code).bg}`}
-                        >
-                          [{task.code}]
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1.5 ml-0.5">
-                        <FiFileText
-                          className="text-slate-400 dark:text-slate-500 shrink-0"
-                          size={14}
-                        />
-                        <span className="italic font-semibold text-slate-700 dark:text-slate-200">
-                          {task.title}
-                        </span>
-                      </span>
-                    </h3>
+            {/* Search Box */}
+            <div className="relative min-w-[240px]">
+             
+              <input
+                type="text"
+                placeholder="Search tasks, codes, clients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl pl-8 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-medium"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                  <FiX size={13} />
+                </button>
+              )}
+            </div>
+          </div>
 
-                    <div className="flex flex-wrap gap-2 mt-2.5 items-center">
-                      <span className="bg-slate-50 text-slate-600 dark:bg-slate-900/40 dark:text-slate-400 border border-slate-200/50 dark:border-slate-800/60 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                        {task.client}
-                      </span>
-                      {task.contentType && (
-                        <span className="bg-purple-50/50 text-purple-650 border border-purple-200/30 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                          {task.contentType}
-                        </span>
-                      )}
-                      {task.time && (
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50/50 text-blue-600 border border-blue-150/40 rounded-md text-[10px] font-bold dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
-                          <FiClock size={10} className="shrink-0" />
-                          <LiveTimeTracker task={task} allTasks={allTasks} isSubmitted={isSubmitted} />
+          {/* Table Container */}
+          <div className="bg-white dark:bg-[#0f172a] shadow-xs rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse min-w-[1100px]">
+                <thead>
+                  <tr className="bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none">
+                    <th className="px-4 py-3 text-center w-24"># / Code</th>
+                    <th className="px-4 py-3 min-w-[260px]">Task Name & Client</th>
+                    <th className="px-4 py-3 min-w-[130px]">Assigned By</th>
+                    <th className="px-4 py-3 min-w-[120px]">Priority / Rev</th>
+                    <th className="px-4 py-3 min-w-[130px]">Logged Time</th>
+                    <th className="px-4 py-3 min-w-[120px]">Status</th>
+                    <th className="px-4 py-3 min-w-[210px]">Reason for Status</th>
+                    <th className="px-4 py-3 min-w-[210px]">Next Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150 dark:divide-slate-800/80 text-xs">
+                  {filteredTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <FiSearch className="text-slate-400" size={24} />
+                          <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                            No matching tasks found
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            Try adjusting your search query or tab filter
+                          </p>
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTasks.map((task, idx) => {
+                      const assignerUser = users.find(
+                        (u) => u._id === task.reviewedBy,
+                      );
+                      const assignerName =
+                        assignerUser?.name || task.assignedByName || "Admin";
 
-                  <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                    <span
-                      className={`${getPriorityStyle(
-                        task.priority,
-                      )} text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider`}
-                    >
-                      {task.priority}
-                    </span>
-                    <span className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mt-0.5">
-                      Rev. {task.revision || 0}
-                    </span>
-                  </div>
-                </div>
+                      const isCompleted = task.statusAtEod === "Completed";
+                      const isInProgress = [
+                        "In Progress",
+                        "IN PROGRESS",
+                        "IN_PROGRESS",
+                      ].includes(task.statusAtEod);
+                      const isInReview = [
+                        "In Review",
+                        "In-Review",
+                        "IN_REVIEW",
+                      ].includes(task.statusAtEod);
 
-                {/* Status & Assigned By Row Stack */}
-                <div className="flex justify-between items-center  mt-6 border-t theme-border space-y-3">
-                  {/* Status Row */}
-                  <div className="flex items-center justify-between text-xs px-1">
-                    <span className="font-bold theme-text-secondary uppercase tracking-wider text-[10px]">
-                      status : <span className={`font-black tracking-wide ${getStatusTextColor(task.statusAtEod)}`}>{task.statusAtEod || "Pending"}</span>
-                    </span>
-                  </div>
+                      return (
+                        <tr
+                          key={task.id || task.taskId || idx}
+                          className={`transition-colors ${
+                            isCompleted
+                              ? "bg-emerald-50/15 dark:bg-emerald-950/10 hover:bg-emerald-50/35 dark:hover:bg-emerald-950/20"
+                              : isInProgress
+                                ? "bg-blue-50/20 dark:bg-blue-950/15 hover:bg-blue-50/45 dark:hover:bg-blue-950/25"
+                                : isInReview
+                                  ? "bg-amber-50/15 dark:bg-amber-950/10 hover:bg-amber-50/35 dark:hover:bg-amber-950/20"
+                                  : "hover:bg-slate-50/80 dark:hover:bg-slate-850/40"
+                          }`}
+                        >
+                          {/* 1. Code */}
+                          <td className="px-4 py-3 whitespace-nowrap align-middle">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 w-4 text-center">
+                                {idx + 1}
+                              </span>
+                              {task.code ? (
+                                <span
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-black border tracking-wider select-none shrink-0 ${getTaskCodeStyle(task.code).bg}`}
+                                >
+                                  [{task.code}]
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                            </div>
+                          </td>
 
-                  {/* Assigned By Row */}
-                  <div className=" text-xs px-1 ">
-                    <span className="font-bold theme-text-secondary uppercase tracking-wider text-[10px]">
-                      Assigned By :
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <span className="block font-bold theme-text-primary text-[11px] leading-tight">
-                          {assignerName}
-                        </span>
-                      </div>
-                    
-                    </div>
-                  </div>
-                </div>
+                          {/* 2. Task Name & Client */}
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex flex-col gap-1 max-w-[320px]">
+                              <div
+                                className="flex items-center gap-1.5 min-w-0"
+                                title={task.title}
+                              >
+                                <FiFileText
+                                  className="text-slate-400 dark:text-slate-500 shrink-0"
+                                  size={13}
+                                />
+                                <span className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">
+                                  {task.title}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {task.client && (
+                                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80 text-[9.5px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                    {task.client}
+                                  </span>
+                                )}
+                                {task.contentType && (
+                                  <span className="bg-purple-100/80 text-purple-700 border border-purple-200/60 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/50 text-[9.5px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                    {task.contentType}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
 
-                {/* Dynamic field rows depending on the status */}
-                {task.statusAtEod !== "Completed" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-4 border-t theme-border">
-                    <div>
-                      <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
-                        Reason for {task.statusAtEod}
-                      </label>
-                      <input
-                        type="text"
-                        placeholder={`Why is it ${task.statusAtEod.toLowerCase()}?`}
-                        className="w-full mt-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-900/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 dark:focus:ring-emerald-500/50 transition-all font-semibold"
-                        value={task.reason || ""}
-                        onChange={(e) =>
-                          updateTask(task.id, "reason", e.target.value)
-                        }
-                        disabled={isSubmitted}
-                      />
-                    </div>
+                          {/* 3. Assigned By */}
+                          <td className="px-4 py-3 whitespace-nowrap align-middle">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold border border-slate-200 dark:border-slate-700 shrink-0">
+                                <FiUser size={11} />
+                              </div>
+                              <span className="text-xs font-semibold text-slate-750 dark:text-slate-250">
+                                {assignerName}
+                              </span>
+                            </div>
+                          </td>
 
-                    <div>
-                      <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
-                        Next Action
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="What is the next plan?"
-                        className="w-full mt-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-900/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 text-xs text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 dark:focus:ring-emerald-500/50 transition-all font-semibold"
-                        value={task.nextAction || ""}
-                        onChange={(e) =>
-                          updateTask(task.id, "nextAction", e.target.value)
-                        }
-                        disabled={isSubmitted}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                          {/* 4. Priority & Revision */}
+                          <td className="px-4 py-3 whitespace-nowrap align-middle">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`${getPriorityStyle(
+                                  task.priority,
+                                )} text-[9.5px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider`}
+                              >
+                                {task.priority || "Normal"}
+                              </span>
+                              <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">
+                                Rev. {task.revision || 0}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 5. Time Logged */}
+                          <td className="px-4 py-3 whitespace-nowrap align-middle">
+                            {task.time ? (
+                              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100/80 text-blue-700 border border-blue-200/60 rounded-md text-[10px] font-black dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50">
+                                <FiClock
+                                  size={10}
+                                  className={`shrink-0 text-blue-500 ${isInProgress ? "animate-pulse" : ""}`}
+                                />
+                                <LiveTimeTracker
+                                  task={task}
+                                  allTasks={allTasks}
+                                  isSubmitted={isSubmitted}
+                                  selectedDate={selectedDate}
+                                  officeHours={officeHours}
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400">0s</span>
+                            )}
+                          </td>
+
+                          {/* 6. Status */}
+                          <td className="px-4 py-3 whitespace-nowrap align-middle">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10.5px] font-black tracking-wide ${getStatusBadgeStyle(
+                                task.statusAtEod,
+                              )}`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  isCompleted
+                                    ? "bg-emerald-500"
+                                    : isInProgress
+                                      ? "bg-blue-500 animate-pulse"
+                                      : isInReview
+                                        ? "bg-amber-500"
+                                        : "bg-slate-400"
+                                }`}
+                              />
+                              {task.statusAtEod || "Pending"}
+                            </span>
+                          </td>
+
+                          {/* 7. Reason for Status */}
+                          <td className="px-4 py-3 align-middle">
+                            {isCompleted ? (
+                              <div className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                <FiCheckCircle size={13} className="shrink-0" />
+                                <span>Completed</span>
+                              </div>
+                            ) : isInReview ? (
+                              <div className="inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/50 text-amber-800 dark:text-amber-300 rounded-lg px-2.5 py-1 text-xs font-bold shadow-2xs">
+                                <span>😁</span>
+                                <span>Thank you!</span>
+                              </div>
+                            ) : (
+                              <input
+                                type="text"
+                                placeholder={`Why ${task.statusAtEod?.toLowerCase() || "pending"}?`}
+                                className="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-semibold"
+                                value={task.reason || ""}
+                                onChange={(e) =>
+                                  updateTask(task.id, "reason", e.target.value)
+                                }
+                                disabled={isSubmitted}
+                              />
+                            )}
+                          </td>
+
+                          {/* 8. Next Action */}
+                          <td className="px-4 py-3 align-middle">
+                            {isCompleted ? (
+                              <span className="text-slate-300 dark:text-slate-600 text-xs font-medium">
+                                —
+                              </span>
+                            ) : isInReview ? (
+                              <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 italic">
+                                Ready for review
+                              </span>
+                            ) : (
+                              <input
+                                type="text"
+                                placeholder="Next plan..."
+                                className="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-semibold"
+                                value={task.nextAction || ""}
+                                onChange={(e) =>
+                                  updateTask(
+                                    task.id,
+                                    "nextAction",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={isSubmitted}
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1042,7 +1516,7 @@ const EodReports = () => {
                       DAY SUMMARY
       ========================================= */}
       {(tasksState.length > 0 || todayReport) && (
-        <div className="theme-bg-card border theme-border rounded-2xl mt-8 p-6 text-left shadow-sm">
+        <div className="sidebar-bg rounded-2xl mt-8 p-6 text-left shadow-sm">
           <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
             <div>
               <h2 className="text-md font-bold theme-text-primary">
@@ -1053,60 +1527,66 @@ const EodReports = () => {
               Submitted once, covers all tasks
             </span>
           </div>{" "}
-          {/* eod card  */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4 mb-5">
-            {/* Completed Card */}
-            <div className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent dark:from-emerald-500/15 dark:via-emerald-500/5 dark:to-transparent border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 rounded-full -mr-6 -mt-6 blur-md group-hover:bg-emerald-500/10 transition-all duration-300" />
-              <span className="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400 block relative z-10">
-                {completedCount}
-              </span>
-              <span className="text-[10px] font-black text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-widest mt-1.5 block relative z-10">
-                Completed
-              </span>
-            </div>
-
-            {/* In Progress Card */}
-            <div className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent dark:from-blue-500/15 dark:via-blue-500/5 dark:to-transparent border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-full -mr-6 -mt-6 blur-md group-hover:bg-blue-500/10 transition-all duration-300" />
-              <span className="text-2xl font-black tracking-tight text-blue-600 dark:text-blue-400 block relative z-10">
-                {inProgressCount}
-              </span>
-              <span className="text-[10px] font-black text-blue-700/80 dark:text-blue-300/80 uppercase tracking-widest mt-1.5 block relative z-10">
-                In Progress
-              </span>
-            </div>
-
-            {/* In Review Card */}
-            <div className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent dark:from-purple-500/15 dark:via-purple-500/5 dark:to-transparent border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/5 rounded-full -mr-6 -mt-6 blur-md group-hover:bg-purple-500/10 transition-all duration-300" />
-              <span className="text-2xl font-black tracking-tight text-purple-600 dark:text-purple-400 block relative z-10">
-                {inReviewCount}
-              </span>
-              <span className="text-[10px] font-black text-purple-700/80 dark:text-purple-300/80 uppercase tracking-widest mt-1.5 block relative z-10">
+          {/* eod summary cards  */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4 mb-5">
+            {/* 1. In Review Card */}
+            <div className="bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent dark:from-amber-500/20 dark:via-amber-500/5 dark:to-transparent border border-amber-500/30 dark:border-amber-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+              <div className="flex items-center justify-between relative z-10">
+                <span className="text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400">
+                  {inReviewCount}
+                </span>
+                <FiClock className="text-amber-500/60 text-lg group-hover:text-amber-500 transition-colors" />
+              </div>
+              <span className="text-[10px] font-black text-amber-700/90 dark:text-amber-300/90 uppercase tracking-widest mt-2 block relative z-10">
                 In Review
               </span>
             </div>
 
-            {/* On Hold Card */}
-            <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-500/15 dark:via-amber-500/5 dark:to-transparent border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/5 rounded-full -mr-6 -mt-6 blur-md group-hover:bg-amber-500/10 transition-all duration-300" />
-              <span className="text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400 block relative z-10">
-                {onHoldCount}
-              </span>
-              <span className="text-[10px] font-black text-amber-700/80 dark:text-amber-300/80 uppercase tracking-widest mt-1.5 block relative z-10">
-                On Hold
+            {/* 2. In Progress Card */}
+            <div className="bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent dark:from-blue-500/20 dark:via-blue-500/5 dark:to-transparent border border-blue-500/30 dark:border-blue-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+              <div className="flex items-center justify-between relative z-10">
+                <span className="text-2xl font-black tracking-tight text-blue-600 dark:text-blue-400">
+                  {inProgressCount}
+                </span>
+                <FiTool className="text-blue-500/60 text-lg group-hover:text-blue-500 transition-colors" />
+              </div>
+              <span className="text-[10px] font-black text-blue-700/90 dark:text-blue-300/90 uppercase tracking-widest mt-2 block relative z-10">
+                In Progress
               </span>
             </div>
 
-            {/* Total Logged Card */}
-            <div className="bg-gradient-to-br from-slate-500/10 via-slate-500/5 to-transparent dark:from-slate-500/15 dark:via-slate-500/5 dark:to-transparent border border-slate-500/20 dark:border-slate-700/30 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-slate-500/5 rounded-full -mr-6 -mt-6 blur-md group-hover:bg-slate-500/10 transition-all duration-300" />
-              <span className="text-2xl font-black tracking-tight theme-text-primary block relative z-10">
-                {calculateTotalLoggedTime(tasksState)}
+            {/* 3. Pending Card */}
+            <div className="bg-gradient-to-br from-indigo-500/15 via-indigo-500/5 to-transparent dark:from-indigo-500/20 dark:via-indigo-500/5 dark:to-transparent border border-indigo-500/30 dark:border-indigo-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+              <div className="flex items-center justify-between relative z-10">
+                <span className="text-2xl font-black tracking-tight text-indigo-600 dark:text-indigo-400">
+                  {pendingCount}
+                </span>
+                <FiCalendar className="text-indigo-500/60 text-lg group-hover:text-indigo-500 transition-colors" />
+              </div>
+              <span className="text-[10px] font-black text-indigo-700/90 dark:text-indigo-300/90 uppercase tracking-widest mt-2 block relative z-10">
+                Pending
               </span>
-              <span className="text-[10px] font-black theme-text-secondary uppercase tracking-widest mt-1.5 block relative z-10">
-                Today total timetaken
+            </div>
+
+            {/* 6. Total Logged Card */}
+            <div className="bg-gradient-to-br from-purple-500/15 via-purple-500/5 to-transparent dark:from-purple-500/20 dark:via-purple-500/5 dark:to-transparent border border-purple-500/30 dark:border-purple-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+              <div className="flex items-center justify-between relative z-10">
+                <span className="text-lg font-black tracking-tight text-purple-600 dark:text-purple-400 truncate">
+                  {calculateTotalLoggedTime(
+                    tasksState,
+                    allTasks,
+                    selectedDate,
+                    officeHours,
+                  )}
+                </span>
+                <FiClock className="text-purple-500/60 text-lg group-hover:text-purple-500 transition-colors shrink-0 ml-1" />
+              </div>
+              <span className="text-[10px] font-black text-purple-700/90 dark:text-purple-300/90 uppercase tracking-widest mt-2 block relative z-10">
+                Total Time Taken
               </span>
             </div>
           </div>

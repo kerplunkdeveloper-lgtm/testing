@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import {
-  FiCamera, FiMail, FiPhone, FiMapPin, FiSave, FiUser, FiTrash2,
+  FiCamera, FiMail, FiPhone, FiSave, FiUser, FiTrash2,
 } from "react-icons/fi";
 import {
   getProfile, createProfile, updateProfile,
@@ -12,7 +12,6 @@ import {
 const INFO_ROWS = [
   { icon: FiMail,   color: "bg-blue-50 text-blue-500",    label: "Email",   key: "email",   fromUser: true },
   { icon: FiPhone,  color: "bg-emerald-50 text-emerald-500", label: "Phone",   key: "phone",   fromUser: false },
-  { icon: FiMapPin, color: "bg-pink-50 text-pink-500",     label: "Address", key: "address", fromUser: false },
 ];
 
 const Profile = () => {
@@ -20,7 +19,7 @@ const Profile = () => {
   const { user }    = useSelector((s) => s.auth);
   const { profile, loading } = useSelector((s) => s.profile);
 
-  const [formData, setFormData] = useState({ bio: "", phone: "", address: "" });
+  const [formData, setFormData] = useState({ bio: "", phone: "" });
   const [image, setImage]             = useState(null);
   const [previewImage, setPreviewImage] = useState("");
 
@@ -31,7 +30,7 @@ const Profile = () => {
   }, [dispatch, user]);
 
   useEffect(() => {
-    if (profile) setFormData({ bio: profile.bio || "", phone: profile.phone || "", address: profile.address || "" });
+    if (profile) setFormData({ bio: profile.bio || "", phone: profile.phone || "" });
   }, [profile]);
 
   useEffect(() => () => { if (previewImage) URL.revokeObjectURL(previewImage); }, [previewImage]);
@@ -53,7 +52,6 @@ const Profile = () => {
     const data = new FormData();
     data.append("bio", formData.bio);
     data.append("phone", formData.phone);
-    data.append("address", formData.address);
     if (image) data.append("image", image);
 
     const optimistic = { ...formData };
@@ -162,36 +160,19 @@ const Profile = () => {
                 />
               </div>
 
-              {/* PHONE + ADDRESS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-yellow-50 mb-1.5">Phone Number</label>
-                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                    <FiPhone size={13} className="text-blue-400 shrink-0" />
-                    <input
-                      type="text"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      placeholder="Enter your phone number"
-                      className="w-full bg-transparent py-2 px-2 text-sm outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-yellow-50 mb-1.5">Address</label>
-                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 focus-within:border-pink-400 focus-within:ring-2 focus-within:ring-pink-100 transition-all">
-                    <FiMapPin size={13} className="text-pink-400 shrink-0" />
-                    <input
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      placeholder="City, State"
-                      className="w-full bg-transparent py-2 text-sm px-2 dark:text-white outline-none"
-                    />
-                  </div>
+              {/* PHONE */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-800 dark:text-yellow-50 mb-1.5">Phone Number</label>
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                  <FiPhone size={13} className="text-blue-400 shrink-0" />
+                  <input
+                    type="text"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="Enter your phone number"
+                    className="w-full bg-transparent py-2 px-2 text-sm outline-none text-slate-800 dark:text-white"
+                  />
                 </div>
               </div>
 

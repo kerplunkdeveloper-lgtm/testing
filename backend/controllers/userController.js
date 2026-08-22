@@ -128,11 +128,27 @@ exports.updateUser = async (req, res) => {
 
     const targetId = (!req.params.id || req.params.id === 'me') ? req.user._id : req.params.id;
 
-    // Security check: non-admins cannot update other users
-    if (req.user.role !== 'admin' && targetId.toString() !== req.user._id.toString()) {
+    // Security check: non-admins/operationmanagers cannot update other users
+    if (req.user.role !== 'admin' && req.user.role !== 'operationmanager' && targetId.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this user',
+      });
+    }
+
+    const userToUpdate = await User.findById(targetId);
+    if (!userToUpdate) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Operation managers cannot update admin users
+    if (req.user.role === 'operationmanager' && userToUpdate.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Operation managers cannot update admin accounts',
       });
     }
 
@@ -174,7 +190,43 @@ exports.deleteUser = async (req, res) => {
   try {
     console.log("DELETE USER CALLED WITH ID:", req.params.id);
 
+    const userToFind = await User.findById(req.params.id);
+
+    if (!userToFind) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Operation managers cannot delete admin users
+    if (req.user.role === 'operationmanager' && userToFind.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Operation managers cannot delete admin accounts',
+      });
+    }
+
     const user = await User.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully',
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// .....................................................relieve user.................................
+
+exports.relieveUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -183,11 +235,67 @@ exports.deleteUser = async (req, res) => {
       });
     }
 
+    if (user.role === 'admin') {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin accounts cannot be relieved',
+      });
+    }
+
+    user.employmentStatus = 'relieved';
+    user.accountStatus = 'inactive';
+    user.relievedAt = new Date();
+    user.relievedBy = req.user._id;
+    user.relievedReason = req.body.reason || '';
+    await user.save();
+
+    // Force logout active session via Socket.IO
+    const io = req.app.get('io');
+    if (io) {
+      io.to(req.params.id.toString()).emit('account_deactivated', {
+        userId: req.params.id,
+        message: 'Your account has been deactivated. Please contact your administrator.',
+      });
+    }
+
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully',
+      data: user,
+      message: 'User has been successfully relieved.',
     });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
 
+// .....................................................reactivate user.................................
+
+exports.reactivateUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    user.employmentStatus = 'active';
+    user.accountStatus = 'active';
+    user.relievedAt = null;
+    user.relievedBy = null;
+    user.relievedReason = '';
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      data: user,
+      message: 'User has been successfully reactivated.',
+    });
   } catch (err) {
     res.status(500).json({
       success: false,

@@ -17,7 +17,8 @@ const HorizontalSidebar = ({ role }) => {
   const { user: currentUser, originalAdminUser } = useSelector((state) => state.auth);
   const { unreadCounts = {} } = useSelector((state) => state.chat);
   const { notifications } = useSelector((state) => state.notifications);
-  const { users = [] } = useSelector((state) => state.users || {});
+  const usersState = useSelector((state) => state.users);
+  const users = usersState?.users || [];
   
   const [showSwitchDropdown, setShowSwitchDropdown] = useState(false);
   const [switchSearch, setSwitchSearch] = useState("");
@@ -129,6 +130,76 @@ const HorizontalSidebar = ({ role }) => {
       currentUser?.department === "Social Media Manager"
     ) {
       return false;
+    }
+
+    // Show SM Creditionals ONLY for Social Media Manager department, Managing Partner / Admin, and Operation Manager
+    if (
+      item.name === "SM Creditionals" ||
+      item.name === "SM Credentials" ||
+      item.name === "Social Accounts" ||
+      item.name?.toLowerCase().includes("sm cred") ||
+      item.path?.includes("social-accounts")
+    ) {
+      const deptLower = (currentUser?.department || "").toLowerCase();
+      const roleLower = (currentUser?.role || role || "").toLowerCase();
+
+      const isSocialMedia = deptLower.includes("social media");
+      const isManagingPartner =
+        roleLower === "admin" ||
+        deptLower.includes("managing partner") ||
+        roleLower.includes("managing partner");
+      const isOperationManager =
+        roleLower === "operationmanager" ||
+        deptLower.includes("operation manager") ||
+        roleLower.includes("operation manager");
+
+      if (!isSocialMedia && !isManagingPartner && !isOperationManager) {
+        return false;
+      }
+    }
+
+    // Show Client Calls ONLY for Social Media Manager department
+    if (item.name === "Client Calls" || item.path?.includes("client-calls")) {
+      const deptLower = (currentUser?.department || "").toLowerCase();
+      const isSocialMediaManager = deptLower.includes("social media manager");
+
+      if (!isSocialMediaManager) {
+        return false;
+      }
+    }
+
+    // Show SM Tasks ONLY for Social Media Manager department
+    if (
+      item.name === "SM Tasks" ||
+      item.name === "SM tasks" ||
+      item.path?.includes("sm-tasks")
+    ) {
+      const deptLower = (currentUser?.department || "").toLowerCase();
+      const isSocialMediaManager = deptLower.includes("social media manager");
+
+      if (!isSocialMediaManager) {
+        return false;
+      }
+    }
+
+    // Show Workload ONLY for Admin, Operation Manager, and Social Media Manager department
+    if (item.name === "Workload" || item.path?.includes("workload")) {
+      const deptLower = (currentUser?.department || "").toLowerCase();
+      const roleLower = (currentUser?.role || role || "").toLowerCase();
+
+      const isAdmin =
+        roleLower === "admin" ||
+        deptLower.includes("managing partner") ||
+        roleLower.includes("managing partner");
+      const isOperationManager =
+        roleLower === "operationmanager" ||
+        deptLower.includes("operation manager") ||
+        roleLower.includes("operation manager");
+      const isSocialMedia = deptLower.includes("social media");
+
+      if (!isAdmin && !isOperationManager && !isSocialMedia) {
+        return false;
+      }
     }
 
     if (role === "admin") return true;

@@ -248,12 +248,6 @@ const Navbar = ({ setSidebarOpen }) => {
         path: `/${user?.role}/portfolio`,
       },
       {
-        id: "nav-calendar",
-        category: "Navigation",
-        title: "Go to Calendar",
-        path: `/${user?.role}/calendar`,
-      },
-      {
         id: "nav-chat",
         category: "Navigation",
         title: "Go to Chat / Messages",
@@ -453,7 +447,7 @@ const Navbar = ({ setSidebarOpen }) => {
           >
             <HiOutlineMenuAlt3 className="text-[1.0625rem] transform hover:scale-110 transition-transform duration-200" />
           </button>
-        )}
+        )} 
 
         {/* PAGE TITLE */}
         <h1 className="text-xs md:text-[1.05rem] theme-text-accent font-medium shrink-0">
@@ -463,10 +457,52 @@ const Navbar = ({ setSidebarOpen }) => {
 
 
       {/* RIGHT */}
-      <div className="flex items-center gap-5 shrink-0">
-       
-       
+      <div className="flex items-center gap-2 sm:gap-3.5 shrink-0">
+        {/* SEARCH BAR BUTTON (Desktop/Tablet only) */}
+        <button
+          type="button"
+          onClick={() => {
+            setShowSearchModal(true);
+            setSearchQuery("");
+            setSelectedIndex(0);
+          }}
+          className="
+            hidden sm:flex items-center gap-2.5
+            h-8.5 px-3 rounded-xl
+           sidebar-bg
+          
+            text-slate-400 dark:text-slate-500
+          
+            hover:text-slate-600 dark:hover:text-slate-300
+            transition-all duration-200 cursor-pointer
+            w-36 md:w-48 lg:w-56 text-left shadow-2xs
+          "
+        >
+          <FiSearch className="text-xs shrink-0 text-slate-400 dark:text-slate-500" />
+          <span className="text-xs font-medium truncate flex-1">
+            Search...
+          </span>
+          <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-2xs">
+            Ctrl+K
+          </kbd>
+        </button>
 
+        {/* USER LOCATION (Desktop/Tablet only) */}
+        <div
+          className="
+            hidden sm:flex items-center gap-1.5
+            px-2.5 py-2 rounded-md 
+            sidebar-bg
+            text-slate-700 dark:text-slate-200
+            text-xs font-semibold shrink-0 shadow-2xs
+          "
+          title={`Location: ${user?.location || profile?.user?.location || "Chennai"}`}
+        >
+          <FiMapPin className="text-[13px] text-rose-500 shrink-0" />
+          <span className="truncate max-w-[90px] md:max-w-[130px] text-[11.5px] font-bold">
+            {user?.location || profile?.user?.location || "Chennai"}
+          </span>
+        </div>
 
         {/* NOTIFICATIONS */}
         <div className="relative" ref={notificationRef}>
@@ -728,9 +764,9 @@ const Navbar = ({ setSidebarOpen }) => {
             onClick={() => setOpenDropdown(!openDropdown)}
             className="
               flex items-center gap-1.5
-              px-1.5 py-1
+              px-1.5 py-2
   
-              rounded-lg border theme-border theme-bg-card
+              rounded-md sidebar-bg
               transition-all cursor-pointer
             "
           >

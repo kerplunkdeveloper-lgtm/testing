@@ -22,7 +22,7 @@ const OfficeHoursPausedPopup = () => {
     const start = new Date(item.actualStartTime).getTime();
     const end = item.pausedAt ? new Date(item.pausedAt).getTime() : Date.now();
 
-    let totalPauseMs = 0;
+    let sessionPauseMs = 0;
     if (item.blockerHistory && item.blockerHistory.length > 0) {
       item.blockerHistory.forEach((h) => {
         if (h.pausedAt) {
@@ -30,7 +30,11 @@ const OfficeHoursPausedPopup = () => {
           let r = h.resumedAt ? new Date(h.resumedAt).getTime() : Date.now();
           if (r > end) r = end;
           if (r >= p) {
-            totalPauseMs += r - p;
+            const oStart = Math.max(p, start);
+            const oEnd = Math.min(r, end);
+            if (oEnd > oStart) {
+              sessionPauseMs += oEnd - oStart;
+            }
           }
         }
       });
@@ -39,11 +43,14 @@ const OfficeHoursPausedPopup = () => {
     if (item.isBlocked && item.blockerPausedAt) {
       const p = new Date(item.blockerPausedAt).getTime();
       if (p < end) {
-        totalPauseMs += end - p;
+        const oStart = Math.max(p, start);
+        if (end > oStart) {
+          sessionPauseMs += end - oStart;
+        }
       }
     }
 
-    const elapsed = end - start - (item.totalPausedMs || 0) - totalPauseMs;
+    const elapsed = end - start - (item.totalPausedMs || 0) - sessionPauseMs;
     return Math.max(0, elapsed);
   };
 
@@ -69,19 +76,27 @@ const OfficeHoursPausedPopup = () => {
   useEffect(() => {
     if (!tasks || tasks.length === 0 || !currentUserId) return;
 
-    // Find any task assigned to current user that was auto-paused
+    // Find any task assigned to current user that was auto-paused at EOD
     const autoPausedTask = tasks.find((t) => {
-      const isAssignee = (t.assignedTo?._id || t.assignedTo) === currentUserId;
-      const hasAutoPausedSubtask = t.subtasks?.some(
-        (sub) => (sub.assignedTo?._id || sub.assignedTo) === currentUserId && sub.autoPaused
-      );
-      return isAssignee && (t.autoPaused || hasAutoPausedSubtask);
+      const isAssignee = Array.isArray(t.assignedTo)
+        ? t.assignedTo.some((u) => (u?._id || u) === currentUserId)
+        : (t.assignedTo?._id || t.assignedTo) === currentUserId;
+      const hasAutoPausedSubtask = t.subtasks?.some((sub) => {
+        const subAssignee = Array.isArray(sub.assignedTo)
+          ? sub.assignedTo.some((u) => (u?._id || u) === currentUserId)
+          : (sub.assignedTo?._id || sub.assignedTo) === currentUserId;
+        return subAssignee && sub.autoPaused;
+      });
+      return (isAssignee && t.autoPaused) || hasAutoPausedSubtask;
     });
 
     if (autoPausedTask) {
-      const subtask = autoPausedTask.subtasks?.find(
-        (sub) => (sub.assignedTo?._id || sub.assignedTo) === currentUserId && sub.autoPaused
-      );
+      const subtask = autoPausedTask.subtasks?.find((sub) => {
+        const subAssignee = Array.isArray(sub.assignedTo)
+          ? sub.assignedTo.some((u) => (u?._id || u) === currentUserId)
+          : (sub.assignedTo?._id || sub.assignedTo) === currentUserId;
+        return subAssignee && sub.autoPaused;
+      });
       const target = subtask || autoPausedTask;
 
       const workingTimeMs = calculateWorkingTime(target);

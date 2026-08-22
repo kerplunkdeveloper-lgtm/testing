@@ -41,12 +41,14 @@ exports.getDirectMessages = async (req, res) => {
   }
 };
 
-// @desc    Get group messages (accepts roomId parameter)
+// @desc    Get group messages (accepts roomId parameter with optional pagination)
 // @route   GET /api/messages/group/:roomId
 // @access  Private
 exports.getGroupMessages = async (req, res) => {
   try {
     const roomId = req.params.roomId || "group";
+    const limit = parseInt(req.query.limit) || 50;
+    const before = req.query.before;
 
     // If it's a custom group room, verify user is a member
     if (roomId !== "group") {
@@ -62,8 +64,14 @@ exports.getGroupMessages = async (req, res) => {
       }
     }
 
-    const messages = await Message.find({ chatRoom: roomId })
-      .sort("createdAt")
+    const query = { chatRoom: roomId };
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    const rawMessages = await Message.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
       .populate({
         path: "sender",
         select: "name email role profile",
@@ -72,11 +80,24 @@ exports.getGroupMessages = async (req, res) => {
       .populate({
         path: "replyTo",
         populate: { path: "sender", select: "name" }
+      })
+      .populate({
+        path: "seenBy.userId",
+        select: "name email role profile",
+        populate: { path: "profile" }
+      })
+      .populate({
+        path: "mentions.userId",
+        select: "name role"
       });
+
+    // Reverse to chronological order (oldest to newest)
+    const messages = rawMessages.reverse();
 
     res.status(200).json({
       success: true,
       data: messages,
+      hasMore: rawMessages.length === limit,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -88,19 +109,55 @@ exports.getGroupMessages = async (req, res) => {
 // @access  Private
 exports.sendMessage = async (req, res) => {
   try {
-    const { recipient, chatRoom, text, sticker, messageType, file, callStatus, callDuration, replyTo } = req.body;
+    const { recipient, chatRoom, text, sticker, messageType, file, callStatus, callDuration, replyTo, mentions } = req.body;
 
-    // Check membership authorization if sending to custom room
-    if (chatRoom && chatRoom !== "group" && chatRoom !== "direct") {
+    let validMentions = [];
+    const isMentionAll =
+      (typeof text === "string" && (/\B@all\b/i.test(text) || /\B@everyone\b/i.test(text))) ||
+      (Array.isArray(mentions) && mentions.some((m) => m?.username === "all" || m?.userId === "all"));
+
+    if (isMentionAll) {
+      validMentions.push({
+        username: "all",
+      });
+    }
+
+    if (chatRoom !== "direct" && chatRoom !== "group") {
       const room = await ChatRoom.findById(chatRoom);
-      if (!room) {
-        return res.status(404).json({ success: false, message: "Group room not found" });
+      if (!room || (!room.members.some((m) => m.toString() === req.user.id.toString()) && req.user.role !== "admin")) {
+        return res.status(403).json({
+          message: "You are not a member of this chat room",
+        });
       }
-      const isMember = room.members.some(
-        (memberId) => memberId.toString() === req.user.id.toString()
-      );
-      if (!isMember && req.user.role !== "admin") {
-        return res.status(403).json({ success: false, message: "Not authorized to post to this group room" });
+
+      if (Array.isArray(mentions) && mentions.length > 0) {
+        const memberIdSet = new Set(room.members.map((m) => m.toString()));
+        const seenMentionIds = new Set();
+        for (const m of mentions) {
+          const mUserId = m?.userId?.toString() || m?.id?.toString() || m?._id?.toString();
+          if (mUserId && mUserId !== "all" && memberIdSet.has(mUserId) && mUserId !== req.user.id.toString() && !seenMentionIds.has(mUserId)) {
+            seenMentionIds.add(mUserId);
+            validMentions.push({
+              userId: mUserId,
+              username: m.username || m.name || "User",
+            });
+          }
+        }
+      }
+    } else if (chatRoom === "group") {
+      // Validate mentions for general group chat
+      if (Array.isArray(mentions) && mentions.length > 0) {
+        const seenMentionIds = new Set();
+        for (const m of mentions) {
+          const mUserId = m?.userId?.toString() || m?.id?.toString() || m?._id?.toString();
+          if (mUserId && mUserId !== "all" && mUserId !== req.user.id.toString() && !seenMentionIds.has(mUserId)) {
+            seenMentionIds.add(mUserId);
+            validMentions.push({
+              userId: mUserId,
+              username: m.username || m.name || "User",
+            });
+          }
+        }
       }
     }
 
@@ -115,6 +172,8 @@ exports.sendMessage = async (req, res) => {
       callStatus,
       callDuration,
       replyTo,
+      mentions: validMentions,
+      seenBy: [],
     });
 
     const populatedMessage = await Message.findById(message._id)
@@ -131,71 +190,117 @@ exports.sendMessage = async (req, res) => {
       .populate({
         path: "replyTo",
         populate: { path: "sender", select: "name" }
+      })
+      .populate({
+        path: "seenBy.userId",
+        select: "name email role profile",
+        populate: { path: "profile" }
+      })
+      .populate({
+        path: "mentions.userId",
+        select: "name role"
       });
 
     const io = req.app.get("io");
+    const mentionedUserIds = new Set(validMentions.filter((m) => m.userId).map((m) => m.userId.toString()));
+    const notificationText = text || (messageType === 'sticker' ? 'Sent a sticker' : messageType === 'file' ? `Sent a file: ${file?.filename || 'Attachment'}` : 'Call log');
 
     if (chatRoom === "group") {
-      // Emit to all users in group chat
       if (io) {
         io.to("group_chat").emit("group_message", populatedMessage);
 
-        // Also send a real-time notification to all other users in the database
-        const notificationText = text || (messageType === 'sticker' ? 'Sent a sticker' : messageType === 'file' ? `Sent a file: ${file?.filename || 'Attachment'}` : 'Call log');
         const allUsers = await User.find({ _id: { $ne: req.user.id } });
         
         for (const otherUser of allUsers) {
+          const otherUserIdStr = otherUser._id.toString();
+          const isMentioned = isMentionAll || mentionedUserIds.has(otherUserIdStr);
+
           const notification = await Notification.create({
             recipient: otherUser._id,
             sender: req.user.id,
-            type: "message_received",
-            message: `New message in General Group Chat from ${req.user.name}: "${notificationText}"`,
+            type: isMentioned ? "mention_received" : "message_received",
+            message: isMentionAll
+              ? `📢 ${req.user.name} mentioned @all in Kerplunk Group: "${notificationText}"`
+              : isMentioned
+              ? `${req.user.name} mentioned you in Kerplunk Group: "${notificationText}"`
+              : `New message in General Group Chat from ${req.user.name}: "${notificationText}"`,
             chatRoomId: "group",
             chatRoomType: "group",
+            messageId: message._id,
           });
+
           const populatedNotification = await Notification.findById(notification._id).populate({
             path: "sender",
             select: "name profile",
             populate: { path: "profile" }
           });
-          io.to(otherUser._id.toString()).emit("notification", populatedNotification);
+
+          io.to(otherUserIdStr).emit("notification", populatedNotification);
+
+          if (isMentioned) {
+            io.to(otherUserIdStr).emit("mention:notification", {
+              messageId: message._id,
+              chatRoomId: "group",
+              sender: { _id: req.user.id, name: req.user.name, profile: req.user.profile },
+              groupName: "Kerplunk Group",
+              text: notificationText,
+              isAll: isMentionAll,
+            });
+          }
         }
       }
     } else if (chatRoom !== "direct") {
-      // Custom Group Chat Room: Emit to all members of the group
+      // Custom Group Chat Room
       const room = await ChatRoom.findById(chatRoom);
       if (room && io) {
-        const notificationText = text || (messageType === 'sticker' ? 'Sent a sticker' : messageType === 'file' ? `Sent a file: ${file?.filename || 'Attachment'}` : 'Call log');
-        
         for (const memberId of room.members) {
-          io.to(memberId.toString()).emit("group_message", populatedMessage);
+          const memberIdStr = memberId.toString();
+          io.to(memberIdStr).emit("group_message", populatedMessage);
           
-          if (memberId.toString() !== req.user.id.toString()) {
+          if (memberIdStr !== req.user.id.toString()) {
+            const isMentioned = isMentionAll || mentionedUserIds.has(memberIdStr);
+
             const notification = await Notification.create({
               recipient: memberId,
               sender: req.user.id,
-              type: "message_received",
-              message: `New message in ${room.name} from ${req.user.name}: "${notificationText}"`,
+              type: isMentioned ? "mention_received" : "message_received",
+              message: isMentionAll
+                ? `📢 ${req.user.name} mentioned @all in ${room.name}: "${notificationText}"`
+                : isMentioned
+                ? `${req.user.name} mentioned you in ${room.name}: "${notificationText}"`
+                : `New message in ${room.name} from ${req.user.name}: "${notificationText}"`,
               chatRoomId: room._id.toString(),
               chatRoomType: "group",
+              messageId: message._id,
             });
+
             const populatedNotification = await Notification.findById(notification._id).populate({
               path: "sender",
               select: "name profile",
               populate: { path: "profile" }
             });
-            io.to(memberId.toString()).emit("notification", populatedNotification);
+
+            io.to(memberIdStr).emit("notification", populatedNotification);
+
+            if (isMentioned) {
+              io.to(memberIdStr).emit("mention:notification", {
+                messageId: message._id,
+                chatRoomId: room._id.toString(),
+                sender: { _id: req.user.id, name: req.user.name, profile: req.user.profile },
+                groupName: room.name,
+                text: notificationText,
+                isAll: isMentionAll,
+              });
+            }
           }
         }
       }
     } else {
-      // Emit to both sender and recipient rooms
+      // Direct message
       if (io) {
         io.to(req.user.id.toString()).emit("direct_message", populatedMessage);
         io.to(recipient.toString()).emit("direct_message", populatedMessage);
         
-        // Also send a real-time notification to the recipient so they get a chime + toast immediately if on a different page!
-        const notificationText = text || (messageType === 'sticker' ? 'Sent a sticker' : messageType === 'file' ? `Sent a file: ${file?.filename || 'Attachment'}` : 'Call log');
         const notification = await Notification.create({
           recipient,
           sender: req.user.id,
@@ -203,6 +308,7 @@ exports.sendMessage = async (req, res) => {
           message: `New message from ${req.user.name}: "${notificationText}"`,
           chatRoomId: req.user.id.toString(),
           chatRoomType: "direct",
+          messageId: message._id,
         });
         
         const populatedNotification = await Notification.findById(notification._id).populate({
@@ -515,4 +621,140 @@ exports.clearDirectMessages = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Add or toggle emoji reaction on a message
+// @route   POST /api/messages/:messageId/reaction
+// @access  Private
+exports.toggleReaction = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user.id;
+    const userName = req.user.name;
+
+    if (!emoji) {
+      return res.status(400).json({ success: false, message: "Emoji is required" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    if (!message.reactions) {
+      message.reactions = [];
+    }
+
+    // Check if this emoji group already exists
+    let emojiGroup = message.reactions.find((r) => r.emoji === emoji);
+
+    let isAdded = false;
+
+    if (!emojiGroup) {
+      // User adds new reaction with this emoji
+      message.reactions.push({
+        emoji,
+        users: [{ userId, name: userName }],
+      });
+      isAdded = true;
+    } else {
+      // Check if this user already reacted with this emoji
+      const userIndex = emojiGroup.users.findIndex(
+        (u) => u.userId && u.userId.toString() === userId.toString()
+      );
+
+      if (userIndex > -1) {
+        // User already reacted -> remove reaction (toggle off)
+        emojiGroup.users.splice(userIndex, 1);
+        // If no users left for this emoji, remove the emojiGroup
+        if (emojiGroup.users.length === 0) {
+          message.reactions = message.reactions.filter((r) => r.emoji !== emoji);
+        }
+      } else {
+        // User reacts with this emoji
+        emojiGroup.users.push({ userId, name: userName });
+        isAdded = true;
+      }
+    }
+
+    await message.save();
+
+    const io = req.app.get("io");
+    if (io) {
+      const payload = {
+        messageId: message._id.toString(),
+        reactions: message.reactions,
+        chatRoom: message.chatRoom,
+      };
+
+      if (message.chatRoom === "group") {
+        io.to("group_chat").emit("message:reaction", payload);
+      } else if (message.chatRoom !== "direct") {
+        const room = await ChatRoom.findById(message.chatRoom);
+        if (room) {
+          room.members.forEach((mId) => {
+            io.to(mId.toString()).emit("message:reaction", payload);
+          });
+        }
+      } else {
+        io.to(message.sender.toString()).emit("message:reaction", payload);
+        if (message.recipient) {
+          io.to(message.recipient.toString()).emit("message:reaction", payload);
+        }
+      }
+
+      // Send Notification to message owner if someone else reacted
+      if (isAdded && message.sender && message.sender.toString() !== userId.toString()) {
+        try {
+          const messagePreview = message.text
+            ? (message.text.length > 35 ? message.text.substring(0, 35) + "..." : message.text)
+            : (message.messageType === "file" ? message.file?.filename || "Attachment" : message.sticker || "Message");
+
+          let roomName = "";
+          if (message.chatRoom === "group") {
+            roomName = "Kerplunk Group";
+          } else if (message.chatRoom !== "direct") {
+            const roomObj = await ChatRoom.findById(message.chatRoom);
+            roomName = roomObj?.name || "Group";
+          }
+
+          const notificationText = roomName
+            ? `${req.user.name} reacted with ${emoji} in ${roomName}: "${messagePreview}"`
+            : `${req.user.name} reacted with ${emoji} to your message: "${messagePreview}"`;
+
+          const notification = await Notification.create({
+            recipient: message.sender,
+            sender: req.user.id,
+            type: "reaction_received",
+            message: notificationText,
+            messageId: message._id,
+            chatRoomId: message.chatRoom === "direct" ? req.user.id.toString() : message.chatRoom,
+            chatRoomType: message.chatRoom === "direct" ? "direct" : "group",
+          });
+
+          const populatedNotification = await Notification.findById(notification._id).populate({
+            path: "sender",
+            select: "name profile",
+            populate: { path: "profile" },
+          });
+
+          io.to(message.sender.toString()).emit("notification", populatedNotification);
+        } catch (notifErr) {
+          console.error("Failed to create reaction notification:", notifErr);
+        }
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        messageId: message._id.toString(),
+        reactions: message.reactions,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 

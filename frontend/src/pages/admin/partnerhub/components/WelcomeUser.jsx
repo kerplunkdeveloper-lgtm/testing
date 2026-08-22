@@ -565,16 +565,6 @@ const WelcomeUser = () => {
                   </p>
                 </div>
 
-                {profile?.address && (
-                  <div>
-                    <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">
-                      Location / Address
-                    </h4>
-                    <p className="mt-1 text-xs text-slate-800 dark:text-slate-200 font-bold">
-                      {profile.address}
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </div>

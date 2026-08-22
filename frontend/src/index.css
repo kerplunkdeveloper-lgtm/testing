@@ -127,7 +127,7 @@ html {
   --color-incomplete-start: #8b5cf6;
   --color-incomplete-end: #ec4899;
   --color-completed-start: #10b981;
-  --color-completed-end: #059669;
+  --sidebar-bg: color-mix(in srgb, var(--accent-color) 10%, rgba(255, 255, 255, 0.8));
 }
 
 body {
@@ -137,24 +137,24 @@ body {
 
 /* Smooth global transitions for theme changes - no box-shadow to prevent lag */
 body, aside, header, nav, main, section, article, footer,
-.theme-card-gradient, .theme-bg-main, .theme-bg-card {
-  transition-property: color, background-color, border-color;
+.theme-card-gradient, .theme-bg-main, .theme-bg-card,
+h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, select, textarea {
+  transition-property: color, background-color, border-color, fill, stroke;
   transition-timing-function: ease-in-out;
-  transition-duration: 250ms;
+  transition-duration: 150ms;
 }
 
-
-
 .sidebar-bg {
-  background-color: color-mix(in srgb, var(--accent-color) 10%, rgba(255, 255, 255, 0.8));
-  transition: background-color 250ms ease-in-out, border-color 250ms ease-in-out, color 250ms ease-in-out;
+  background-color: var(--sidebar-bg);
+  transition: background-color 150ms ease-in-out, border-color 150ms ease-in-out, color 150ms ease-in-out;
 }
 
 .dark .sidebar-bg {
-  background-color: color-mix(in srgb, var(--accent-color) 10%, rgba(11, 12, 16, 0.7));
+  background-color: var(--sidebar-bg);
 }
 
 .dark {
+  --sidebar-bg: color-mix(in srgb, var(--accent-color) 10%, rgba(11, 12, 16, 0.7));
   /* Premium Dark Mode Palette */
   --color-white: #000000; /* Card / Container Bg - Slate 900 */
   --color-slate-50: #020710; /* Body Background - Dark Midnight Navy */
@@ -303,7 +303,7 @@ body, aside, header, nav, main, section, article, footer,
   .event-modal-container textarea {
     background-color: #020710 !important;
     color: #f8fafc !important;
-    border-color: #1e293b !important;
+   
   }
 
   
@@ -515,24 +515,24 @@ tr:not(.no-hover-row):hover {
 
 /* Forms & Inputs styling */
 input, select, textarea {
-  background-color: var(--color-slate-50) !important;
-  color: var(--color-slate-950) !important;
-  border: 1px solid var(--color-slate-200) !important;
-  border-radius: 0.75rem;
+  background-color: var(--sidebar-bg) !important;
+  border: none !important;
   padding: 0.625rem 0.875rem;
   font-size: 0.8125rem;
   font-weight: 500;
   transition: all 0.2s ease-in-out;
 }
 input:focus, select:focus, textarea:focus {
-  border-color: var(--color-brand-primary) !important;
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
-  outline: none;
-  background-color: var(--color-white) !important;
+  outline: none !important;
+  border: none !important;
+  background-color: var(--sidebar-bg) !important;
 }
 .dark input:focus, .dark select:focus, .dark textarea:focus {
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15) !important;
-  background-color: var(--color-white) !important;
+  outline: none !important;
+  border: none !important;
+  background-color: var(--sidebar-bg) !important;
 }
 
 /* Card gradients for dashboard widgets */
@@ -598,7 +598,7 @@ select.badge-select option {
 
 @media (min-width: 1280px) {
   #login-image-section {
-    width: 60% !important;
+    width: 67% !important;
   }
   #login-form-section {
     width: 40% !important;
@@ -623,6 +623,19 @@ select.badge-select option {
 .dark ::-webkit-scrollbar-thumb,
 .dark::-webkit-scrollbar-thumb {
   background: transparent !important;
+}
+
+/* Scrollbar Hide Utility */
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.scrollbar-hide,
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

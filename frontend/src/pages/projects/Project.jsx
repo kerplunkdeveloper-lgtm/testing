@@ -794,71 +794,30 @@ const Project = () => {
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                       Client <span className="text-red-500">*</span>
                     </label>
-                    {!showCustomInput ? (
-                      <div className="relative">
-                        <select
-                          value={client}
-                          onChange={(e) => {
-                            if (e.target.value === "ADD_CUSTOM") {
-                              setShowCustomInput(true);
-                              setCustomClientName("");
-                            } else {
-                              setClient(e.target.value);
-                            }
-                          }}
-                          required
-                          className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
-                        >
-                          <option value="" className="dark:bg-[#111111]">
-                            Select a client
+                    <div className="relative">
+                      <select
+                        value={client}
+                        onChange={(e) => setClient(e.target.value)}
+                        required
+                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
+                      >
+                        <option value="" className="dark:bg-[#111111]">
+                          Select a client
+                        </option>
+                        {clients?.map((c) => (
+                          <option
+                            key={c._id}
+                            value={c._id}
+                            className="dark:bg-[#111111]"
+                          >
+                            {c.companyName || c.name}
                           </option>
-                          {clients?.map((c) => (
-                            <option
-                              key={c._id}
-                              value={c._id}
-                              className="dark:bg-[#111111]"
-                            >
-                              {c.companyName || c.name}
-                            </option>
-                          ))}
-                          <option value="ADD_CUSTOM" className="text-blue-600 font-extrabold dark:text-blue-400 dark:bg-[#111111]">
-                            + Add Custom Client...
-                          </option>
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                          <FiChevronDown size={16} />
-                        </div>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <FiChevronDown size={16} />
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-2 mt-1">
-                        <input
-                          type="text"
-                          required
-                          value={customClientName}
-                          onChange={(e) => setCustomClientName(e.target.value)}
-                          placeholder="Type custom client name..."
-                          className="flex-1 px-4 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-[#111111]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveCustomClient(false)}
-                          disabled={isSavingClient || !customClientName.trim()}
-                          className="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 dark:bg-[#3b82f6] dark:hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                        >
-                          {isSavingClient ? "Saving..." : "Save"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCustomInput(false);
-                            setClient("");
-                          }}
-                          className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-350 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* Access Select field */}
@@ -1005,70 +964,29 @@ const Project = () => {
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                       Client
                     </label>
-                    {!showCustomInputEdit ? (
-                      <div className="relative">
-                        <select
-                          value={editClient}
-                          onChange={(e) => {
-                            if (e.target.value === "ADD_CUSTOM") {
-                              setShowCustomInputEdit(true);
-                              setCustomClientName("");
-                            } else {
-                              setEditClient(e.target.value);
-                            }
-                          }}
-                          className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
-                        >
-                          <option value="" className="dark:bg-[#111111]">
-                            Select a client (optional)
+                    <div className="relative">
+                      <select
+                        value={editClient}
+                        onChange={(e) => setEditClient(e.target.value)}
+                        className="w-full px-4 py-3 pr-10 rounded-2xl bg-slate-50/60 dark:bg-[#0a0a0a] border border-slate-155 dark:border-white/10 focus:outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] focus:bg-white dark:focus:bg-[#111111] text-sm text-slate-700 dark:text-white cursor-pointer appearance-none transition-all focus:shadow-sm"
+                      >
+                        <option value="" className="dark:bg-[#111111]">
+                          Select a client (optional)
+                        </option>
+                        {clients?.map((c) => (
+                          <option
+                            key={c._id}
+                            value={c._id}
+                            className="dark:bg-[#111111]"
+                          >
+                            {c.companyName || c.name}
                           </option>
-                          {clients?.map((c) => (
-                            <option
-                              key={c._id}
-                              value={c._id}
-                              className="dark:bg-[#111111]"
-                            >
-                              {c.companyName || c.name}
-                            </option>
-                          ))}
-                          <option value="ADD_CUSTOM" className="text-blue-600 font-extrabold dark:text-blue-400 dark:bg-[#111111]">
-                            + Add Custom Client...
-                          </option>
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                          <FiChevronDown size={16} />
-                        </div>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <FiChevronDown size={16} />
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-2 mt-1">
-                        <input
-                          type="text"
-                          required
-                          value={customClientName}
-                          onChange={(e) => setCustomClientName(e.target.value)}
-                          placeholder="Type custom client name..."
-                          className="flex-1 px-4 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-[#111111]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveCustomClient(true)}
-                          disabled={isSavingClient || !customClientName.trim()}
-                          className="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 dark:bg-[#3b82f6] dark:hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                        >
-                          {isSavingClient ? "Saving..." : "Save"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCustomInputEdit(false);
-                            setEditClient("");
-                          }}
-                          className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-350 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* Access Select field */}

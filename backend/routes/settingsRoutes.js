@@ -16,13 +16,19 @@ router.get("/office-hours", protect, async (req, res) => {
   }
 });
 
-// PUT update settings (only admin and operationmanager can edit settings)
 router.put("/office-hours", protect, authorize("admin", "operationmanager"), async (req, res) => {
-  const { startHour, endHour } = req.body;
+  const { startHour, endHour, workingDays } = req.body;
   try {
+    const updateData = {
+      startHour: Number(startHour),
+      endHour: Number(endHour),
+    };
+    if (Array.isArray(workingDays)) {
+      updateData.workingDays = workingDays.map(Number);
+    }
     const settings = await OfficeSettings.findOneAndUpdate(
       { key: "global" },
-      { startHour: Number(startHour), endHour: Number(endHour) },
+      updateData,
       { returnDocument: 'after', upsert: true }
     );
     res.json({ success: true, data: settings });

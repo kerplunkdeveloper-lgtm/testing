@@ -160,7 +160,7 @@ const Settings = () => {
       <div className="px-3 sm:px-5 py-4 sm:py-6 max-w-4xl mx-auto animate-fadeIn">
         {/* PAGE TITLE */}
         <div className="mb-6">
-          <h1 className="text-xl sm:text-2xl font-black theme-text-primary tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-black text-gray-800 dark:text-gray-200 tracking-tight">
             System Settings
           </h1>
           <p className="text-xs theme-text-secondary mt-1">
@@ -224,7 +224,7 @@ const Settings = () => {
             <div className="theme-bg-card border theme-border rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-4 border-b theme-border pb-3">
                 <LuPaintbrush className="text-blue-500 dark:text-[#3b82f6] text-lg" />
-                <h3 className="text-sm font-bold theme-text-primary uppercase tracking-wider">
+                <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
                   Theme Preference
                 </h3>
               </div>

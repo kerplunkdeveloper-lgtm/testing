@@ -22,7 +22,9 @@ import { getProjects } from "../../features/projects/projectSlice";
 import { getUsers } from "../../features/users/userSlice";
 import { getPortfolios } from "../../features/portfolio/portfolioSlice";
 import { getClients } from "../../features/clients/clientslice";
-import { apiSlice } from "../../features/api/apiSlice";
+import { apiSlice, useGetTasksQuery } from "../../features/api/apiSlice";
+import { getEodReports } from "../../features/eodReports/eodReportSlice";
+import { getDesignerEodReports } from "../../features/eodReports/designerEodReportSlice";
 import { markAllChatAsRead } from "../../features/notifications/notificationSlice";
 import { clearAllUnreadCounts } from "../../features/chat/chatSlice";
 import ProjectIcon from "../common/ProjectIcon";
@@ -121,9 +123,11 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
     : 0;
 
   const { projects } = useSelector((state) => state.projects);
-  const { portfolios = [] } = useSelector((state) => state.portfolios || {});
+  const portfoliosState = useSelector((state) => state.portfolios);
+  const portfolios = portfoliosState?.portfolios || [];
   const { users } = useSelector((state) => state.users);
-  const { clients = [] } = useSelector((state) => state.clients || {});
+  const clientsState = useSelector((state) => state.clients);
+  const clients = clientsState?.clients || [];
   const { user: currentUser, originalAdminUser } = useSelector(
     (state) => state.auth,
   );
@@ -140,36 +144,159 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
   // Use the database notifications count as the source of truth if it exists, otherwise fallback to local session state
   const totalUnreadChatCount = Math.max(localUnreadChatCount, dbUnreadChatCount);
 
-  const menuItems = (sidebarConfig[role] || []).filter((item) => {
-    // Hide Projects Overview for Social Media Manager department
-    if (
-      item.name === "Projects Overview" &&
-      (currentUser?.department === "Social Media Manager" ||
-        currentUser?.department === "Social Media Executive")
-    ) {
-      return false;
-    }
-
-    // Hide My Reports for Social Media Manager department
-    if (
-      item.name === "My Reports" &&
-      currentUser?.department === "Social Media Manager"
-    ) {
-      return false;
-    }
-
-    // Hide Chat when admin is impersonating another user
-    if (item.name === "Chat" && originalAdminUser) {
-      return false;
-    }
-
-    if (role === "admin") return true;
-    if (item.permissionKey === "manage_clients") return true;
-    if (!item.permissionKey) return true;
-    const perm = currentUser?.permissions?.[item.permissionKey];
-    if (perm === true) return true; // legacy
-    return perm?.read;
+  // Fetch tasks for MOM reports count
+  const { data: allTasks = [] } = useGetTasksQuery(undefined, {
+    skip: !currentUser,
   });
+
+  // EOD Reports for Admin / Operation Manager count
+  const { eodReports } = useSelector((state) => state.eodReports || {});
+  const { designerEodReports } = useSelector(
+    (state) => state.designerEodReports || {},
+  );
+
+  const fetchedEodRef = React.useRef(false);
+  useEffect(() => {
+    if ((role === "admin" || role === "operationmanager") && !fetchedEodRef.current) {
+      if (!eodReports || eodReports.length === 0) dispatch(getEodReports());
+      if (!designerEodReports || designerEodReports.length === 0) dispatch(getDesignerEodReports());
+      fetchedEodRef.current = true;
+    }
+  }, [dispatch, role, eodReports, designerEodReports]);
+
+  const newMomCount = React.useMemo(() => {
+    return (allTasks || []).filter(
+      (t) =>
+        (t.contentType || "").toUpperCase() === "MOM" &&
+        (t.status || "").toLowerCase() !== "completed" &&
+        (t.status || "").toLowerCase() !== "done",
+    ).length;
+  }, [allTasks]);
+
+  const newReportsCount = React.useMemo(() => {
+    if (role !== "admin" && role !== "operationmanager") return 0;
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isToday = (d) => {
+      if (!d) return false;
+      try {
+        const str = new Date(d).toISOString().split("T")[0];
+        return str === todayStr;
+      } catch {
+        return false;
+      }
+    };
+    const todayGeneral = (eodReports || []).filter((r) =>
+      isToday(r.date || r.createdAt),
+    );
+    const todayDesigner = (designerEodReports || []).filter(
+      (r) => !r.isDraft && isToday(r.date || r.createdAt),
+    );
+    return todayGeneral.length + todayDesigner.length;
+  }, [eodReports, designerEodReports, role]);
+
+  const menuItems = React.useMemo(() => {
+    return (sidebarConfig[role] || []).filter((item) => {
+      // Hide Projects Overview for Social Media Manager department
+      if (
+        item.name === "Projects Overview" &&
+        (currentUser?.department === "Social Media Manager" ||
+          currentUser?.department === "Social Media Executive")
+      ) {
+        return false;
+      }
+
+      // Hide My Reports for Social Media Manager department
+      if (
+        item.name === "My Reports" &&
+        currentUser?.department === "Social Media Manager"
+      ) {
+        return false;
+      }
+
+      // Show SM Creditionals ONLY for Social Media Manager department, Managing Partner / Admin, and Operation Manager
+      if (
+        item.name === "SM Creditionals" ||
+        item.name === "SM Credentials" ||
+        item.name === "Social Accounts" ||
+        item.name?.toLowerCase().includes("sm cred") ||
+        item.path?.includes("social-accounts")
+      ) {
+        const deptLower = (currentUser?.department || "").toLowerCase();
+        const roleLower = (currentUser?.role || role || "").toLowerCase();
+
+        const isSocialMedia = deptLower.includes("social media");
+        const isManagingPartner =
+          roleLower === "admin" ||
+          deptLower.includes("managing partner") ||
+          roleLower.includes("managing partner");
+        const isOperationManager =
+          roleLower === "operationmanager" ||
+          deptLower.includes("operation manager") ||
+          roleLower.includes("operation manager");
+
+        if (!isSocialMedia && !isManagingPartner && !isOperationManager) {
+          return false;
+        }
+      }
+
+      // Show Client Calls ONLY for Social Media Manager department
+      if (item.name === "Client Calls" || item.path?.includes("client-calls")) {
+        const deptLower = (currentUser?.department || "").toLowerCase();
+        
+        const isSocialMediaManager = deptLower.includes("social media manager");
+
+        if (!isSocialMediaManager) {
+          return false;
+        }
+      }
+
+      // Show SM Tasks ONLY for Social Media Manager department
+      if (
+        item.name === "SM Tasks" ||
+        item.name === "SM tasks" ||
+        item.path?.includes("sm-tasks")
+      ) {
+        const deptLower = (currentUser?.department || "").toLowerCase();
+        const isSocialMediaManager = deptLower.includes("social media manager");
+
+        if (!isSocialMediaManager) {
+          return false;
+        }
+      }
+
+      // Show Workload ONLY for Admin, Operation Manager, and Social Media Manager department
+      if (item.name === "Workload" || item.path?.includes("workload")) {
+        const deptLower = (currentUser?.department || "").toLowerCase();
+        const roleLower = (currentUser?.role || role || "").toLowerCase();
+
+        const isAdmin =
+          roleLower === "admin" ||
+          deptLower.includes("managing partner") ||
+          roleLower.includes("managing partner");
+        const isOperationManager =
+          roleLower === "operationmanager" ||
+          deptLower.includes("operation manager") ||
+          roleLower.includes("operation manager");
+        const isSocialMedia = deptLower.includes("social media");
+
+        if (!isAdmin && !isOperationManager && !isSocialMedia) {
+          return false;
+        }
+      }
+
+      // Hide Chat when admin is impersonating another user
+      if (item.name === "Chat" && originalAdminUser) {
+        return false;
+      }
+
+      if (role === "admin") return true;
+      if (item.permissionKey === "manage_clients") return true;
+      if (!item.permissionKey) return true;
+      const perm = currentUser?.permissions?.[item.permissionKey];
+      if (perm === true) return true; // legacy
+      return perm?.read;
+    });
+  }, [role, currentUser, originalAdminUser]);
 
   const [isPortfoliosListOpen, setIsPortfoliosListOpen] = useState(() => {
     try {
@@ -291,14 +418,18 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
     }
   }, [activePortfolioId, activeProjectId, projects, portfolios]);
 
+  const fetchedMainDataRef = React.useRef(false);
   useEffect(() => {
-    dispatch(getProjects());
-    dispatch(getPortfolios());
-    dispatch(getClients());
-    if (role === "admin") {
-      dispatch(getUsers());
+    if (!fetchedMainDataRef.current) {
+      if (!projects || projects.length === 0) dispatch(getProjects());
+      if (!portfolios || portfolios.length === 0) dispatch(getPortfolios());
+      if (!clients || clients.length === 0) dispatch(getClients());
+      if (role === "admin" && (!users || users.length === 0)) {
+        dispatch(getUsers());
+      }
+      fetchedMainDataRef.current = true;
     }
-  }, [dispatch, role]);
+  }, [dispatch, role, projects, portfolios, clients, users]);
 
   const handleSwitchUser = async (userId) => {
     try {
@@ -914,24 +1045,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
             };
 
             const renderPortfoliosList = () => {
-              const canSeeMyProject =
-                currentUser?.role?.toLowerCase() === "admin";
-
-              return (
-                <>
-                  {canSeeMyProject && renderPortfolioDropdown(
-                    "My Project",
-                    <FiLayers
-                      size={14}
-                      className="shrink-0 transition-colors"
-                    />,
-                    isPortfoliosListOpen,
-                    setIsPortfoliosListOpen,
-                    [], // list not used for My Project
-                    false, // Disable user name folder dropdown under My Project
-                  )}
-                </>
-              );
+              return null;
             };
 
             const renderMenuItem = (item) => {
@@ -1053,12 +1167,36 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                               {totalUnreadChatCount}
                             </span>
                           )}
+                        {(item.name === "MOM Report" ||
+                          item.name === "MOM Client Report") &&
+                          (newMomCount + (notifications ? notifications.filter(n => !n.isRead && n.type === 'client_call_created').length : 0)) > 0 && (
+                            <span className="flex h-[1rem] min-w-[1rem] items-center justify-center rounded-full bg-indigo-600 dark:bg-indigo-500 px-1 text-[0.5625rem] font-black text-white shadow-xs shrink-0 animate-pulse">
+                              {newMomCount + (notifications ? notifications.filter(n => !n.isRead && n.type === 'client_call_created').length : 0)}
+                            </span>
+                          )}
+                        {item.name === "Reports" &&
+                          (role === "admin" || role === "operationmanager") &&
+                          newReportsCount > 0 && (
+                            <span className="flex h-[1rem] min-w-[1rem] items-center justify-center rounded-full bg-emerald-600 dark:bg-emerald-500 px-1 text-[0.5625rem] font-black text-white shadow-xs shrink-0 animate-pulse">
+                              {newReportsCount}
+                            </span>
+                          )}
 
                         {/* Active dot (for items without badge) */}
                         {isActive &&
                           !unreadCount &&
                           item.name !== "Notifications" &&
-                          item.name !== "Chat" && (
+                          item.name !== "Chat" &&
+                          !(
+                            (item.name === "MOM Report" ||
+                              item.name === "MOM Client Report") &&
+                            (newMomCount + (notifications ? notifications.filter(n => !n.isRead && n.type === 'client_call_created').length : 0)) > 0
+                          ) &&
+                          !(
+                            item.name === "Reports" &&
+                            (role === "admin" || role === "operationmanager") &&
+                            newReportsCount > 0
+                          ) && (
                             <motion.span
                               className="w-1.5 h-1.5 rounded-full bg-slate-900 dark:bg-white shrink-0"
                               initial={{ scale: 0 }}
@@ -1086,6 +1224,11 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
 
             const isGroupedRole = true;
 
+            const topCardNames =
+              role === "operationmanager"
+                ? ["Home", "Sticky Notes", "Chat", "Users", "Reports", "SM Credentials", "MOM/ClientCall"]
+                : ["Home", "Sticky Notes", "Chat", "Users", "SM Credentials", "MOM/ClientCall", "Reports"];
+
             return (
               <>
                 {isGroupedRole ? (
@@ -1094,7 +1237,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                     <div className="space-y-1">
                       <div className="border border-slate-200/60 dark:border-white/5 bg-slate-50/30 dark:bg-slate-50 shadow-xl rounded-2xl p-1.5 space-y-0.5 shadow-sm">
                         {menuItems
-                          .filter((item) => ["Home", "Sticky Notes", "Chat", "Users"].includes(item.name))
+                          .filter((item) => topCardNames.includes(item.name))
                           .map((item) => renderMenuItem(item))}
                       </div>
                     </div>
@@ -1103,7 +1246,7 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                     <div className="space-y-1">
                       <div className="space-y-0.5">
                         {menuItems
-                          .filter((item) => !["Home", "Sticky Notes", "Chat", "Users"].includes(item.name))
+                          .filter((item) => !topCardNames.includes(item.name))
                           .map((item) => renderMenuItem(item))}
                       </div>
                     </div>

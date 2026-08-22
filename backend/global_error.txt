@@ -1,11 +1,11 @@
-Error: Only images are allowed
-    at fileFilter (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\middleware\upload.js:25:7)
-    at wrappedFileFilter (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\multer\index.js:45:7)
-    at Multipart.<anonymous> (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\multer\lib\make-middleware.js:183:7)
-    at Multipart.emit (node:events:519:28)
-    at HeaderParser.cb (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\busboy\lib\types\multipart.js:358:14)
-    at HeaderParser.push (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\busboy\lib\types\multipart.js:162:20)
-    at SBMH.ssCb [as _cb] (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\busboy\lib\types\multipart.js:394:37)
-    at feed (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\streamsearch\lib\sbmh.js:248:10)
-    at SBMH.push (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\streamsearch\lib\sbmh.js:104:16)
-    at Multipart._write (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\busboy\lib\types\multipart.js:567:19)
+PayloadTooLargeError: request entity too large
+    at readStream (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\raw-body\index.js:163:17)
+    at getRawBody (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\raw-body\index.js:116:12)
+    at read (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\body-parser\lib\read.js:79:3)
+    at jsonParser (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\body-parser\lib\types\json.js:138:5)
+    at Layer.handle [as handle_request] (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\express\lib\router\index.js:280:10)
+    at expressInit (C:\Users\Admin\Desktop\sudhagar\projectmanagementtool\backend\node_modules\express\lib\middleware\init.js:40:5)

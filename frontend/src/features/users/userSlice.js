@@ -6,6 +6,8 @@ import {
   createUserAPI,
   updateUserAPI,
   deleteUserAPI,
+  relieveUserAPI,
+  reactivateUserAPI,
 } from './userApi';
 
 
@@ -100,6 +102,34 @@ export const deleteUser = createAsyncThunk(
 
       return thunkAPI.rejectWithValue(
         err.response.data.message
+      );
+    }
+  }
+);
+
+// RELIEVE USER
+export const relieveUser = createAsyncThunk(
+  'users/relieveUser',
+  async ({ id, reason }, thunkAPI) => {
+    try {
+      return await relieveUserAPI(id, reason);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(
+        err.response?.data?.message || 'Failed to relieve user'
+      );
+    }
+  }
+);
+
+// REACTIVATE USER
+export const reactivateUser = createAsyncThunk(
+  'users/reactivateUser',
+  async (id, thunkAPI) => {
+    try {
+      return await reactivateUserAPI(id);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(
+        err.response?.data?.message || 'Failed to reactivate user'
       );
     }
   }
@@ -215,6 +245,44 @@ const userSlice = createSlice({
       })
 
       .addCase(deleteUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // RELIEVE USER
+      .addCase(relieveUser.pending, (state) => {
+        state.loading = true;
+      })
+
+      .addCase(relieveUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.users = state.users.map((user) =>
+          user._id === action.payload.data._id
+            ? action.payload.data
+            : user
+        );
+      })
+
+      .addCase(relieveUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // REACTIVATE USER
+      .addCase(reactivateUser.pending, (state) => {
+        state.loading = true;
+      })
+
+      .addCase(reactivateUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.users = state.users.map((user) =>
+          user._id === action.payload.data._id
+            ? action.payload.data
+            : user
+        );
+      })
+
+      .addCase(reactivateUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });
