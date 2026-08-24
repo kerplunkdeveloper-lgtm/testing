@@ -37,6 +37,7 @@ import { calculateBusinessMs } from "../../utils/businessHours";
 import toast from "react-hot-toast";
 import CorrectionModal from "../../components/CorrectionModal";
 import RejectionModal from "../../components/RejectionModal";
+import SearchableDropdown from "../../components/common/SearchableDropdown";
 import {
   calculateTaskProductivityForDate,
   getTaskAssignmentDate,
@@ -3336,16 +3337,12 @@ const TaskOverviewTab = ({
                     </td>
                   )}
                   {!hiddenColumns.projectName && (
-                    <td className="py-2 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left whitespace-nowrap">
-                      <select
+                    <td className="py-2 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left whitespace-nowrap min-w-[200px]">
+                      <SearchableDropdown
                         value={newTaskProject}
-                        onChange={(e) => setNewTaskProject(e.target.value)}
-                        className="bg-transparent hover:bg-slate-100/70 dark:hover:bg-slate-800/50 focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-blue-500/50 rounded px-1.5 py-0.5 outline-none text-[11px] font-extrabold text-slate-800 dark:text-slate-200 w-full transition-all truncate cursor-pointer"
-                      >
-                        <option value="" disabled>
-                          Select Project
-                        </option>
-                        {projects?.map((p) => {
+                        onChange={(val) => setNewTaskProject(val)}
+                        placeholder="Select Project"
+                        options={(projects || []).map((p) => {
                           const clientRaw = p.client;
                           const clientId = clientRaw?._id || clientRaw;
                           const clientObj =
@@ -3353,13 +3350,12 @@ const TaskOverviewTab = ({
                             (typeof clientRaw === "object" ? clientRaw : null);
                           const clientName =
                             clientObj?.companyName || clientObj?.name || "";
-                          return (
-                            <option key={p._id} value={p._id}>
-                              {p.name} {clientName ? `(${clientName})` : ""}
-                            </option>
-                          );
+                          return {
+                            value: p._id,
+                            label: `${p.name} ${clientName ? `(${clientName})` : ""}`,
+                          };
                         })}
-                      </select>
+                      />
                     </td>
                   )}
                   {!hiddenColumns.clientName && (
@@ -3488,8 +3484,8 @@ const TaskOverviewTab = ({
                     </td>
                   )}
                   {!hiddenColumns.assignee && (
-                    <td className="py-2 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left whitespace-nowrap">
-                      {newTaskContentType === "MOM" ? (
+                    <td className="py-2 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left whitespace-nowrap min-w-[200px]">
+                      {newTaskContentType === "MOM" && currentUser?.role !== "admin" && currentUser?.role !== "operation manager" ? (
                         <div className="bg-white dark:bg-[#181a29] border border-slate-200/90 dark:border-white/10 rounded-full px-2.5 py-1 inline-flex items-center gap-2 shadow-2xs select-none">
                           {renderUserAvatarSmall(
                             currentUser,
@@ -3505,18 +3501,20 @@ const TaskOverviewTab = ({
                           </div>
                         </div>
                       ) : (
-                        <select
+                        <SearchableDropdown
                           value={newTaskAssignee}
-                          onChange={(e) => setNewTaskAssignee(e.target.value)}
-                          className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-2 py-1 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-200 outline-none max-w-[140px]"
-                        >
-                          <option value="">Unassigned</option>
-                          {users?.map((u) => (
-                            <option key={u._id || u.id} value={u._id || u.id}>
-                              {u.name}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => setNewTaskAssignee(val)}
+                          placeholder="Select Assignee"
+                          groupBy={true}
+                          options={[
+                            { value: "", label: "Unassigned", group: "General" },
+                            ...(users || []).map((u) => ({
+                              value: u._id || u.id,
+                              label: u.name,
+                              group: u.department || "Other",
+                            }))
+                          ]}
+                        />
                       )}
                     </td>
                   )}
@@ -3701,7 +3699,7 @@ const TaskOverviewTab = ({
                                 }}
                                 className={`outline-none text-[12px] font-extrabold text-slate-800 dark:text-slate-900 min-w-[50px] max-w-[300px] truncate block ${
                                   isCompleted
-                                    ? "line-through decoration-[#10b981] decoration-2 text-slate-400 dark:text-slate-500"
+                                    ? "line-through decoration-[#10b981] decoration-1 text-slate-400 dark:text-slate-500"
                                     : ""
                                 }`}
                                 title="Click to edit task name"

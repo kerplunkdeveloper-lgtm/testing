@@ -1296,10 +1296,16 @@ const Clients = () => {
                               })()}
                               <div className="min-w-[110px]">
                                 <h2
-                                  className="font-bold transition-colors text-[12.5px] text-slate-800 dark:text-slate-900 truncate max-w-[200px] cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                                  className={`font-bold transition-colors text-[12.5px] text-slate-800 dark:text-slate-900 truncate max-w-[200px] ${
+                                    (user?.role === "admin" || user?.role === "operationmanager" || (user?.department || "").toLowerCase().includes("social media manager"))
+                                      ? "cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                                      : ""
+                                  }`}
                                   onClick={() => {
-                                    setViewClient(client);
-                                    setShowViewOffcanvas(true);
+                                    if (user?.role === "admin" || user?.role === "operationmanager" || (user?.department || "").toLowerCase().includes("social media manager")) {
+                                      setViewClient(client);
+                                      setShowViewOffcanvas(true);
+                                    }
                                   }}
                                 >
                                   {client.companyName}

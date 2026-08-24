@@ -182,6 +182,26 @@ const HorizontalSidebar = ({ role }) => {
       }
     }
 
+    // Show Calendar ONLY for Admin, Operation Manager, and Social Media Manager department
+    if (item.name === "Calendar" || item.path?.includes("all-calendar")) {
+      const deptLower = (currentUser?.department || "").toLowerCase();
+      const roleLower = (currentUser?.role || role || "").toLowerCase();
+
+      const isAdmin =
+        roleLower === "admin" ||
+        deptLower.includes("managing partner") ||
+        roleLower.includes("managing partner");
+      const isOperationManager =
+        roleLower === "operationmanager" ||
+        deptLower.includes("operation manager") ||
+        roleLower.includes("operation manager");
+      const isSocialMediaManager = deptLower.includes("social media manager");
+
+      if (!isAdmin && !isOperationManager && !isSocialMediaManager) {
+        return false;
+      }
+    }
+
     // Show Workload ONLY for Admin, Operation Manager, and Social Media Manager department
     if (item.name === "Workload" || item.path?.includes("workload")) {
       const deptLower = (currentUser?.department || "").toLowerCase();

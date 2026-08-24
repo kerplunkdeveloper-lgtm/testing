@@ -50,6 +50,7 @@ const Stickynotes = lazyWithRetry(() => import("../pages/admin/Stickynotes.jsx")
 const MomClientReport = lazyWithRetry(() => import("../pages/admin/MomClientReport.jsx"));
 const SocialAccounts = lazyWithRetry(() => import("../pages/socialAccounts/SocialAccounts.jsx"));
 const ClientCalls = lazyWithRetry(() => import("../pages/client-calls/ClientCalls.jsx"));
+const AllCalendar = lazyWithRetry(() => import("../pages/calendar/AllCalendar.jsx"));
 import SMtasks from "../pages/smTasks/SMtasks.jsx";
 
 // Background preload core route bundles for zero-delay sidebar navigation
@@ -71,6 +72,7 @@ export const preloadAllRoutes = () => {
     () => import("../pages/admin/MomClientReport.jsx"),
     () => import("../pages/chat/ChatPage.jsx"),
     () => import("../pages/workload/Workload.jsx"),
+    () => import("../pages/calendar/AllCalendar.jsx"),
   ];
 
   if (typeof window !== "undefined" && "requestIdleCallback" in window) {
@@ -201,6 +203,11 @@ const AppRoutes = () => {
         />
         
         <Route
+          path="all-calendar"
+          element={<AllCalendar />}
+        />
+        
+        <Route
           path="chat"
           element={<ChatPage />}
         />
@@ -238,6 +245,11 @@ const AppRoutes = () => {
         <Route
           path="stickynotes"
           element={<Stickynotes />}
+        />
+
+        <Route
+          path="all-calendar"
+          element={<AllCalendar />}
         />
 
         <Route
@@ -349,6 +361,11 @@ const AppRoutes = () => {
         />
 
         <Route
+          path="all-calendar"
+          element={<AllCalendar />}
+        />
+
+        <Route
           path="social-accounts"
           element={<ProtectedRoute requiredPermission="manage_clients"><SocialAccounts /></ProtectedRoute>}
         />
@@ -418,6 +435,11 @@ const AppRoutes = () => {
         <Route
           path="workload"
           element={<Workload />}
+        />
+
+        <Route
+          path="mom-client-report"
+          element={<MomClientReport />}
         />
       </Route>
      

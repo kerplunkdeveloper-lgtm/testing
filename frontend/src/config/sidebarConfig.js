@@ -10,6 +10,7 @@ import {
   LuActivity,
   LuStickyNote,
   LuPhoneCall,
+  LuCalendarDays,
 } from "react-icons/lu";
 import { TbPencilHeart } from "react-icons/tb";
 import { FiBarChart2, FiUser, FiHome, FiBell, FiSettings, FiFileText, FiKey } from "react-icons/fi";
@@ -18,9 +19,10 @@ export const sidebarConfig = {
   admin: [
     { name: "Home", path: "/admin", icon: FiHome },
     { name: "Sticky Notes", path: "/admin/stickynotes", icon: TbPencilHeart },
+    { name: "Calendar", path: "/admin/all-calendar", icon: LuCalendarDays },
     { name: "Chat", path: "/admin/chat", icon: LuMessagesSquare },
     { name: "Client Calls", path: "/admin/client-calls", icon: LuPhoneCall },
-    { name: "SM Tasks", path: "/admin/sm-tasks", icon: LuClipboardCheck },
+    { name: "SM Posts Tasks", path: "/admin/sm-tasks", icon: LuClipboardCheck },
     { name: "Users", path: "/admin/users", icon: LuUsers, permissionKey: "manage_users" },
     { name: "MOM/ClientCall", path: "/admin/mom-client-report", icon: FiFileText, permissionKey: "manage_users" },
     { name: "Workload", path: "/admin/workload", icon: LuActivity },
@@ -39,9 +41,10 @@ export const sidebarConfig = {
   operationmanager: [
     { name: "Home", path: "/operationmanager", icon: FiHome },
     { name: "Sticky Notes", path: "/operationmanager/stickynotes", icon: TbPencilHeart },
+    { name: "Calendar", path: "/operationmanager/all-calendar", icon: LuCalendarDays },
     { name: "Chat", path: "/operationmanager/chat", icon: LuMessagesSquare },
     { name: "Client Calls", path: "/operationmanager/client-calls", icon: LuPhoneCall },
-    { name: "SM Tasks", path: "/operationmanager/sm-tasks", icon: LuClipboardCheck },
+    { name: "SM Posts Tasks", path: "/operationmanager/sm-tasks", icon: LuClipboardCheck },
     { name: "Users", path: "/operationmanager/users", icon: LuUsers, permissionKey: "manage_users" },
     { name: "MOM/ClientCall", path: "/operationmanager/mom-client-report", icon: FiFileText, permissionKey: "manage_users" },
     { name: "Workload", path: "/operationmanager/workload", icon: LuActivity },
@@ -59,9 +62,10 @@ export const sidebarConfig = {
   team: [
     { name: "Home", path: "/team", icon: FiHome },
     { name: "Sticky Notes", path: "/team/stickynotes", icon: TbPencilHeart},
+    { name: "Calendar", path: "/team/all-calendar", icon: LuCalendarDays },
     { name: "Chat", path: "/team/chat", icon: LuMessagesSquare },
     { name: "Client Calls", path: "/team/client-calls", icon: LuPhoneCall },
-    { name: "SM Tasks", path: "/team/sm-tasks", icon: LuClipboardCheck },
+    { name: "SM Posts tasks", path: "/team/sm-tasks", icon: LuClipboardCheck },
     { name: "Workload", path: "/team/workload", icon: LuActivity },
     { name: "Clients", path: "/team/clients", icon: LuBuilding2, permissionKey: "manage_clients" },
     { name: "SM Credentials", path: "/team/social-accounts", icon: FiKey, permissionKey: "manage_clients" },

@@ -25,7 +25,7 @@ import { getClients } from "../../features/clients/clientslice";
 import { apiSlice, useGetTasksQuery } from "../../features/api/apiSlice";
 import { getEodReports } from "../../features/eodReports/eodReportSlice";
 import { getDesignerEodReports } from "../../features/eodReports/designerEodReportSlice";
-import { markAllChatAsRead } from "../../features/notifications/notificationSlice";
+import { markAllChatAsRead, markAsRead } from "../../features/notifications/notificationSlice";
 import { clearAllUnreadCounts } from "../../features/chat/chatSlice";
 import ProjectIcon from "../common/ProjectIcon";
 
@@ -164,14 +164,21 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
     }
   }, [dispatch, role, eodReports, designerEodReports]);
 
+  const [lastViewedMom, setLastViewedMom] = useState(() => {
+    try {
+      return parseInt(localStorage.getItem(`lastViewedMom_${currentUser?._id || ''}`) || "0", 10);
+    } catch {
+      return 0;
+    }
+  });
+
   const newMomCount = React.useMemo(() => {
     return (allTasks || []).filter(
       (t) =>
         (t.contentType || "").toUpperCase() === "MOM" &&
-        (t.status || "").toLowerCase() !== "completed" &&
-        (t.status || "").toLowerCase() !== "done",
+        new Date(t.createdAt).getTime() > lastViewedMom
     ).length;
-  }, [allTasks]);
+  }, [allTasks, lastViewedMom]);
 
   const newReportsCount = React.useMemo(() => {
     if (role !== "admin" && role !== "operationmanager") return 0;
@@ -260,6 +267,26 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
         const isSocialMediaManager = deptLower.includes("social media manager");
 
         if (!isSocialMediaManager) {
+          return false;
+        }
+      }
+
+      // Show Calendar ONLY for Admin, Operation Manager, and Social Media Manager department
+      if (item.name === "Calendar" || item.path?.includes("all-calendar")) {
+        const deptLower = (currentUser?.department || "").toLowerCase();
+        const roleLower = (currentUser?.role || role || "").toLowerCase();
+
+        const isAdmin =
+          roleLower === "admin" ||
+          deptLower.includes("managing partner") ||
+          roleLower.includes("managing partner");
+        const isOperationManager =
+          roleLower === "operationmanager" ||
+          deptLower.includes("operation manager") ||
+          roleLower.includes("operation manager");
+        const isSocialMediaManager = deptLower.includes("social media manager");
+
+        if (!isAdmin && !isOperationManager && !isSocialMediaManager) {
           return false;
         }
       }
@@ -1062,6 +1089,18 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                         dispatch(clearAllUnreadCounts());
                         dispatch(markAllChatAsRead());
                       }
+                      if (item.name === "MOM/ClientCall" || item.name === "MOM Client Report" || item.name === "MOM Report") {
+                        const now = Date.now();
+                        localStorage.setItem(`lastViewedMom_${currentUser?._id || ''}`, now.toString());
+                        setLastViewedMom(now);
+                        if (notifications) {
+                          notifications.forEach(n => {
+                            if (!n.isRead && n.type === 'client_call_created') {
+                              dispatch(markAsRead(n._id));
+                            }
+                          });
+                        }
+                      }
                     }}
                     end={
                       item.path === "/admin" ||
@@ -1167,8 +1206,9 @@ const Sidebar = ({ role, sidebarOpen, setSidebarOpen }) => {
                               {totalUnreadChatCount}
                             </span>
                           )}
-                        {(item.name === "MOM Report" ||
-                          item.name === "MOM Client Report") &&
+                        {(item.name === "MOM/ClientCall" ||
+                          item.name === "MOM Client Report" ||
+                          item.name === "MOM Report") &&
                           (newMomCount + (notifications ? notifications.filter(n => !n.isRead && n.type === 'client_call_created').length : 0)) > 0 && (
                             <span className="flex h-[1rem] min-w-[1rem] items-center justify-center rounded-full bg-indigo-600 dark:bg-indigo-500 px-1 text-[0.5625rem] font-black text-white shadow-xs shrink-0 animate-pulse">
                               {newMomCount + (notifications ? notifications.filter(n => !n.isRead && n.type === 'client_call_created').length : 0)}

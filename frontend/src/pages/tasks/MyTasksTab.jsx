@@ -4541,7 +4541,6 @@ const MyTasksTab = ({
               </div>
             )}
           </div>
-          <SaasTableSummaryBar tasks={filteredTasks} />
         </div>
       )}
 
