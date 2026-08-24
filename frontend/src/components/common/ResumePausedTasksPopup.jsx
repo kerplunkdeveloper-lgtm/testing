@@ -138,7 +138,7 @@ const ResumePausedTasksPopup = () => {
       if (item.isSubtask) {
         const updatedSubtasks = item.task.subtasks.map((sub) => {
           if (sub._id === item.target._id) {
-            return { ...sub, status: "Pending" };
+            return { ...sub, status: "Not Started" };
           }
           return sub;
         });
@@ -149,7 +149,7 @@ const ResumePausedTasksPopup = () => {
       } else {
         await updateTask({
           id: item.task._id,
-          taskData: { status: "Pending" },
+          taskData: { status: "Not Started" },
         }).unwrap();
       }
       toast.success("Task status updated to Pending. Ready for today's work!");

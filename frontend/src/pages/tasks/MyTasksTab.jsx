@@ -1220,7 +1220,7 @@ const TodayTrackerCell = React.memo(
     if (
       !task.actualStartTime &&
       activeToday === 0 &&
-      (!task.status || task.status === "Pending")
+      (!task.status || task.status === "Not Started")
     ) {
       return (
         <div className="text-center text-slate-400 dark:text-slate-400 font-bold text-[11px]">
@@ -1758,7 +1758,7 @@ const MyTasksTab = ({
       "On Hold": 0,
     };
     filteredTasksWithoutStatus.forEach((t) => {
-      const status = t.status || "Pending";
+      const status = t.status || "Not Started";
       if (res[status] !== undefined) {
         res[status]++;
       }
@@ -1789,7 +1789,7 @@ const MyTasksTab = ({
         statusFilter === "Pending,In Progress,In Review,On Hold" ||
         statusFilter === "Pending,In Progress,In Review"
       ) {
-        const s = (task.status || "Pending").toUpperCase();
+        const s = (task.status || "Not Started").toUpperCase();
         return s !== "COMPLETED" && s !== "REJECTED";
       }
       return task.status === statusFilter;
@@ -1813,7 +1813,7 @@ const MyTasksTab = ({
     };
 
     const getStatusSortPriority = (task) => {
-      const s = (task.status || "Pending").toUpperCase();
+      const s = (task.status || "Not Started").toUpperCase();
       if (s === "IN PROGRESS" || s === "IN_PROGRESS" || s === "INPROGRESS") {
         return 1;
       }
@@ -2791,7 +2791,7 @@ const MyTasksTab = ({
         contentCopy,
         clientName,
         task.contentType || "NONE",
-        task.status || "Pending",
+        task.status || "Not Started",
         blockerStr,
         activeStr,
         blockerTimeStr,
@@ -3128,8 +3128,8 @@ const MyTasksTab = ({
                         color: "bg-indigo-500",
                       },
                       {
-                        name: "Pending",
-                        label: "Pending",
+                        name: "Not Started",
+                        label: "Not Started",
                         color: "bg-slate-400",
                       },
                       {
@@ -3380,7 +3380,7 @@ const MyTasksTab = ({
       ) : viewType === "kanban" ? (
         <div className="flex gap-6 overflow-x-auto pb-8 pt-2 scrollbar-thin px-2">
           {[
-            "Pending",
+            "Not Started",
             "In Progress",
             "In Review",
             "On Hold",
@@ -3935,7 +3935,7 @@ const MyTasksTab = ({
                                       {task.contentType === "MOM" ? (
                                         <>
                                           <option
-                                            value="Pending"
+                                            value="Not Started"
                                             className="bg-white dark:bg-gray-500 text-slate-700 dark:text-white"
                                           >
                                             Pending
@@ -3951,7 +3951,7 @@ const MyTasksTab = ({
                                       ) : (
                                         <>
                                           <option
-                                            value="Pending"
+                                            value="Not Started"
                                             className="bg-white dark:bg-gray-500 text-slate-700 dark:text-white"
                                           >
                                             Pending
@@ -4658,7 +4658,7 @@ const MyTasksTab = ({
                       <option value="Server/Technical Issue">
                         Server/Technical Issue
                       </option>
-                      <option value="Asset/Content Pending">
+                      <option value="Asset/Content Not Started">
                         Asset/Content Pending
                       </option>
                       <option value="Internal Query">Internal Query</option>

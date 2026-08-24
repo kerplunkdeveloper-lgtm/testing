@@ -159,7 +159,7 @@ const handleItemStatusTransition = (item, prevStatus, newStatus, userId, setting
 
   // 2. Handle ENTERING the new status
   switch (newStatus) {
-    case "Pending":
+    case "Not Started":
       item.actualStartTime = null; // Reset today's timer to start from 00:00:00 when later placed in progress
       item.actualEndTime = null;
       item.pausedAt = null;
@@ -168,7 +168,7 @@ const handleItemStatusTransition = (item, prevStatus, newStatus, userId, setting
       item.autoPaused = false;
 
       history.push({
-        status: "Pending",
+        status: "Not Started",
         startTime: now,
         endTime: null,
         duration: 0,
@@ -186,7 +186,9 @@ const handleItemStatusTransition = (item, prevStatus, newStatus, userId, setting
         const d = h.date || (h.startTime ? new Date(h.startTime).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : null);
         return d === currentDateStr;
       });
-      if (!hasHistoryToday && (!lastSessionDateStr || lastSessionDateStr !== currentDateStr)) {
+      if (hasHistoryToday && item.actualStartTime) {
+        // Already active today, don't reset dailyTrackedTime
+      } else if (!hasHistoryToday && (!lastSessionDateStr || lastSessionDateStr !== currentDateStr)) {
         // New day & no session today → start fresh daily counter
         item.dailyTrackedTime = 0;
       }
@@ -310,41 +312,63 @@ const handleItemStatusTransition = (item, prevStatus, newStatus, userId, setting
 };
 
 const calculateItemWorkingTime = (item) => {
-  if (!item.actualStartTime) return item.totalTrackedTime || 0;
-  const start = new Date(item.actualStartTime).getTime();
-  let end = Date.now();
-  if (item.actualEndTime) {
-    end = new Date(item.actualEndTime).getTime();
-  } else if (item.status === "In Progress" && item.autoPaused) {
-    end = item.pausedAt ? new Date(item.pausedAt).getTime() : Date.now();
-  } else if (item.pausedAt && item.status !== "In Progress") {
-    end = new Date(item.pausedAt).getTime();
-  } else if (item.status === "Pending") {
-    end = item.updatedAt ? new Date(item.updatedAt).getTime() : start;
-  }
-
-  let totalPauseMs = 0;
-  if (item.blockerHistory && item.blockerHistory.length > 0) {
-    item.blockerHistory.forEach((h) => {
-      if (h.pausedAt) {
-        const p = new Date(h.pausedAt).getTime();
-        let r = h.resumedAt ? new Date(h.resumedAt).getTime() : Date.now();
-        if (r > end) r = end;
-        if (r >= p) {
-          totalPauseMs += r - p;
+  // Use session history as the primary source of truth for total productive time.
+  let totalTrackedTime = 0;
+  let hasOpenSession = false;
+  let openSessionStart = null;
+  
+  if (item.statusHistory && Array.isArray(item.statusHistory)) {
+    item.statusHistory.forEach(h => {
+      if (h.status === "In Progress") {
+        if (h.endTime) {
+          totalTrackedTime += h.duration || 0;
+        } else {
+          hasOpenSession = true;
+          openSessionStart = h.startTime;
         }
       }
     });
   }
-  if (item.isBlocked && item.blockerPausedAt) {
-    const p = new Date(item.blockerPausedAt).getTime();
-    if (p < end) {
-      totalPauseMs += end - p;
+
+  // If there's an open session, calculate the time for the CURRENT session up to now
+  // and add it to the historical total.
+  if (hasOpenSession && openSessionStart && item.actualStartTime) {
+    const start = new Date(item.actualStartTime).getTime();
+    let end = Date.now();
+
+    if (item.actualEndTime) {
+      end = new Date(item.actualEndTime).getTime();
+    } else if (item.status === "In Progress" && item.autoPaused) {
+      end = item.pausedAt ? new Date(item.pausedAt).getTime() : Date.now();
+    } else if (item.pausedAt && item.status !== "In Progress") {
+      end = new Date(item.pausedAt).getTime();
     }
+
+    let totalPauseMs = 0;
+    if (item.blockerHistory && item.blockerHistory.length > 0) {
+      item.blockerHistory.forEach((h) => {
+        if (h.pausedAt) {
+          const p = new Date(h.pausedAt).getTime();
+          let r = h.resumedAt ? new Date(h.resumedAt).getTime() : Date.now();
+          if (r > end) r = end;
+          if (r >= p) {
+            totalPauseMs += r - p;
+          }
+        }
+      });
+    }
+    if (item.isBlocked && item.blockerPausedAt) {
+      const p = new Date(item.blockerPausedAt).getTime();
+      if (p < end) {
+        totalPauseMs += end - p;
+      }
+    }
+
+    const elapsed = end - start - totalPauseMs;
+    totalTrackedTime += Math.max(0, elapsed);
   }
 
-  const elapsed = end - start - (item.totalPausedMs || 0) - totalPauseMs;
-  return (item.totalTrackedTime || 0) + Math.max(0, elapsed);
+  return totalTrackedTime;
 };
 
 
@@ -562,7 +586,7 @@ exports.createTask = async (req, res) => {
       }
     }
 
-    const initialStatus = req.body.status || "Pending";
+    const initialStatus = req.body.status || "Not Started";
     const now = new Date();
     const todayStr = getISTDateStr(now);
     if (!req.body.statusHistory || req.body.statusHistory.length === 0) {
@@ -583,7 +607,7 @@ exports.createTask = async (req, res) => {
 
     if (req.body.subtasks && Array.isArray(req.body.subtasks)) {
       req.body.subtasks = req.body.subtasks.map(sub => {
-        const subStatus = sub.status || "Pending";
+        const subStatus = sub.status || "Not Started";
         if (!sub.statusHistory || sub.statusHistory.length === 0) {
           sub.statusHistory = [
             {
@@ -751,7 +775,7 @@ exports.updateTask = async (req, res) => {
     let tryingToStartTask = false;
     let targetItem = null;
 
-    if (req.body.status === "In Progress" && previousStatus !== "In Progress") {
+    if (req.body.status === "In Progress" && (previousStatus !== "In Progress" || (previousStatus === "In Progress" && !task.actualStartTime))) {
       tryingToStartTask = true;
       targetItem = task;
     }
@@ -759,7 +783,7 @@ exports.updateTask = async (req, res) => {
     if (req.body.subtasks && Array.isArray(req.body.subtasks)) {
       for (const sub of req.body.subtasks) {
         const prevSub = previousSubtasks.find(p => p._id?.toString() === sub._id?.toString());
-        if (sub.status === "In Progress" && (!prevSub || prevSub.status !== "In Progress")) {
+        if (sub.status === "In Progress" && (!prevSub || prevSub.status !== "In Progress" || (prevSub.status === "In Progress" && !prevSub.actualStartTime))) {
           tryingToStartTask = true;
           targetItem = prevSub || sub;
           break;
@@ -802,7 +826,7 @@ exports.updateTask = async (req, res) => {
       workingDays: [1, 2, 3, 4, 5, 6],
     };
 
-    if (req.body.status && req.body.status !== previousStatus) {
+    if (req.body.status && (req.body.status !== previousStatus || (req.body.status === "In Progress" && !task.actualStartTime))) {
       if (req.body.status === "In Progress") {
         if (task.assignedTo) {
           const hasActive = await hasActiveWork(
@@ -933,7 +957,7 @@ exports.updateTask = async (req, res) => {
           (p) => p._id && sub._id && p._id.toString() === sub._id.toString()
         );
 
-        if (prevSub && sub.status && sub.status !== prevSub.status) {
+        if (prevSub && sub.status && (sub.status !== prevSub.status || (sub.status === "In Progress" && !prevSub.actualStartTime))) {
           const isSubMOM = (sub && sub.contentType === "MOM") || (prevSub && prevSub.contentType === "MOM") || task.contentType === "MOM";
           // ✅ FIX Bug 2: Enforce On Hold validation for subtasks (same rule as parent task)
           if (sub.status === "On Hold" && !prevSub.actualStartTime && !prevSub.totalTrackedTime && !isSubMOM) {

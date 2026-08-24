@@ -633,7 +633,7 @@ const ShootCalendor = () => {
       subtitleColor: "text-gray-500",
     },
     {
-      title: "Pending",
+      title: "Not Started",
       value: getCount("Pending Approval"),
       subtitle: "Needs Action",
       icon: <FiAlertCircle size={22} className="text-orange-500" />,

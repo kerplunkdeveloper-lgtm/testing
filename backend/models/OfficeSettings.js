@@ -34,6 +34,20 @@ const OfficeSettingsSchema = new mongoose.Schema({
     type: [Number],
     default: [1, 2, 3, 4, 5, 6], // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
   },
+
+  breakStartHour: {
+    type: Number,
+    default: 13,
+    min: 0,
+    max: 23,
+  },
+
+  breakEndHour: {
+    type: Number,
+    default: 14,
+    min: 0,
+    max: 23,
+  },
 }, {
   timestamps: true,
 });

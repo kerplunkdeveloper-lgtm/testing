@@ -1023,9 +1023,9 @@ const getSectionConfig = (colName, type) => {
     todayTitle = "Today Completed";
     upcomingTitle = "Upcoming Completed";
   } else if (colLower === "pending") {
-    prevTitle = "Prev Pending";
-    todayTitle = "Today Pending";
-    upcomingTitle = "Upcoming Pending";
+    prevTitle = "Prev Not Started";
+    todayTitle = "Today Not Started";
+    upcomingTitle = "Upcoming Not Started";
   }
 
   if (type === "prev") {
@@ -1536,14 +1536,14 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   // 4. Board Data
   const boardColumns = [
     "Overall Overdue",
-    "Pending",
+    "Not Started",
     "In Progress",
     "On Hold",
     "IN REVIEW",
     "Completed",
   ];
   const getColumnForTask = (task) => {
-    const status = task.status || "Pending";
+    const status = task.status || "Not Started";
 
     if (boardColumns.includes(status)) return status;
     if (status.toLowerCase().includes("progress")) return "In Progress";
@@ -1553,8 +1553,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     if (status.toLowerCase().includes("reject")) return "Rejected";
     if (status.toLowerCase().includes("approve")) return "Completed";
     if (status.toLowerCase() === "completed") return "Completed";
-    if (status.toLowerCase() === "assigned") return "Pending";
-    return "Pending";
+    if (status.toLowerCase() === "assigned") return "Not Started";
+    return "Not Started";
   };
 
   // Apply board-level filters to designerTasks
@@ -2547,7 +2547,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
   const doughnutData = {
     labels: [
-      "Pending",
+      "Not Started",
       "In Progress",
       "In Review",
       "Completed",
@@ -2696,7 +2696,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
   const statusLegendItems = [
     {
-      label: "Pending",
+      label: "Not Started",
       count: metrics.pending,
       percent: getPercentageString(metrics.pending),
       color: "#f97316",
@@ -2834,7 +2834,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             onClick: () => handleMetricClick("All"),
           },
           {
-            label: "Pending",
+            label: "Not Started",
             value: metrics.pending,
             icon: FiClock,
             glow: "hover:shadow-[0_4px_20px_rgba(245,158,11,0.15)]",
@@ -2844,7 +2844,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             iconBg:
               "bg-white dark:bg-amber-950/60 border border-amber-200 dark:border-amber-500/20",
             iconColor: "text-black dark:text-amber-400",
-            onClick: () => handleMetricClick("Pending"),
+            onClick: () => handleMetricClick("Not Started"),
           },
           {
             label: "In Progress",
@@ -4517,7 +4517,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                       className="px-2.5 py-1.5 text-xs font-extrabold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl text-slate-750 dark:text-white focus:outline-none focus:border-indigo-500 transition-all shadow-sm cursor-pointer"
                     >
                       <option value="all">All Tasks</option>
-                      <option value="pending">Pending</option>
+                      <option value="pending">Not Started</option>
                       <option value="inprogress">In Progress</option>
                       <option value="onhold">On Hold</option>
                       <option value="inreview">In Review</option>
@@ -4591,7 +4591,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                     },
                     {
                       id: "pending",
-                      label: "Pending",
+                      label: "Not Started",
                       count: modalTabCounts.pending,
                       activeClass:
                         "bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-md shadow-rose-500/20 scale-[1.02]",
@@ -4945,7 +4945,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                           task.status,
                                         )}`}
                                       >
-                                        {task.status || "Pending"}
+                                        {task.status || "Not Started"}
                                       </span>
                                     </td>
                                     <td className="py-3 px-4 text-center">
@@ -5040,7 +5040,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                       task.status,
                                     )}`}
                                   >
-                                    {task.status || "Pending"}
+                                    {task.status || "Not Started"}
                                   </span>
 
                                   {targetDate && (

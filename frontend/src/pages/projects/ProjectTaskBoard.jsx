@@ -41,7 +41,7 @@ import {
   FiLoader,
   FiLock,
 } from "react-icons/fi";
-import { getTotalTrackedMs, formatShortDuration } from "../../utils/taskTimerUtils";
+import { getTotalTrackedMs, formatShortDuration, getStatusTrackedMs, getTodayProductivityMs } from "../../utils/taskTimerUtils";
 import axiosInstance from "../../services/axiosInstance";
 import toast from "react-hot-toast";
 
@@ -74,7 +74,7 @@ const formatBusinessDuration = (ms) => {
 
 const getStatusWithEmoji = (status) => {
   const s = (status || "").toLowerCase();
-  if (s === "pending" || s === "to do") return "Pending";
+  if (s === "pending" || s === "to do") return "Not Started";
   if (s.includes("progress")) return "In Progress";
   if (s.includes("review")) return "In Review";
   if (s.includes("correction")) return "Correction";
@@ -82,7 +82,7 @@ const getStatusWithEmoji = (status) => {
     return "Completed";
   if (s.includes("hold")) return "On Hold";
   if (s.includes("reject")) return "Rejected";
-  return status || "Pending";
+  return status || "Not Started";
 };
 
 export const isSameDate = (d1, d2) => {
@@ -348,11 +348,15 @@ const TimeTracker = React.memo(
       autoPaused,
       totalPausedMs: savedPausedMs,
       totalTrackedTime,
+      statusHistory: [],
     };
 
-    const totalMs = getTotalTrackedMs(taskObj, now);
+    const productiveMs = getStatusTrackedMs(taskObj, "In Progress", new Date(now));
+    const holdMs = getStatusTrackedMs(taskObj, "On Hold", new Date(now));
+    const correctionMs = getStatusTrackedMs(taskObj, "Correction", new Date(now));
+    const todayMs = getTodayProductivityMs(taskObj, new Date(now));
 
-    if (status === "Not Started" || (!startTime && totalMs === 0)) {
+    if (status === "Not Started" || (!startTime && productiveMs === 0 && holdMs === 0 && correctionMs === 0)) {
       return (
         <span className="text-slate-405 dark:text-slate-500 font-semibold text-xs block text-center w-full">
           Not started
@@ -360,19 +364,39 @@ const TimeTracker = React.memo(
       );
     }
 
-    if (!startTime && status === "In Progress") {
-      return (
-        <div className="inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold tracking-wider bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30 shadow-sm w-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-[#3b82f6] animate-pulse"></span>
-          Starting...
-        </div>
-      );
-    }
-
     return (
-      <span className="font-mono text-xs font-bold tracking-tight text-center block w-full">
-        {formatShortDuration(totalMs)}
-      </span>
+      <div className="flex flex-col gap-1 w-full p-1 rounded-md bg-white dark:bg-[#1e1e24] shadow-sm border border-slate-200 dark:border-slate-700/50">
+        {todayMs > 0 && (
+          <div className="flex justify-between items-center px-1.5 pb-1 border-b border-slate-100 dark:border-white/5">
+            <span className="text-[10px] text-slate-800 dark:text-slate-200 font-bold">Today</span>
+            <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+              {formatShortDuration(todayMs)}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between items-center px-1.5">
+          <span className="text-[10px] text-slate-500 font-semibold">Productive</span>
+          <span className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+             {formatShortDuration(productiveMs)}
+          </span>
+        </div>
+        {holdMs > 0 && (
+          <div className="flex justify-between items-center px-1.5">
+            <span className="text-[10px] text-slate-500 font-semibold">Hold</span>
+            <span className="font-mono text-[11px] font-semibold text-amber-600 dark:text-amber-500">
+              {formatShortDuration(holdMs)}
+            </span>
+          </div>
+        )}
+        {correctionMs > 0 && (
+          <div className="flex justify-between items-center px-1.5">
+            <span className="text-[10px] text-slate-500 font-semibold">Correction</span>
+            <span className="font-mono text-[11px] font-semibold text-blue-600 dark:text-blue-500">
+              {formatShortDuration(correctionMs)}
+            </span>
+          </div>
+        )}
+      </div>
     );
   }
 );
@@ -496,7 +520,7 @@ const SubtaskRow = ({
             e.stopPropagation();
             if (canToggleSub) {
               handleSubtaskFieldChange(task, sub._id, {
-                status: isSubCompleted ? "Pending" : "Completed",
+                status: isSubCompleted ? "Not Started" : "Completed",
               });
             }
           }}
@@ -2059,7 +2083,7 @@ const ProjectTaskBoard = ({
 
   const filteredTasks = activeProjectTasks.filter((t) => {
     if (statusFilter !== "All") {
-      const currentStatus = t.status || "Pending";
+      const currentStatus = t.status || "Not Started";
       const statusUpper = currentStatus.toUpperCase();
 
       if (statusFilter === "Active Tasks") {
@@ -2080,7 +2104,7 @@ const ProjectTaskBoard = ({
         if (statusUpper !== "ON HOLD") {
           return false;
         }
-      } else if (statusFilter === "Pending") {
+      } else if (statusFilter === "Not Started") {
         if (statusUpper !== "PENDING") {
           return false;
         }
@@ -2295,7 +2319,7 @@ const ProjectTaskBoard = ({
         assignedTo: null,
         dueDate: null,
         priority: "Medium",
-        status: "Pending",
+        status: "Not Started",
       }).unwrap();
 
       if (response && response.data) {
@@ -2335,7 +2359,7 @@ const ProjectTaskBoard = ({
       assignedTo: null,
       dueDate: null,
       priority: "Medium",
-      status: "Pending",
+      status: "Not Started",
       createdAt: new Date().toISOString(),
       subtasks: [],
       comments: [],
@@ -2354,7 +2378,7 @@ const ProjectTaskBoard = ({
         assignedTo: null,
         dueDate: null,
         priority: "Medium",
-        status: "Pending",
+        status: "Not Started",
       }).unwrap();
 
       if (response && response.data) {
@@ -2936,7 +2960,7 @@ const ProjectTaskBoard = ({
 
     const newSubtask = {
       title: subtaskTitle.trim(),
-      status: "Pending",
+      status: "Not Started",
       assignedTo: null,
       startDate: null,
       dueDate: null,
@@ -3299,7 +3323,7 @@ const ProjectTaskBoard = ({
     // 2. Insert new subtask right after subIdx
     const newSubtask = {
       title: "",
-      status: "Pending",
+      status: "Not Started",
       assignedTo: null,
       startDate: null,
       dueDate: null,
@@ -3332,7 +3356,7 @@ const ProjectTaskBoard = ({
 
     const newSubtask = {
       title: "",
-      status: "Pending",
+      status: "Not Started",
       assignedTo: null,
       startDate: null,
       dueDate: null,
@@ -3445,7 +3469,7 @@ const ProjectTaskBoard = ({
 
   // Breakdown of incomplete tasks for Bar Chart
   const pendingCount = activeProjectTasks.filter(
-    (t) => t.status === "Pending",
+    (t) => t.status === "Not Started",
   ).length;
   const inProgressCount = activeProjectTasks.filter(
     (t) => t.status === "In Progress",
@@ -3606,7 +3630,7 @@ const ProjectTaskBoard = ({
                       {[
                         "All",
                         "Active Tasks",
-                        "Pending",
+                        "Not Started",
                         "In Progress",
                         "On Hold",
                         "In Review",
@@ -5047,7 +5071,7 @@ const ProjectTaskBoard = ({
                                                                   {
                                                                     status:
                                                                       isCompleted
-                                                                        ? "Pending"
+                                                                        ? "Not Started"
                                                                         : "Completed",
                                                                   },
                                                                 );
@@ -5919,7 +5943,7 @@ const ProjectTaskBoard = ({
                                                               <select
                                                                 value={
                                                                   task.status ||
-                                                                  "Pending"
+                                                                  "Not Started"
                                                                 }
                                                                 onChange={(e) =>
                                                                   handleTaskFieldChange(
@@ -5960,7 +5984,7 @@ const ProjectTaskBoard = ({
                                                                 {task.contentType ===
                                                                 "MOM" ? (
                                                                   <>
-                                                                    <option value="Pending">
+                                                                    <option value="Not Started">
                                                                       Pending
                                                                     </option>
 
@@ -5988,7 +6012,7 @@ const ProjectTaskBoard = ({
                                                                   </>
                                                                 ) : (
                                                                   <>
-                                                                    <option value="Pending">
+                                                                    <option value="Not Started">
                                                                       Pending
                                                                     </option>
                                                                     <option value="In Progress">
@@ -6290,7 +6314,7 @@ const ProjectTaskBoard = ({
                                                                           {
                                                                             status:
                                                                               isSubCompleted
-                                                                                ? "Pending"
+                                                                                ? "Not Started"
                                                                                 : "Completed",
                                                                           },
                                                                         );
@@ -7212,7 +7236,7 @@ const ProjectTaskBoard = ({
                                                                       <select
                                                                         value={
                                                                           sub.status ||
-                                                                          "Pending"
+                                                                          "Not Started"
                                                                         }
                                                                         onChange={(
                                                                           e,
@@ -7253,7 +7277,7 @@ const ProjectTaskBoard = ({
                                                                         {sub.contentType ===
                                                                         "MOM" ? (
                                                                           <>
-                                                                            <option value="Pending">
+                                                                            <option value="Not Started">
                                                                               Pending
                                                                             </option>
 
@@ -7282,7 +7306,7 @@ const ProjectTaskBoard = ({
                                                                           </>
                                                                         ) : (
                                                                           <>
-                                                                            <option value="Pending">
+                                                                            <option value="Not Started">
                                                                               Pending
                                                                             </option>
                                                                             <option value="In Progress">
@@ -7505,7 +7529,7 @@ const ProjectTaskBoard = ({
               {/* Board Columns Grid */}
               <div className="flex gap-4 items-start overflow-x-auto pb-4 hide-scrollbar snap-x">
                 {[
-                  "Pending",
+                  "Not Started",
                   "In Progress",
                   "On Hold",
                   "IN-REVIEW",
@@ -7589,7 +7613,7 @@ const ProjectTaskBoard = ({
                                             e.stopPropagation();
                                             handleTaskFieldChange(task._id, {
                                               status: isCompleted
-                                                ? "Pending"
+                                                ? "Not Started"
                                                 : "Completed",
                                             });
                                           }}
@@ -7628,7 +7652,7 @@ const ProjectTaskBoard = ({
                                                   : "bg-slate-100 text-slate-500 border-slate-200 dark:bg-white/5 dark:text-slate-400 dark:border-white/10"
                                           }`}
                                         >
-                                          {task.status || "Pending"}
+                                          {task.status || "Not Started"}
                                         </span>
 
                                         {/* Priority Badge */}
@@ -8144,7 +8168,7 @@ const ProjectTaskBoard = ({
                       </div>
                     ) : isAdminOrManager ? (
                       <select
-                        value={selectedTask.status || "Pending"}
+                        value={selectedTask.status || "Not Started"}
                         onChange={(e) =>
                           handleTaskFieldChange(selectedTask._id, {
                             status: e.target.value,
@@ -8155,7 +8179,7 @@ const ProjectTaskBoard = ({
                         {selectedTask.contentType === "MOM" ? (
                           <>
                             <option
-                              value="Pending"
+                              value="Not Started"
                               className="dark:bg-slate-950 dark:text-slate-200"
                             >
                               Pending
@@ -8194,7 +8218,7 @@ const ProjectTaskBoard = ({
                         ) : (
                           <>
                             <option
-                              value="Pending"
+                              value="Not Started"
                               className="dark:bg-slate-950 dark:text-slate-200"
                             >
                               Pending
@@ -8236,7 +8260,7 @@ const ProjectTaskBoard = ({
                         selectedTask.status === "In Review" ||
                         selectedTask.status === "IN-Review"
                           ? "In Review"
-                          : selectedTask.status || "Pending"}
+                          : selectedTask.status || "Not Started"}
                       </div>
                     )}
                   </div>
@@ -8675,6 +8699,65 @@ const ProjectTaskBoard = ({
                       })()}
                     </div>
                   </div>
+
+                  {/* Time Log */}
+                  <div className="pt-4 border-t border-slate-100 dark:border-white/5 mt-4">
+                    <div className="flex items-center gap-2.5 mb-2 pb-1.5 border-b border-slate-100 dark:border-white/5">
+                      <FiClock size={16} className="text-slate-400" />
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                        Time Log
+                      </h3>
+                    </div>
+                    {(!selectedTask.statusHistory || selectedTask.statusHistory.length === 0) ? (
+                      <p className="text-xs text-slate-500 italic">No time logs yet.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[10px] text-left">
+                          <thead>
+                            <tr className="text-slate-500 font-semibold border-b border-slate-100 dark:border-white/5">
+                              <th className="py-1">Date</th>
+                              <th className="py-1">User</th>
+                              <th className="py-1">Status</th>
+                              <th className="py-1 text-right">Duration</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedTask.statusHistory.slice().reverse().map((h, i) => {
+                              const date = h.date || (h.startTime ? new Date(h.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "-");
+                              const user = h.user?.name || h.user?.firstName || "Unknown";
+                              const status = h.status;
+                              let dur = h.duration || 0;
+                              if (dur === 0 && h.startTime && h.endTime) {
+                                dur = new Date(h.endTime).getTime() - new Date(h.startTime).getTime();
+                              }
+                              if (dur === 0 && !h.endTime && h.startTime && (h.status === "In Progress" || h.status === "On Hold" || h.status === "Correction")) {
+                                const endMs = selectedTask.pausedAt ? new Date(selectedTask.pausedAt).getTime() : Date.now();
+                                dur = Math.max(0, endMs - new Date(h.startTime).getTime());
+                              }
+                              return (
+                                <tr key={i} className="border-b border-slate-50 dark:border-white/5 last:border-0 hover:bg-slate-50 dark:hover:bg-white/5">
+                                  <td className="py-1.5 font-medium text-slate-600 dark:text-slate-300">{date}</td>
+                                  <td className="py-1.5 text-slate-600 dark:text-slate-400">{user}</td>
+                                  <td className="py-1.5">
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                      status === "In Progress" ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" :
+                                      status === "On Hold" ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" :
+                                      status === "Correction" ? "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400" :
+                                      "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"
+                                    }`}>{status}</span>
+                                  </td>
+                                  <td className="py-1.5 text-right font-mono font-bold text-slate-700 dark:text-slate-200">
+                                    {dur > 0 ? formatShortDuration(dur) : "0s"}
+                                    {!h.endTime && <span className="ml-1 text-emerald-500 animate-pulse">●</span>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* ── Asana-style Subtask Workspace ── */}
@@ -8704,7 +8787,7 @@ const ProjectTaskBoard = ({
                             ];
                             const newSubtask = {
                               title: "",
-                              status: "Pending",
+                              status: "Not Started",
                               assignedTo: null,
                               dueDate: null,
                               priority: "Medium",
@@ -8787,7 +8870,7 @@ const ProjectTaskBoard = ({
                           ];
                           const newSubtask = {
                             title: "",
-                            status: "Pending",
+                            status: "Not Started",
                             assignedTo: null,
                             dueDate: null,
                             priority: "Medium",

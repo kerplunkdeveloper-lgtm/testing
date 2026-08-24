@@ -15,6 +15,8 @@ export function calculateBusinessMsBetween(
 
   const startHour = officeHours?.startHour ?? 9;
   const endHour = officeHours?.endHour ?? 19;
+  const breakStartHour = officeHours?.breakStartHour ?? 13;
+  const breakEndHour = officeHours?.breakEndHour ?? 14;
   const workingDays = officeHours?.workingDays || [1, 2, 3, 4, 5, 6];
 
   const IST_OFFSET = 330 * 60 * 1000; // +5:30 IST offset
@@ -51,7 +53,26 @@ export function calculateBusinessMsBetween(
     curBlockEndIST.setUTCHours(endHour, 0, 0, 0);
     const curBlockEndTime = curBlockEndIST.getTime() - IST_OFFSET;
 
-    const blockEnd = Math.min(end, curBlockEndTime);
+    const breakStartIST = new Date(curIST);
+    breakStartIST.setUTCHours(breakStartHour, 0, 0, 0);
+    const breakStartTime = breakStartIST.getTime() - IST_OFFSET;
+
+    const breakEndIST = new Date(curIST);
+    breakEndIST.setUTCHours(breakEndHour, 0, 0, 0);
+    const breakEndTime = breakEndIST.getTime() - IST_OFFSET;
+
+    if (hour >= breakStartHour && hour < breakEndHour) {
+      const msUntilBreakEnd = ((breakEndHour - hour) * 3600 - min * 60 - sec) * 1000 - ms;
+      curTime += msUntilBreakEnd;
+      continue;
+    }
+
+    let blockEndTime = curBlockEndTime;
+    if (hour < breakStartHour) {
+      blockEndTime = Math.min(curBlockEndTime, breakStartTime);
+    }
+    
+    const blockEnd = Math.min(end, blockEndTime);
     totalMs += blockEnd - curTime;
     curTime = blockEnd;
   }
@@ -186,6 +207,52 @@ export function getTotalTrackedMs(
   }
 
   return Math.max(0, baseTotalMs + activeSessionMs) + subtasksMs;
+}
+
+export function getStatusTrackedMs(
+  task,
+  targetStatus,
+  now = new Date(),
+  officeHours = { startHour: 9, endHour: 19, workingDays: [1, 2, 3, 4, 5, 6] }
+) {
+  if (!task) return 0;
+
+  let subtasksMs = 0;
+  if (task.subtasks && Array.isArray(task.subtasks) && task.subtasks.length > 0) {
+    task.subtasks.forEach((sub) => {
+      subtasksMs += getStatusTrackedMs(sub, targetStatus, now, officeHours);
+    });
+  }
+
+  let totalMs = 0;
+  let hasOpenSession = false;
+  let openSessionStart = null;
+
+  if (task.statusHistory && Array.isArray(task.statusHistory)) {
+    task.statusHistory.forEach((h) => {
+      if (h.status === targetStatus) {
+        if (h.endTime) {
+          totalMs += h.duration || 0;
+        } else {
+          hasOpenSession = true;
+          openSessionStart = h.startTime;
+        }
+      }
+    });
+  }
+
+  if (hasOpenSession && openSessionStart && task.status === targetStatus) {
+    const startMs = new Date(openSessionStart).getTime();
+    let endMs = new Date(now).getTime();
+    if (task.pausedAt) {
+      endMs = new Date(task.pausedAt).getTime();
+    }
+    if (endMs > startMs) {
+      totalMs += calculateBusinessMsBetween(startMs, endMs, officeHours);
+    }
+  }
+
+  return totalMs + subtasksMs;
 }
 
 /**

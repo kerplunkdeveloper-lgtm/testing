@@ -265,7 +265,7 @@ const checkTaskProductivityAndDate = (
 
 const getStatusWithEmoji = (status) => {
   const s = (status || "").toLowerCase();
-  if (s === "pending" || s === "to do") return "Pending";
+  if (s === "pending" || s === "to do") return "Not Started";
   if (s.includes("progress")) return "In Progress";
   if (s.includes("review")) return "In Review";
   if (s.includes("correction")) return "Correction";
@@ -273,7 +273,7 @@ const getStatusWithEmoji = (status) => {
     return "Completed";
   if (s.includes("hold")) return "On Hold";
   if (s.includes("reject")) return "Rejected";
-  return status || "Pending";
+  return status || "Not Started";
 };
 
 const SimpleTimeTracker = ({
@@ -938,7 +938,7 @@ const StatusBadgeSelect = ({ status, isBlocked, onChange }) => {
         chevron: "text-orange-800 dark:text-orange-300",
       };
     }
-    const s = (st || "Pending").toUpperCase();
+    const s = (st || "Not Started").toUpperCase();
     if (s === "PENDING" || s === "TO DO" || s === "TODO") {
       return {
         label: "PENDING",
@@ -1002,7 +1002,7 @@ const StatusBadgeSelect = ({ status, isBlocked, onChange }) => {
   const cfg = getStatusBadgeConfig(status, isBlocked);
 
   const options = [
-    { value: "Pending", label: "PENDING" },
+    { value: "Not Started", label: "PENDING" },
     { value: "In Progress", label: "IN PROGRESS" },
     { value: "In Review", label: "IN REVIEW" },
     { value: "Correction", label: "CORRECTION" },
@@ -1201,7 +1201,7 @@ const TaskOverviewTab = ({
         startDate: effectiveStart,
         dueDate: effectiveEnd,
         priority: finalPriority,
-        status: "Pending",
+        status: "Not Started",
       }).unwrap();
 
       toast.success("Task created successfully!");
@@ -1795,7 +1795,7 @@ const TaskOverviewTab = ({
       };
     }
     switch (status) {
-      case "Pending":
+      case "Not Started":
       case "To Do":
         return {
           dot: "bg-slate-400 dark:bg-slate-500",
@@ -1917,7 +1917,7 @@ const TaskOverviewTab = ({
             task.status !== "Completed";
           if (!isDueToday) return false;
         } else if (overviewStatusFilter === "Active Tasks") {
-          const statusUpper = (task.status || "Pending").toUpperCase();
+          const statusUpper = (task.status || "Not Started").toUpperCase();
           const isCompleted = statusUpper === "COMPLETED";
           const isRejected = statusUpper === "REJECTED";
           if (isCompleted || isRejected) return false;
@@ -2053,7 +2053,7 @@ const TaskOverviewTab = ({
       .sort((a, b) => {
         // 1. Primary sort: Status Order (Pending -> In Progress -> On Hold -> In Review -> Correction -> Rejected -> Completed)
         const getStatusSortRank = (task) => {
-          const s = (task.status || "Pending").toUpperCase();
+          const s = (task.status || "Not Started").toUpperCase();
           if (s === "PENDING" || s === "TO DO" || s === "TODO") {
             return 1;
           }
@@ -2307,7 +2307,7 @@ const TaskOverviewTab = ({
         startDate,
         endDate,
         task.priority || "Medium",
-        task.status || "Pending",
+        task.status || "Not Started",
         activeStr,
         blockerStr,
         totalStr,
@@ -2919,7 +2919,7 @@ const TaskOverviewTab = ({
                     {[
                       "All",
                       "Active Tasks",
-                      "Pending",
+                      "Not Started",
                       "In Progress",
                       "In Review",
                       "Correction",
@@ -3628,7 +3628,7 @@ const TaskOverviewTab = ({
                     const clientName = clientObj?.companyName || "No Client";
                     const clientBranding = getClientBranding(clientObj);
                     const sStyle = getStatusStyle(
-                      task.status || "Pending",
+                      task.status || "Not Started",
                       task.isBlocked,
                     );
                     const pStyle = getPriorityStyle(task.priority || "Medium");
@@ -3654,7 +3654,7 @@ const TaskOverviewTab = ({
                                   e.stopPropagation();
                                   handleTaskFieldChange(task._id, {
                                     status: isCompleted
-                                      ? "Pending"
+                                      ? "Not Started"
                                       : "Completed",
                                   });
                                 }}
@@ -3665,7 +3665,7 @@ const TaskOverviewTab = ({
                                 }`}
                                 title={
                                   isCompleted
-                                    ? "Mark as Pending"
+                                    ? "Mark as Not Started"
                                     : "Mark as Completed"
                                 }
                               >
@@ -4146,7 +4146,7 @@ const TaskOverviewTab = ({
                               {task.status !== "Completed" &&
                               task.status !== "Rejected" ? (
                                 <select
-                                  value={task.status || "Pending"}
+                                  value={task.status || "Not Started"}
                                   onChange={(e) =>
                                     handleTaskFieldChange(task._id, {
                                       status: e.target.value,
@@ -4171,7 +4171,7 @@ const TaskOverviewTab = ({
                                 >
                                   {task.contentType === "MOM" ? (
                                     <>
-                                      <option value="Pending">Pending</option>
+                                      <option value="Not Started">Not Started</option>
                                       <option value="Completed">
                                         Completed
                                       </option>
@@ -4192,7 +4192,7 @@ const TaskOverviewTab = ({
                                     </>
                                   ) : (
                                     <>
-                                      <option value="Pending">Pending</option>
+                                      <option value="Not Started">Not Started</option>
                                       <option value="In Progress">
                                         In Progress
                                       </option>
@@ -4508,7 +4508,7 @@ const TaskOverviewTab = ({
                         </div>
                       ) : (
                         <select
-                          value={selectedTask.status || "Pending"}
+                          value={selectedTask.status || "Not Started"}
                           onChange={(e) =>
                             handleTaskFieldChange(selectedTask._id, {
                               status: e.target.value,
@@ -4532,13 +4532,13 @@ const TaskOverviewTab = ({
                         >
                           {selectedTask.contentType === "MOM" ? (
                             <>
-                              <option value="Pending">Pending</option>
+                              <option value="Not Started">Not Started</option>
 
                               <option value="Completed">Completed</option>
                             </>
                           ) : (
                             <>
-                              <option value="Pending">Pending</option>
+                              <option value="Not Started">Not Started</option>
                               <option value="In Progress">In Progress</option>
                               <option value="In Review">In Review</option>
                               <option value="Correction">Correction</option>

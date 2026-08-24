@@ -499,7 +499,7 @@ const GraphicDesignerDeadlines = ({ user }) => {
                           ? "bg-white/30 text-white border border-white/30"
                           : task.status === "Completed"
                             ? "bg-emerald-500 dark:bg-emerald-600 text-white border border-emerald-600 dark:border-emerald-500 shadow-2xs"
-                            : task.status === "Pending"
+                            : task.status === "Not Started"
                               ? "bg-slate-400 dark:bg-blue-900 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-700"
                               : task.status === "In Progress"
                                 ? "bg-amber-400 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
@@ -1505,7 +1505,7 @@ const Dashboardmain = () => {
 
   const handleToggleTaskComplete = async (task) => {
     const isCompleted = task.status === "Completed";
-    const newStatus = isCompleted ? "Pending" : "Completed";
+    const newStatus = isCompleted ? "Not Started" : "Completed";
     try {
       await updateTask({
         id: task._id,

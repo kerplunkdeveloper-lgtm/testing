@@ -273,12 +273,12 @@ const LiveTimeTracker = ({
 
 // Helper: map task board status to EOD status enum
 const mapTaskStatusToEodStatus = (status) => {
-  return status || "Pending";
+  return status || "Not Started";
 };
 
 // Helper: Priority sorting order (In Progress = 1, On Hold = 2, In Review = 3, Pending = 4, Completed = 5)
 const getStatusPriority = (status) => {
-  const s = (status || "Pending").toUpperCase();
+  const s = (status || "Not Started").toUpperCase();
   if (s.includes("PROGRESS")) return 1;
   if (s.includes("HOLD")) return 2;
   if (s.includes("REVIEW")) return 3;
@@ -289,7 +289,7 @@ const getStatusPriority = (status) => {
 };
 
 const getCardBgStyle = (status) => {
-  const s = (status || "Pending").toUpperCase();
+  const s = (status || "Not Started").toUpperCase();
   switch (s) {
     case "COMPLETED":
       return "bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-800";
@@ -311,7 +311,7 @@ const getCardBgStyle = (status) => {
 };
 
 const getStatusBadgeStyle = (status) => {
-  const s = (status || "Pending").toUpperCase();
+  const s = (status || "Not Started").toUpperCase();
   switch (s) {
     case "COMPLETED":
       return "bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30";
@@ -333,7 +333,7 @@ const getStatusBadgeStyle = (status) => {
 };
 
 const getStatusTextColor = (status) => {
-  const s = (status || "Pending").toUpperCase();
+  const s = (status || "Not Started").toUpperCase();
   switch (s) {
     case "COMPLETED":
       return "text-emerald-700 dark:text-emerald-400";
@@ -668,7 +668,7 @@ const EodReports = () => {
               ? t.statusAtEod
               : correspondingTask
                 ? mapTaskStatusToEodStatus(correspondingTask.status)
-                : "Pending";
+                : "Not Started";
             const taskCode = correspondingTask
               ? getTaskDisplayId(correspondingTask)
               : "";
@@ -1092,7 +1092,7 @@ const EodReports = () => {
     (t) => t.statusAtEod === "In Review",
   ).length;
   const revisionCount = tasksState.filter((t) =>
-    ["Revision", "Revision Pending"].includes(t.statusAtEod),
+    ["Revision", "Revision Not Started"].includes(t.statusAtEod),
   ).length;
   const pendingCount = Math.max(
     0,
@@ -1444,7 +1444,7 @@ const EodReports = () => {
                                         : "bg-slate-400"
                                 }`}
                               />
-                              {task.statusAtEod || "Pending"}
+                              {task.statusAtEod || "Not Started"}
                             </span>
                           </td>
 

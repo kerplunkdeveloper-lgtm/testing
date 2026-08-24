@@ -580,7 +580,7 @@ const Workload = () => {
       );
 
       const pendingTasks = assignedTasks.filter(
-        (t) => t.status === "Pending" || t.status === "To Do"
+        (t) => t.status === "Not Started" || t.status === "To Do"
       );
 
       const onHoldTasks = assignedTasks.filter(

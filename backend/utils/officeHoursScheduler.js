@@ -28,7 +28,7 @@ async function checkAndAutoPauseTasks(io) {
     const isOutsideBusiness = isNonWorkingDay || isOutsideHours;
 
     if (isOutsideBusiness) {
-      // OUTSIDE OFFICE HOURS -> Auto-pause active tasks (status becomes "On Hold", autoPaused = true)
+      // OUTSIDE OFFICE HOURS -> Auto-close active sessions, but DO NOT change task status.
       const dateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
       const hourStr = String(endHour).padStart(2, "0");
       let pauseTime = new Date(`${dateStr}T${hourStr}:00:00+05:30`);
@@ -42,7 +42,10 @@ async function checkAndAutoPauseTasks(io) {
 
       for (let task of activeTasks) {
         if (task.status === "In Progress") {
-          // Calculate session working time
+          // Check if there's an open session that needs closing
+          let history = task.statusHistory ? JSON.parse(JSON.stringify(task.statusHistory)) : [];
+          let hasOpenSession = false;
+          
           let sessionWorkedMs = 0;
           if (task.actualStartTime) {
             const sStart = new Date(task.actualStartTime).getTime();
@@ -69,41 +72,33 @@ async function checkAndAutoPauseTasks(io) {
             }
           }
 
-          task.totalTrackedTime = (task.totalTrackedTime || 0) + sessionWorkedMs;
-          task.dailyTrackedTime = (task.dailyTrackedTime || 0) + sessionWorkedMs;
-
-          let history = task.statusHistory ? JSON.parse(JSON.stringify(task.statusHistory)) : [];
           // Close open In Progress entry
           for (let i = history.length - 1; i >= 0; i--) {
             if (!history[i].endTime && history[i].status === "In Progress") {
               history[i].endTime = pauseTime;
               history[i].duration = Math.max(0, Math.round(sessionWorkedMs));
+              hasOpenSession = true;
               break;
             }
           }
 
-          // Add On Hold entry
-          history.push({
-            status: "On Hold",
-            startTime: pauseTime,
-            endTime: null,
-            duration: 0,
-            date: dateStr,
-            user: task.assignedTo,
-            comment: "Auto-paused at EOD",
-          });
-          task.statusHistory = history;
-        }
-
-        task.status = "On Hold";
-        task.pausedAt = task.pausedAt || pauseTime;
-        task.holdStartedAt = task.holdStartedAt || pauseTime;
-        task.autoPaused = true;
-        await task.save();
-        
-        console.log(`Auto-paused task (moved to On Hold): "${task.title}" at ${task.pausedAt}`);
-        if (io) {
-          io.emit("task_updated", { taskId: task._id });
+          if (hasOpenSession) {
+            task.totalTrackedTime = (task.totalTrackedTime || 0) + sessionWorkedMs;
+            task.dailyTrackedTime = (task.dailyTrackedTime || 0) + sessionWorkedMs;
+            task.statusHistory = history;
+            
+            // Do NOT change status. We leave it as In Progress.
+            // Clear actualStartTime so a new session isn't immediately created tomorrow
+            // without a fresh timestamp, but actually the next API call should start it.
+            task.actualStartTime = null; 
+            
+            await task.save();
+            
+            console.log(`Auto-closed session for task: "${task.title}" at ${pauseTime}`);
+            if (io) {
+              io.emit("task_updated", { taskId: task._id });
+            }
+          }
         }
       }
 
@@ -114,6 +109,9 @@ async function checkAndAutoPauseTasks(io) {
         let updated = false;
         task.subtasks = task.subtasks.map(sub => {
           if (sub.status === "In Progress") {
+            let history = sub.statusHistory ? JSON.parse(JSON.stringify(sub.statusHistory)) : [];
+            let hasOpenSession = false;
+
             let sessionWorkedMs = 0;
             if (sub.actualStartTime) {
               const sStart = new Date(sub.actualStartTime).getTime();
@@ -140,38 +138,23 @@ async function checkAndAutoPauseTasks(io) {
               }
             }
 
-            sub.totalTrackedTime = (sub.totalTrackedTime || 0) + sessionWorkedMs;
-            sub.dailyTrackedTime = (sub.dailyTrackedTime || 0) + sessionWorkedMs;
-
-            let history = sub.statusHistory ? JSON.parse(JSON.stringify(sub.statusHistory)) : [];
             for (let i = history.length - 1; i >= 0; i--) {
               if (!history[i].endTime && history[i].status === "In Progress") {
                 history[i].endTime = pauseTime;
                 history[i].duration = Math.max(0, Math.round(sessionWorkedMs));
+                hasOpenSession = true;
                 break;
               }
             }
 
-            history.push({
-              status: "On Hold",
-              startTime: pauseTime,
-              endTime: null,
-              duration: 0,
-              date: dateStr,
-              user: sub.assignedTo,
-              comment: "Auto-paused at EOD",
-            });
-            sub.statusHistory = history;
-
-            sub.status = "On Hold";
-            sub.pausedAt = sub.pausedAt || pauseTime;
-            sub.holdStartedAt = sub.holdStartedAt || pauseTime;
-            sub.autoPaused = true;
-            updated = true;
-            console.log(`Auto-paused subtask (moved to On Hold): "${sub.title}" in task "${task.title}"`);
-          } else if (sub.status === "On Hold" && sub.autoPaused) {
-            sub.pausedAt = sub.pausedAt || pauseTime;
-            sub.holdStartedAt = sub.holdStartedAt || pauseTime;
+            if (hasOpenSession) {
+              sub.totalTrackedTime = (sub.totalTrackedTime || 0) + sessionWorkedMs;
+              sub.dailyTrackedTime = (sub.dailyTrackedTime || 0) + sessionWorkedMs;
+              sub.statusHistory = history;
+              sub.actualStartTime = null; 
+              updated = true;
+              console.log(`Auto-closed session for subtask: "${sub.title}" in task "${task.title}"`);
+            }
           }
           return sub;
         });

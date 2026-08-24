@@ -217,7 +217,7 @@ const MomClientReport = () => {
         const s = (task.status || "pending").toLowerCase();
         const isCompleted = s === "completed" || s === "done";
         if (statusFilter === "Completed" && !isCompleted) return false;
-        if (statusFilter === "Pending" && isCompleted) return false;
+        if (statusFilter === "Not Started" && isCompleted) return false;
       }
 
       return true;
@@ -485,7 +485,7 @@ const MomClientReport = () => {
           <div className="bg-white dark:bg-[#0f172a] rounded-xl shadow-2xs border border-slate-200 dark:border-slate-800 overflow-hidden flex-1 flex flex-col min-h-0">
             <div className="flex justify-between items-center px-4 py-3 shrink-0 border-b border-slate-200 dark:border-slate-800">
               <div className="flex space-x-2">
-                {["All", "Pending", "Completed"].map(tab => (
+                {["All", "Not Started", "Completed"].map(tab => (
                   <button
                     key={tab}
                     onClick={() => setStatusFilter(tab)}
@@ -615,7 +615,7 @@ const MomClientReport = () => {
                           </td>
                           <td className="px-3 py-3 align-top text-[11px] text-center whitespace-nowrap">
                             <span className={`px-1.5 py-0.5 rounded ${getStatusStyle(task.status)} font-bold`}>
-                              {task.status || "Pending"}
+                              {task.status || "Not Started"}
                             </span>
                           </td>
                           <td className="px-3 py-3 align-top text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap text-center">

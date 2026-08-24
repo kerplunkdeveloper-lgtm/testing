@@ -2886,7 +2886,7 @@ const Clients = () => {
 
                   const totalTasks = clientTasks.length;
                   const inProgressTasks = clientTasks.filter(
-                    (t) => t.status === "In Progress" || t.status === "Pending",
+                    (t) => t.status === "In Progress" || t.status === "Not Started",
                   ).length;
                   const completedTasks = clientTasks.filter(
                     (t) => t.status === "Completed",
