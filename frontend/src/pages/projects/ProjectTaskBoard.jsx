@@ -4323,7 +4323,7 @@ const ProjectTaskBoard = ({
                             return sectionsToRender.map(
                               (sectionName, sectionIndex) => {
                                 const STATUS_ORDER = {
-                                  Pending: 1,
+                                  "Not Started": 1,
                                   "To Do": 1,
                                   "In Progress": 2,
                                   "On Hold": 3,
@@ -5978,64 +5978,28 @@ const ProjectTaskBoard = ({
                                                                             : task.status ===
                                                                                 "Rejected"
                                                                               ? "badge-status-rejected"
-                                                                              : "badge-status-pending"
+                                                                              : "badge-status-not-started"
                                                                 }`}
                                                               >
-                                                                {task.contentType ===
-                                                                "MOM" ? (
-                                                                  <>
-                                                                    <option value="Not Started">
-                                                                      Pending
-                                                                    </option>
-
-                                                                    <option value="Completed">
-                                                                      Completed
-                                                                    </option>
-                                                                  </>
-                                                                ) : task.status ===
-                                                                    "In Review" ||
-                                                                  task.status ===
-                                                                    "IN-REVIEW" ? (
-                                                                  <>
-                                                                    <option value="In Review">
-                                                                      In Review
-                                                                    </option>
-                                                                    <option value="Correction">
-                                                                      Correction
-                                                                    </option>
-                                                                    <option value="Completed">
-                                                                      Completed
-                                                                    </option>
-                                                                    <option value="Rejected">
-                                                                      Rejected
-                                                                    </option>
-                                                                  </>
-                                                                ) : (
-                                                                  <>
-                                                                    <option value="Not Started">
-                                                                      Pending
-                                                                    </option>
-                                                                    <option value="In Progress">
-                                                                      In
-                                                                      Progress
-                                                                    </option>
-                                                                    <option value="In Review">
-                                                                      In Review
-                                                                    </option>
-                                                                    <option value="Correction">
-                                                                      Correction
-                                                                    </option>
-                                                                    <option value="Completed">
-                                                                      Completed
-                                                                    </option>
-                                                                    <option value="On Hold">
-                                                                      On Hold
-                                                                    </option>
-                                                                    <option value="Rejected">
-                                                                      Rejected
-                                                                    </option>
-                                                                  </>
-                                                                )}
+                                                                  {task.contentType === "MOM" ? (
+                                                                    <>
+                                                                      <option value="Not Started">Not Started</option>
+                                                                      {["In Progress", "On Hold", "In Review", "Correction"].includes(task.status) && (
+                                                                        <option value={task.status}>{task.status}</option>
+                                                                      )}
+                                                                      <option value="Completed">Completed</option>
+                                                                    </>
+                                                                  ) : (
+                                                                    <>
+                                                                      <option value="Not Started">Not Started</option>
+                                                                      {["In Progress", "On Hold", "In Review"].includes(task.status) && (
+                                                                        <option value={task.status}>{task.status}</option>
+                                                                      )}
+                                                                      <option value="Correction">Correction</option>
+                                                                      <option value="Completed">Completed</option>
+                                                                      <option value="Rejected">Rejected</option>
+                                                                    </>
+                                                                  )}
                                                               </select>
                                                             ) : (
                                                               <span
@@ -6055,7 +6019,7 @@ const ProjectTaskBoard = ({
                                                                           : task.status ===
                                                                               "Rejected"
                                                                             ? "badge-status-rejected"
-                                                                            : "badge-status-pending"
+                                                                            : "badge-status-not-started"
                                                                 }`}
                                                               >
                                                                 {getStatusWithEmoji(
@@ -7271,65 +7235,26 @@ const ProjectTaskBoard = ({
                                                                                     : sub.status ===
                                                                                         "Rejected"
                                                                                       ? "badge-status-rejected"
-                                                                                      : "badge-status-pending"
+                                                                                      : "badge-status-not-started"
                                                                         }`}
                                                                       >
-                                                                        {sub.contentType ===
-                                                                        "MOM" ? (
+                                                                        {sub.contentType === "MOM" ? (
                                                                           <>
-                                                                            <option value="Not Started">
-                                                                              Pending
-                                                                            </option>
-
-                                                                            <option value="Completed">
-                                                                              Completed
-                                                                            </option>
-                                                                          </>
-                                                                        ) : sub.status ===
-                                                                            "In Review" ||
-                                                                          sub.status ===
-                                                                            "IN-REVIEW" ? (
-                                                                          <>
-                                                                            <option value="In Review">
-                                                                              In
-                                                                              Review
-                                                                            </option>
-                                                                            <option value="Correction">
-                                                                              Correction
-                                                                            </option>
-                                                                            <option value="Completed">
-                                                                              Completed
-                                                                            </option>
-                                                                            <option value="Rejected">
-                                                                              Rejected
-                                                                            </option>
+                                                                            <option value="Not Started">Not Started</option>
+                                                                            {["In Progress", "On Hold", "In Review", "Correction"].includes(sub.status) && (
+                                                                              <option value={sub.status}>{sub.status}</option>
+                                                                            )}
+                                                                            <option value="Completed">Completed</option>
                                                                           </>
                                                                         ) : (
                                                                           <>
-                                                                            <option value="Not Started">
-                                                                              Pending
-                                                                            </option>
-                                                                            <option value="In Progress">
-                                                                              In
-                                                                              Progress
-                                                                            </option>
-                                                                            <option value="In Review">
-                                                                              In
-                                                                              Review
-                                                                            </option>
-                                                                            <option value="Correction">
-                                                                              Correction
-                                                                            </option>
-                                                                            <option value="Completed">
-                                                                              Completed
-                                                                            </option>
-                                                                            <option value="On Hold">
-                                                                              On
-                                                                              Hold
-                                                                            </option>
-                                                                            <option value="Rejected">
-                                                                              Rejected
-                                                                            </option>
+                                                                            <option value="Not Started">Not Started</option>
+                                                                            {["In Progress", "On Hold", "In Review"].includes(sub.status) && (
+                                                                              <option value={sub.status}>{sub.status}</option>
+                                                                            )}
+                                                                            <option value="Correction">Correction</option>
+                                                                            <option value="Completed">Completed</option>
+                                                                            <option value="Rejected">Rejected</option>
                                                                           </>
                                                                         )}
                                                                       </select>
@@ -7355,7 +7280,7 @@ const ProjectTaskBoard = ({
                                                                                   : sub.status ===
                                                                                       "Rejected"
                                                                                     ? "badge-status-rejected"
-                                                                                    : "badge-status-pending"
+                                                                                    : "badge-status-not-started"
                                                                         }`}
                                                                       >
                                                                         {getStatusWithEmoji(
@@ -8177,66 +8102,24 @@ const ProjectTaskBoard = ({
                         className="w-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-[#3b82f6]"
                       >
                         {selectedTask.contentType === "MOM" ? (
-                          <>
-                            <option
-                              value="Not Started"
-                              className="dark:bg-slate-950 dark:text-slate-200"
-                            >
-                              Pending
-                            </option>
-
-                            <option
-                              value="Completed"
-                              className="dark:bg-slate-950 dark:text-slate-200"
-                            >
-                              Completed
-                            </option>
-                          </>
-                        ) : selectedTask.status === "IN-REVIEW" ||
-                          selectedTask.status === "In Review" ||
-                          selectedTask.status === "IN-Review" ? (
-                          <>
-                            <option
-                              value="IN-REVIEW"
-                              className="dark:bg-slate-950 dark:text-slate-200"
-                            >
-                              In Review
-                            </option>
-                            <option
-                              value="Completed"
-                              className="dark:bg-slate-950 dark:text-slate-200"
-                            >
-                              Completed
-                            </option>
-                            <option
-                              value="Rejected"
-                              className="dark:bg-slate-950 dark:text-slate-200"
-                            >
-                              Rejected
-                            </option>
-                          </>
-                        ) : (
-                          <>
-                            <option
-                              value="Not Started"
-                              className="dark:bg-slate-950 dark:text-slate-200"
-                            >
-                              Pending
-                            </option>
-                            <option
-                              value="Completed"
-                              className="dark:bg-slate-950 dark:text-slate-200"
-                            >
-                              Completed
-                            </option>
-                            <option
-                              value="Rejected"
-                              className="dark:bg-slate-950 dark:text-slate-200"
-                            >
-                              Rejected
-                            </option>
-                          </>
-                        )}
+                            <>
+                              <option value="Not Started" className="dark:bg-slate-950 dark:text-slate-200">Not Started</option>
+                              {["In Progress", "On Hold", "In Review", "Correction"].includes(selectedTask.status) && (
+                                <option value={selectedTask.status} className="dark:bg-slate-950 dark:text-slate-200">{selectedTask.status}</option>
+                              )}
+                              <option value="Completed" className="dark:bg-slate-950 dark:text-slate-200">Completed</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="Not Started" className="dark:bg-slate-950 dark:text-slate-200">Not Started</option>
+                              {["In Progress", "On Hold", "In Review"].includes(selectedTask.status) && (
+                                <option value={selectedTask.status} className="dark:bg-slate-950 dark:text-slate-200">{selectedTask.status}</option>
+                              )}
+                              <option value="Correction" className="dark:bg-slate-950 dark:text-slate-200">Correction</option>
+                              <option value="Completed" className="dark:bg-slate-950 dark:text-slate-200">Completed</option>
+                              <option value="Rejected" className="dark:bg-slate-950 dark:text-slate-200">Rejected</option>
+                            </>
+                          )}
                       </select>
                     ) : (
                       <div
@@ -8253,7 +8136,7 @@ const ProjectTaskBoard = ({
                                   ? "badge-status-on-hold"
                                   : selectedTask.status === "Rejected"
                                     ? "badge-status-rejected"
-                                    : "badge-status-pending"
+                                    : "badge-status-not-started"
                         }`}
                       >
                         {selectedTask.status === "IN-REVIEW" ||
@@ -8622,7 +8505,7 @@ const ProjectTaskBoard = ({
                             Completed At
                           </span>
                           <span className="font-semibold text-slate-400 dark:text-slate-550">
-                            Pending
+                            Not Started
                           </span>
                         </div>
                       )}

@@ -939,9 +939,10 @@ const StatusBadgeSelect = ({ status, isBlocked, onChange }) => {
       };
     }
     const s = (st || "Not Started").toUpperCase();
-    if (s === "PENDING" || s === "TO DO" || s === "TODO") {
+    if (s === "NOT STARTED" || s === "PENDING" || s === "TO DO" || s === "TODO") {
       return {
-        label: "PENDING",
+        label: "NOT STARTED",
+        class: "badge-status-not-started",
         bg: "bg-slate-200/90 text-slate-800 dark:bg-slate-700/80 dark:text-slate-100",
         chevron: "text-slate-800 dark:text-slate-200",
       };
@@ -1002,7 +1003,7 @@ const StatusBadgeSelect = ({ status, isBlocked, onChange }) => {
   const cfg = getStatusBadgeConfig(status, isBlocked);
 
   const options = [
-    { value: "Not Started", label: "PENDING" },
+    { value: "Not Started", label: "NOT STARTED" },
     { value: "In Progress", label: "IN PROGRESS" },
     { value: "In Review", label: "IN REVIEW" },
     { value: "Correction", label: "CORRECTION" },
@@ -2051,10 +2052,10 @@ const TaskOverviewTab = ({
         );
       })
       .sort((a, b) => {
-        // 1. Primary sort: Status Order (Pending -> In Progress -> On Hold -> In Review -> Correction -> Rejected -> Completed)
+        // 1. Primary sort: Status Order (Not Started -> In Progress -> On Hold -> In Review -> Correction -> Rejected -> Completed)
         const getStatusSortRank = (task) => {
           const s = (task.status || "Not Started").toUpperCase();
-          if (s === "PENDING" || s === "TO DO" || s === "TODO") {
+          if (s === "NOT STARTED" || s === "PENDING" || s === "TO DO" || s === "TODO") {
             return 1;
           }
           if (
@@ -3538,8 +3539,8 @@ const TaskOverviewTab = ({
                   )}
                   {!hiddenColumns.status && (
                     <td className="py-2 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
-                      <span className="badge-span badge-status-pending text-[11px]">
-                        Pending
+                      <span className="badge-span badge-status-not-started text-[11px]">
+                        Not Started
                       </span>
                     </td>
                   )}
@@ -4166,46 +4167,25 @@ const TaskOverviewTab = ({
                                               ? "badge-status-on-hold"
                                               : task.status === "Rejected"
                                                 ? "badge-status-rejected"
-                                                : "badge-status-pending"
+                                                : "badge-status-not-started"
                                   }`}
                                 >
                                   {task.contentType === "MOM" ? (
                                     <>
                                       <option value="Not Started">Not Started</option>
-                                      <option value="Completed">
-                                        Completed
-                                      </option>
-                                    </>
-                                  ) : task.status === "In Review" ||
-                                    task.status === "IN-REVIEW" ? (
-                                    <>
-                                      <option value="In Review">
-                                        In Review
-                                      </option>
-                                      <option value="Correction">
-                                        Correction
-                                      </option>
-                                      <option value="Completed">
-                                        Completed
-                                      </option>
-                                      <option value="Rejected">Rejected</option>
+                                      {["In Progress", "On Hold", "In Review", "Correction"].includes(task.status) && (
+                                        <option value={task.status}>{task.status}</option>
+                                      )}
+                                      <option value="Completed">Completed</option>
                                     </>
                                   ) : (
                                     <>
                                       <option value="Not Started">Not Started</option>
-                                      <option value="In Progress">
-                                        In Progress
-                                      </option>
-                                      <option value="In Review">
-                                        In Review
-                                      </option>
-                                      <option value="Correction">
-                                        Correction
-                                      </option>
-                                      <option value="Completed">
-                                        Completed
-                                      </option>
-                                      <option value="On Hold">On Hold</option>
+                                      {["In Progress", "On Hold", "In Review"].includes(task.status) && (
+                                        <option value={task.status}>{task.status}</option>
+                                      )}
+                                      <option value="Correction">Correction</option>
+                                      <option value="Completed">Completed</option>
                                       <option value="Rejected">Rejected</option>
                                     </>
                                   )}
@@ -4223,7 +4203,7 @@ const TaskOverviewTab = ({
                                             ? "badge-status-on-hold"
                                             : task.status === "Rejected"
                                               ? "badge-status-rejected"
-                                              : "badge-status-pending"
+                                              : "badge-status-not-started"
                                   }`}
                                 >
                                   {getStatusWithEmoji(task.status)}
@@ -4527,23 +4507,25 @@ const TaskOverviewTab = ({
                                       ? "badge-status-correction"
                                       : selectedTask.status === "Rejected"
                                         ? "badge-status-rejected"
-                                        : "badge-status-pending"
+                                        : "badge-status-not-started"
                           }`}
                         >
                           {selectedTask.contentType === "MOM" ? (
                             <>
                               <option value="Not Started">Not Started</option>
-
+                              {["In Progress", "On Hold", "In Review", "Correction"].includes(selectedTask.status) && (
+                                <option value={selectedTask.status}>{selectedTask.status}</option>
+                              )}
                               <option value="Completed">Completed</option>
                             </>
                           ) : (
                             <>
                               <option value="Not Started">Not Started</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="In Review">In Review</option>
+                              {["In Progress", "On Hold", "In Review"].includes(selectedTask.status) && (
+                                <option value={selectedTask.status}>{selectedTask.status}</option>
+                              )}
                               <option value="Correction">Correction</option>
                               <option value="Completed">Completed</option>
-                              <option value="On Hold">On Hold</option>
                               <option value="Rejected">Rejected</option>
                             </>
                           )}

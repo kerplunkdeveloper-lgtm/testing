@@ -31,6 +31,11 @@ import {
   FiUser,
   FiSearch,
   FiDownload,
+  FiActivity,
+  FiPauseCircle,
+  FiRefreshCw,
+  FiPieChart,
+  FiFlag,
 } from "react-icons/fi";
 import {
   useUpdateTaskMutation,
@@ -130,7 +135,7 @@ const checkTaskProductivityAndDate = (
       if (subHasTodayWork) return true;
     }
 
-    // 5. Task scheduled, due, created, or assigned on Today (crucial for Pending tasks)
+    // 5. Task scheduled, due, created, or assigned on Today (crucial for Not Started tasks)
     const taskStartStr = getLocalDateStr(task.startDate);
     const taskDueStr = getLocalDateStr(task.dueDate);
     const taskCreatedStr = getLocalDateStr(task.createdAt);
@@ -347,7 +352,10 @@ const TimeTracker = ({
       return;
     }
 
-    const statusUpper = (status || "").trim().toUpperCase().replace(/[-_]/g, " ");
+    const statusUpper = (status || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[-_]/g, " ");
 
     const calculateTime = () => {
       const start = new Date(startTime).getTime();
@@ -441,7 +449,7 @@ const TimeTracker = ({
   const lifetimeSecs = Math.floor((totalTrackedTime || 0) / 1000);
 
   if (!startTime && status !== "In Progress") {
-    if (!status || status.toLowerCase() === "pending") {
+    if (!status || status.toLowerCase() === "not started") {
       return (
         <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">
           {totalTrackedTime > 0 ? formatTime(lifetimeSecs) : "Not started"}
@@ -627,7 +635,7 @@ const SingleTimeDisplay = React.memo(
             </span>
           );
         }
-        if (!status || status.toLowerCase() === "pending") {
+        if (!status || status.toLowerCase() === "not started") {
           return (
             <span className="text-slate-400 dark:text-slate-500 font-semibold text-xs">
               Not started
@@ -1030,6 +1038,9 @@ const getTaskYesterdayAndTodayStats = (
   let todayBlockerMs = 0;
   let yesterdayBlockerMs = 0;
 
+  let todayOnHoldMs = 0;
+  let yesterdayOnHoldMs = 0;
+
   const todayStr = today.toLocaleDateString("en-CA", {
     timeZone: "Asia/Kolkata",
   });
@@ -1089,18 +1100,57 @@ const getTaskYesterdayAndTodayStats = (
     }
   }
 
+  if (Array.isArray(task.statusHistory)) {
+    task.statusHistory.forEach((h) => {
+      if (h.status === "On Hold") {
+        const hDate = new Date(h.startTime || h.date).toLocaleDateString(
+          "en-CA",
+          {
+            timeZone: "Asia/Kolkata",
+          },
+        );
+        const duration = h.duration || 0;
+        if (hDate === todayStr) {
+          todayOnHoldMs += duration;
+        } else if (hDate === yesterdayStr) {
+          yesterdayOnHoldMs += duration;
+        }
+      }
+    });
+  }
+
+  if (task.status === "On Hold" && task.holdStartedAt) {
+    const hDate = new Date(task.holdStartedAt).toLocaleDateString("en-CA", {
+      timeZone: "Asia/Kolkata",
+    });
+    const duration = Math.max(
+      0,
+      nowTick - new Date(task.holdStartedAt).getTime(),
+    );
+    if (hDate === todayStr) {
+      todayOnHoldMs += duration;
+    } else if (hDate === yesterdayStr) {
+      yesterdayOnHoldMs += duration;
+    }
+  }
+
   return {
     todayWorkMs,
     yesterdayWorkMs,
     todayBlockerMs,
     yesterdayBlockerMs,
+    todayOnHoldMs,
+    yesterdayOnHoldMs,
   };
 };
 
 const WorkTimeCell = React.memo(
   ({ task, officeHours = DEFAULT_OFFICE_HOURS }) => {
     const [nowTick, setNowTick] = useState(Date.now());
-    const statusUpper = (task?.status || "").trim().toUpperCase().replace(/[-_]/g, " ");
+    const statusUpper = (task?.status || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[-_]/g, " ");
     const isActive =
       statusUpper === "IN PROGRESS" && !task?.autoPaused && !task?.isBlocked;
 
@@ -1118,22 +1168,60 @@ const WorkTimeCell = React.memo(
     );
 
     return (
-      <div className="bg-slate-50/90 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 rounded-xl p-2 text-[11px] space-y-1.5 min-w-[135px]">
-        <div className="flex justify-between items-center">
-          <span className="font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-            Today
-            {isActive && (
-              <span className="px-1.5 py-0.2 text-[8px] font-black bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 rounded-full animate-pulse">
-                • Live
-              </span>
-            )}
+      <div className="flex flex-col items-center justify-center text-[11px]">
+        <span
+          className={`font-black ${todayWorkMs > 0 || isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}
+        >
+          {formatMsToHMS(todayWorkMs)}
+        </span>
+        {isActive && (
+          <span className="text-[9px] font-bold text-emerald-500 animate-pulse">
+            Live
           </span>
-          <span
-            className={`font-black ${todayWorkMs > 0 || isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-600 dark:text-slate-400"}`}
-          >
-            {formatMsToHMS(todayWorkMs)}
-          </span>
+        )}
+      </div>
+    );
+  },
+);
+
+const OnHoldTimeCell = React.memo(
+  ({ task, officeHours = DEFAULT_OFFICE_HOURS }) => {
+    const [nowTick, setNowTick] = useState(Date.now());
+    const isHold = task?.status === "On Hold";
+
+    useEffect(() => {
+      if (!isHold) return;
+      const interval = setInterval(() => {
+        setNowTick(Date.now());
+      }, 1000);
+      return () => clearInterval(interval);
+    }, [isHold]);
+
+    const { todayOnHoldMs } = React.useMemo(
+      () => getTaskYesterdayAndTodayStats(task, officeHours, nowTick),
+      [task, officeHours, nowTick],
+    );
+
+    if (todayOnHoldMs === 0 && !isHold) {
+      return (
+        <div className="text-slate-400 text-center font-bold text-[11px]">
+          0m
         </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-center justify-center text-[11px]">
+        <span
+          className={`font-black ${todayOnHoldMs > 0 || isHold ? "text-blue-500 dark:text-blue-400" : "text-slate-400"}`}
+        >
+          {formatMsToHMS(todayOnHoldMs)}
+        </span>
+        {isHold && (
+          <span className="text-[9px] font-bold text-blue-500 animate-pulse">
+            Live
+          </span>
+        )}
       </div>
     );
   },
@@ -1142,7 +1230,10 @@ const WorkTimeCell = React.memo(
 const BlockerTimeCell = React.memo(
   ({ task, officeHours = DEFAULT_OFFICE_HOURS }) => {
     const [nowTick, setNowTick] = useState(Date.now());
-    const statusUpper = (task?.status || "").trim().toUpperCase().replace(/[-_]/g, " ");
+    const statusUpper = (task?.status || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[-_]/g, " ");
     const isBlockerActive = task?.isBlocked && statusUpper === "IN PROGRESS";
 
     useEffect(() => {
@@ -1159,22 +1250,17 @@ const BlockerTimeCell = React.memo(
     );
 
     return (
-      <div className="bg-slate-50/90 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 rounded-xl p-2 text-[11px] space-y-1.5 min-w-[135px]">
-        <div className="flex justify-between items-center">
-          <span className="font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-            Today
-            {isBlockerActive && (
-              <span className="px-1.5 py-0.2 text-[8px] font-black bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 rounded-full animate-pulse">
-                • Live
-              </span>
-            )}
+      <div className="flex flex-col items-center justify-center text-[11px]">
+        <span
+          className={`font-black ${todayBlockerMs > 0 || isBlockerActive ? "text-orange-500 dark:text-orange-400" : "text-slate-400"}`}
+        >
+          {formatMsToHMS(todayBlockerMs)}
+        </span>
+        {isBlockerActive && (
+          <span className="text-[9px] font-bold text-orange-500 animate-pulse">
+            Live
           </span>
-          <span
-            className={`font-black ${todayBlockerMs > 0 || isBlockerActive ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-400"}`}
-          >
-            {formatMsToHMS(todayBlockerMs)}
-          </span>
-        </div>
+        )}
       </div>
     );
   },
@@ -1183,7 +1269,10 @@ const BlockerTimeCell = React.memo(
 const TodayTrackerCell = React.memo(
   ({ task, officeHours = DEFAULT_OFFICE_HOURS }) => {
     const [nowTick, setNowTick] = useState(Date.now());
-    const statusUpper = (task?.status || "").trim().toUpperCase().replace(/[-_]/g, " ");
+    const statusUpper = (task?.status || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[-_]/g, " ");
     const isActive =
       statusUpper === "IN PROGRESS" && !task?.autoPaused && !task?.isBlocked;
     const isBlockerActive = task?.isBlocked && statusUpper === "IN PROGRESS";
@@ -1204,57 +1293,53 @@ const TodayTrackerCell = React.memo(
     const activeToday = todayWorkMs;
     const blockedToday = todayBlockerMs;
 
-    if (task.status === "Completed") {
-      return (
-        <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl p-2 text-[11px] text-center min-w-[135px]">
-          <span className="text-emerald-700 dark:text-emerald-300 font-extrabold block text-[10px]">
-            Total Today
-          </span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-[12px]">
-            {formatMsToHMS(activeToday)}
-          </span>
-        </div>
-      );
-    }
-
-    if (
-      !task.actualStartTime &&
-      activeToday === 0 &&
-      (!task.status || task.status === "Not Started")
-    ) {
-      return (
-        <div className="text-center text-slate-400 dark:text-slate-400 font-bold text-[11px]">
-          Not started
-        </div>
-      );
-    }
-
-    if (activeToday === 0 && blockedToday === 0) {
-      return (
-        <div className="text-center text-slate-400 dark:text-slate-400 font-bold text-[11px]">
-          --
-        </div>
-      );
-    }
+    const totalMs = activeToday + blockedToday;
+    const totalSec = Math.floor(totalMs / 1000);
+    const totalShiftSec = 8 * 3600;
+    const percentage = Math.min(
+      100,
+      Math.round((totalSec / totalShiftSec) * 100),
+    );
 
     return (
-      <div className="bg-slate-50/90 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 rounded-xl p-2 text-[10px] space-y-1 min-w-[135px]">
-        <div className="flex justify-between items-center text-blue-600 dark:text-blue-400 font-extrabold">
-          <span>Active</span>
-          <span>{formatMsToHMS(activeToday)}</span>
-        </div>
-        {blockedToday > 0 && (
-          <div className="flex justify-between items-center text-red-600 dark:text-red-400 font-extrabold">
-            <span>Blocked</span>
-            <span>{formatMsToHMS(blockedToday)}</span>
+      <div className="flex items-center justify-center min-w-[120px] gap-3">
+        <div className="flex flex-col items-start">
+          <div className="flex items-center gap-1.5 font-black text-slate-800 dark:text-slate-200 text-[11px]">
+            <FiClock size={11} className="text-slate-400" />
+            {formatMsToHMS(totalMs)}
           </div>
-        )}
-        <div className="flex justify-between items-center pt-1 border-t border-slate-200 dark:border-white/10 font-extrabold text-slate-800 dark:text-slate-200">
-          <span className="text-slate-700 dark:text-slate-300 font-extrabold">
-            Total Today
-          </span>
-          <span className="text-slate-900 dark:text-slate-200 font-black">
-            {formatMsToHMS(activeToday + blockedToday)}
+          <div className="text-[9px] text-slate-400 font-bold ml-[18px]">
+            of 8h 00m
+          </div>
+        </div>
+
+        <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
+          <svg
+            className="w-full h-full transform -rotate-90"
+            viewBox="0 0 36 36"
+          >
+            <circle
+              cx="18"
+              cy="18"
+              r="15"
+              fill="none"
+              className="stroke-slate-100 dark:stroke-slate-800"
+              strokeWidth="4"
+            />
+            <circle
+              cx="18"
+              cy="18"
+              r="15"
+              fill="none"
+              className="stroke-teal-500"
+              strokeWidth="4"
+              strokeDasharray="94.2"
+              strokeDashoffset={94.2 - (94.2 * percentage) / 100}
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="absolute text-[7px] font-bold text-slate-700 dark:text-slate-300">
+            {percentage}%
           </span>
         </div>
       </div>
@@ -1332,83 +1417,109 @@ const SaasTableSummaryBar = React.memo(
       };
     }, [tasks, officeHours, nowTick]);
 
+    const efficiency =
+      counts.totalTimeTracker > 0
+        ? Math.round((counts.totalTodayWork / counts.totalTimeTracker) * 100)
+        : 0;
+
     return (
-      <div className="mt-4 sidebar-bg  rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
-        {/* Left side: Status counters */}
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2 font-black text-slate-800 dark:text-slate-900 pr-4">
-            <BiFile size={18} className="text-blue-600 dark:text-blue-400" />
-            <span>Total Tasks</span>
-            <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400 ml-1">
-              {counts.total}
-            </span>
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
+        {/* Productive Time Card */}
+        <div className="bg-white dark:bg-[#151923] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+          <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+            <FiActivity size={24} strokeWidth={2.5} />
           </div>
-          <div className="flex items-center gap-1.5 font-extrabold text-slate-600 dark:text-slate-300">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span>In Progress:</span>
-            <span className="text-slate-900 dark:text-white font-black">
-              {counts.inProgress}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 font-extrabold text-slate-600 dark:text-slate-300">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <span>On Hold:</span>
-            <span className="text-slate-900 dark:text-white font-black">
-              {counts.onHold}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 font-extrabold text-slate-600 dark:text-slate-300">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-            <span>In Review:</span>
-            <span className="text-slate-900 dark:text-white font-black">
-              {counts.inReview}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 font-extrabold text-slate-600 dark:text-slate-300">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span>Completed:</span>
-            <span className="text-slate-900 dark:text-white font-black">
-              {counts.completed}
-            </span>
+          <div>
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              Productive Time
+            </div>
+            <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none my-1">
+              {formatMsToHMS(counts.totalTodayWork)}
+            </div>
+            <div className="text-[10px] font-bold text-emerald-500">
+              {counts.totalTimeTracker > 0
+                ? Math.round(
+                    (counts.totalTodayWork / counts.totalTimeTracker) * 100,
+                  )
+                : 0}
+              % of shift
+            </div>
           </div>
         </div>
 
-        {/* Right side: Today totals */}
-        <div className="flex items-center gap-6 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-3 md:pt-0 md:pl-6 w-full md:w-auto justify-between md:justify-end flex-wrap">
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-              Today's Work (All Tasks)
-              {hasRunningTask && (
-                <span
-                  className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"
-                  title="Live Running"
-                />
-              )}
-            </div>
-            <div className="text-base font-black text-blue-600 dark:text-blue-400">
-              {formatMsToHMS(counts.totalTodayWork)}
-            </div>
+        {/* Unproductive Time Card */}
+        <div className="bg-white dark:bg-[#151923] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+          <div className="w-12 h-12 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0">
+            <FiPauseCircle size={24} strokeWidth={2.5} />
           </div>
           <div>
-            <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-              Today's Blocker (All Tasks)
-              {hasBlockedTask && (
-                <span
-                  className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"
-                  title="Blocker Active"
-                />
-              )}
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              Unproductive Time
             </div>
-            <div className="text-base font-black text-red-600 dark:text-red-400">
+            <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none my-1">
               {formatMsToHMS(counts.totalTodayBlocker)}
             </div>
+            <div className="text-[10px] font-bold text-orange-500">
+              {counts.totalTimeTracker > 0
+                ? Math.round(
+                    (counts.totalTodayBlocker / counts.totalTimeTracker) * 100,
+                  )
+                : 0}
+              % of shift
+            </div>
+          </div>
+        </div>
+
+        {/* Correction Time Card */}
+        <div className="bg-white dark:bg-[#151923] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+          <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+            <FiRefreshCw size={24} strokeWidth={2.5} />
           </div>
           <div>
-            <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-              Total Time Tracker (All Tasks)
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              Correction Time
             </div>
-            <div className="text-base font-black text-indigo-600 dark:text-indigo-400">
+            <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none my-1">
+              0m
+            </div>
+            <div className="text-[10px] font-bold text-blue-500">
+              0% of shift
+            </div>
+          </div>
+        </div>
+
+        {/* Total Tracked Time Card */}
+        <div className="bg-white dark:bg-[#151923] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+          <div className="w-12 h-12 rounded-full bg-purple-50 dark:bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0">
+            <FiClock size={24} strokeWidth={2.5} />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              Total Tracked Time
+            </div>
+            <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none my-1">
               {formatMsToHMS(counts.totalTimeTracker)}
+            </div>
+            <div className="text-[10px] font-bold text-purple-500">
+              All Tasks Today
+            </div>
+          </div>
+        </div>
+
+        {/* Efficiency Card */}
+        <div className="bg-white dark:bg-[#151923] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+          <div className="w-12 h-12 rounded-full bg-teal-50 dark:bg-teal-500/10 text-teal-500 flex items-center justify-center shrink-0">
+            <FiPieChart size={24} strokeWidth={2.5} />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              Efficiency
+            </div>
+            <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none my-1">
+              {efficiency}%
+            </div>
+            <div className="text-[10px] font-bold text-teal-500">
+              Productivity
             </div>
           </div>
         </div>
@@ -1416,6 +1527,38 @@ const SaasTableSummaryBar = React.memo(
     );
   },
 );
+
+const PriorityBadge = ({ priority, isTopHigh }) => {
+  const p = isTopHigh ? "Top High" : priority || "Medium";
+  let bgClass, textClass;
+  switch (p) {
+    case "Top High":
+      bgClass = "bg-red-50 dark:bg-red-500/10";
+      textClass = "text-red-500";
+      break;
+    case "High":
+      bgClass = "bg-orange-50 dark:bg-orange-500/10";
+      textClass = "text-orange-500";
+      break;
+    case "Low":
+      bgClass = "bg-green-50 dark:bg-green-500/10";
+      textClass = "text-green-500";
+      break;
+    case "Medium":
+    default:
+      bgClass = "bg-yellow-50 dark:bg-yellow-500/10";
+      textClass = "text-yellow-600 dark:text-yellow-500";
+      break;
+  }
+  return (
+    <div
+      className={`flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold w-max mx-auto border ${bgClass.replace("bg-", "border-").replace("dark:bg-", "dark:border-")} ${bgClass} ${textClass}`}
+    >
+      <FiFlag size={12} />
+      {p}
+    </div>
+  );
+};
 
 const COLUMN_OPTIONS = [
   { key: "id", label: "ID" },
@@ -1426,9 +1569,10 @@ const COLUMN_OPTIONS = [
   { key: "status", label: "Status" },
   { key: "feedbackMom", label: "Feedback MOM" },
   { key: "blocker", label: "Blocker" },
-  { key: "activeTime", label: "Work Time" },
-  { key: "blockerTime", label: "Blocker Time" },
-  { key: "timeTracker", label: "Today Tracker" },
+  { key: "activeTime", label: "Productive (Today)" },
+  { key: "blockerTime", label: "Unproductive (Today)" },
+  { key: "onHoldTime", label: "Correction (Today)" },
+  { key: "timeTracker", label: "Time Tracker (Today)" },
   { key: "revision", label: "Revision" },
   { key: "startDate", label: "Start Date" },
   { key: "endDate", label: "Due Date" },
@@ -1523,6 +1667,7 @@ const MyTasksTab = ({
       blocker: false,
       activeTime: false,
       blockerTime: false,
+      onHoldTime: false,
       timeTracker: false,
       revision: false,
       startDate: false,
@@ -1752,7 +1897,7 @@ const MyTasksTab = ({
   const counts = React.useMemo(() => {
     const res = {
       All: filteredTasksWithoutStatus.length,
-      Pending: 0,
+      "Not Started": 0,
       "In Progress": 0,
       Completed: 0,
       "On Hold": 0,
@@ -1784,10 +1929,10 @@ const MyTasksTab = ({
         );
       }
       if (
-        statusFilter === "Active Tasks" ||
-        statusFilter === "Pending,In Progress,In Review,Correction,On Hold" ||
-        statusFilter === "Pending,In Progress,In Review,On Hold" ||
-        statusFilter === "Pending,In Progress,In Review"
+        statusFilter ===
+          "Not Started,In Progress,In Review,Correction,On Hold" ||
+        statusFilter === "Not Started,In Progress,In Review,On Hold" ||
+        statusFilter === "Not Started,In Progress,In Review"
       ) {
         const s = (task.status || "Not Started").toUpperCase();
         return s !== "COMPLETED" && s !== "REJECTED";
@@ -1823,7 +1968,7 @@ const MyTasksTab = ({
       if (s === "IN REVIEW" || s === "IN_REVIEW" || s === "IN-REVIEW") {
         return 3;
       }
-      if (s === "PENDING") {
+      if (s === "NOT STARTED") {
         return 4;
       }
       if (s === "CORRECTION") {
@@ -1842,7 +1987,7 @@ const MyTasksTab = ({
       const sRankA = getStatusSortPriority(a);
       const sRankB = getStatusSortPriority(b);
       if (sRankA !== sRankB) {
-        return sRankA - sRankB; // 1: In Progress, 2: On Hold, 3: In Review, 4: Pending, 5: Correction, 6: Completed, 7: Rejected
+        return sRankA - sRankB; // 1: In Progress, 2: On Hold, 3: In Review, 4: Not Started, 5: Correction, 6: Completed, 7: Rejected
       }
       const pRankA = getPriorityRank(a);
       const pRankB = getPriorityRank(b);
@@ -2415,7 +2560,7 @@ const MyTasksTab = ({
   const getStatusStyle = (status, isBlocked) => {
     if (isBlocked) {
       return {
-        bg: "!bg-orange-50 !text-orange-700 !border-orange-200/80 dark:!bg-orange-500/10 dark:!text-orange-400 dark:!border-orange-500/20 rounded-full font-bold",
+        bg: "!bg-transparent !text-orange-500 !border-transparent rounded-full font-bold shadow-none",
         dot: "bg-orange-500",
         icon: FiAlertCircle,
       };
@@ -2423,43 +2568,43 @@ const MyTasksTab = ({
     switch (status) {
       case "Completed":
         return {
-          bg: "!bg-emerald-50 !text-emerald-700 !border-emerald-200/80 dark:!bg-emerald-500/10 dark:!text-emerald-400 dark:!border-emerald-500/20 rounded-full font-bold",
+          bg: "!bg-transparent !text-emerald-500 !border-transparent rounded-full font-bold shadow-none",
           dot: "bg-emerald-500",
           icon: FiCheckSquare,
         };
       case "In Progress":
         return {
-          bg: "!bg-blue-50 !text-blue-700 !border-blue-200/80 dark:!bg-blue-500/10 dark:!text-blue-400 dark:!border-blue-500/20 rounded-full font-bold",
-          dot: "bg-blue-500",
+          bg: "!bg-transparent !text-emerald-500 !border-transparent rounded-full font-bold shadow-none",
+          dot: "bg-emerald-500",
           icon: FiClock,
         };
       case "On Hold":
         return {
-          bg: "!bg-amber-50 !text-amber-700 !border-amber-200/80 dark:!bg-amber-500/10 dark:!text-amber-400 dark:!border-amber-500/20 rounded-full font-bold",
-          dot: "bg-amber-500",
+          bg: "!bg-transparent !text-orange-500 !border-transparent rounded-full font-bold shadow-none",
+          dot: "bg-orange-500",
           icon: FiAlertCircle,
         };
       case "In Review":
         return {
-          bg: "!bg-orange-50 !text-orange-700 !border-orange-200/80 dark:!bg-orange-500/10 dark:!text-orange-400 dark:!border-orange-500/20 rounded-full font-bold",
-          dot: "bg-orange-500",
+          bg: "!bg-transparent !text-purple-500 !border-transparent rounded-full font-bold shadow-none",
+          dot: "bg-purple-500",
           icon: FiClock,
         };
       case "Correction":
         return {
-          bg: "!bg-orange-50 !text-orange-700 !border-orange-200/80 dark:!bg-orange-500/10 dark:!text-orange-400 dark:!border-orange-500/20 rounded-full font-bold",
-          dot: "bg-orange-500",
+          bg: "!bg-transparent !text-blue-500 !border-transparent rounded-full font-bold shadow-none",
+          dot: "bg-blue-500",
           icon: FiAlertCircle,
         };
       case "Rejected":
         return {
-          bg: "!bg-rose-50 !text-rose-700 !border-rose-200/80 dark:!bg-rose-500/10 dark:!text-rose-400 dark:!border-rose-500/20 rounded-full font-bold",
+          bg: "!bg-transparent !text-rose-500 !border-transparent rounded-full font-bold shadow-none",
           dot: "bg-rose-500",
           icon: FiAlertCircle,
         };
       default:
         return {
-          bg: "!bg-slate-50 !text-slate-700 !border-slate-200/80 dark:!bg-slate-500/10 dark:!text-slate-300 dark:!border-slate-500/20 rounded-full font-bold",
+          bg: "!bg-transparent !text-slate-400 !border-transparent rounded-full font-bold shadow-none",
           dot: "bg-slate-400",
           icon: FiClock,
         };
@@ -2644,7 +2789,7 @@ const MyTasksTab = ({
       "Content-type",
       "Status",
       "Blocker",
-      "Inprogress time taken",
+      "Productivity",
       "Blocker time",
       "Time tracker",
       "Revision",
@@ -2999,6 +3144,7 @@ const MyTasksTab = ({
                             blocker: false,
                             activeTime: false,
                             blockerTime: false,
+                            onHoldTime: false,
                             timeTracker: false,
                             revision: false,
                             startDate: false,
@@ -3614,7 +3760,7 @@ const MyTasksTab = ({
                     {!hiddenColumns.activeTime && (
                       <ResizableHeader
                         id="activeTime"
-                        label="Inprogress time taken"
+                        label="Productivity"
                         colWidths={colWidths}
                         handleMouseDown={handleMouseDown}
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
@@ -3627,6 +3773,15 @@ const MyTasksTab = ({
                         colWidths={colWidths}
                         handleMouseDown={handleMouseDown}
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-32 whitespace-nowrap"
+                      />
+                    )}
+                    {!hiddenColumns.onHoldTime && (
+                      <ResizableHeader
+                        id="onHoldTime"
+                        label="Unproductivity hours"
+                        colWidths={colWidths}
+                        handleMouseDown={handleMouseDown}
+                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
                       />
                     )}
                     {!hiddenColumns.timeTracker && (
@@ -3756,59 +3911,63 @@ const MyTasksTab = ({
                             {/* Priority Badge */}
                             {!hiddenColumns.priority && (
                               <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent text-center">
-                                <span
-                                  className={`inline-block text-center w-30 py-3 text-[11px] sm:text-[13px] rounded-[10px] font-bold whitespace-nowrap ${
-                                    isSameDate(task.startDate, task.dueDate)
-                                      ? "badge-priority-top-high"
-                                      : getPriorityStyle(
-                                          task.priority || "Medium",
-                                        )
-                                  }`}
-                                >
-                                  {isSameDate(task.startDate, task.dueDate)
-                                    ? "Top High"
-                                    : task.priority || "Medium"}
-                                </span>
+                                <PriorityBadge
+                                  priority={task.priority}
+                                  isTopHigh={isSameDate(
+                                    task.startDate,
+                                    task.dueDate,
+                                  )}
+                                />
                               </td>
                             )}
 
                             {/* Title & Subtasks Dropdown */}
                             {!hiddenColumns.taskName && (
                               <td className="px-3 py-2 font-bold border border-slate-200/70 dark:border-transparent text-left">
-                                <div className="flex items-center gap-3">
-                                  <span
-                                    className={`text-xs sm:text-[11px] ${isCompleted ? "line-through decoration-green-600 dark:decoration-green-500 decoration-2 text-slate-400 dark:text-slate-555" : "text-slate-700 dark:text-white"}`}
+                                <div className="flex flex-col gap-0.5">
+                                  <div
+                                    className={`flex items-center gap-2 ${isCompleted ? "line-through text-slate-400" : "text-slate-800 dark:text-white"}`}
                                   >
-                                    <span className="flex items-center gap-1 text-[12.5px] sm:text-[12px] whitespace-nowrap">
-                                      <BiFile /> {task.title}
-                                    </span>
-                                  </span>
-                                  {task.isBlocked && (
+                                    <BiFile
+                                      size={16}
+                                      className="text-slate-400 shrink-0"
+                                    />
                                     <span
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 dark:bg-rose-955 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-[11px] sm:text-[10px] font-black tracking-wider uppercase animate-pulse shrink-0"
-                                      title={task.blockerReason || "Blocked"}
+                                      className="text-sm font-black truncate max-w-[200px]"
+                                      title={task.title}
                                     >
-                                      <FiAlertCircle size={10} /> Blocked
+                                      {task.title}
                                     </span>
-                                  )}
-                                  {task.subtasks?.length > 0 && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleTaskExpanded(task._id);
-                                      }}
-                                      className="text-slate-405 hover:text-blue-600 flex items-center gap-0.5 text-xs sm:text-[10px] font-extrabold shrink-0"
-                                    >
-                                      {isExpanded ? (
-                                        <FiChevronDown size={14} />
-                                      ) : (
-                                        <FiChevronRight size={14} />
-                                      )}
-                                      <span>
-                                        Subtasks ({task.subtasks.length})
+                                  </div>
+
+                                  <div className="flex items-center gap-2 ml-6 mt-1">
+                                    {task.isBlocked && (
+                                      <span
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 dark:bg-rose-955 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-[9px] font-black tracking-wider uppercase animate-pulse shrink-0"
+                                        title={task.blockerReason || "Blocked"}
+                                      >
+                                        <FiAlertCircle size={10} /> Blocked
                                       </span>
-                                    </button>
-                                  )}
+                                    )}
+                                    {task.subtasks?.length > 0 && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleTaskExpanded(task._id);
+                                        }}
+                                        className="text-slate-405 hover:text-blue-600 flex items-center gap-0.5 text-xs sm:text-[10px] font-extrabold shrink-0"
+                                      >
+                                        {isExpanded ? (
+                                          <FiChevronDown size={14} />
+                                        ) : (
+                                          <FiChevronRight size={14} />
+                                        )}
+                                        <span>
+                                          Subtasks ({task.subtasks.length})
+                                        </span>
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                             )}
@@ -3845,29 +4004,21 @@ const MyTasksTab = ({
                             {!hiddenColumns.contentType && (
                               <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent whitespace-nowrap text-center">
                                 <span
-                                  className={`px-2 py-0.5 rounded-md text-xs sm:text-[10px] font-bold tracking-wider uppercase border whitespace-nowrap ${(() => {
+                                  className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-pink-50 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400 whitespace-nowrap ${(() => {
                                     const t = (
                                       task.contentType || ""
                                     ).toUpperCase();
-                                    switch (t) {
-                                      case "VIDEO":
-                                      case "WEBSITE":
-                                        return "badge-type-video";
-                                      case "IMAGE":
-                                      case "SEO":
-                                        return "badge-type-image";
-                                      case "CAROUSEL":
-                                      case "VIDEO SHOOT":
-                                        return "badge-type-carousel";
-                                      case "REEL":
-                                        return "badge-type-reel";
-                                      case "POST":
-                                        return "badge-type-post";
-                                      case "STORY":
-                                        return "badge-type-story";
-                                      default:
-                                        return "badge-type-none";
-                                    }
+                                    if (t === "CAROUSEL")
+                                      return "bg-pink-50 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400";
+                                    if (t === "BANNER")
+                                      return "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400";
+                                    if (t === "THUMBNAIL")
+                                      return "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400";
+                                    if (t === "INFOGRAPHIC")
+                                      return "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400";
+                                    if (t === "MOCKUP")
+                                      return "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400";
+                                    return "bg-slate-50 text-slate-600 dark:bg-slate-500/10 dark:text-slate-400";
                                   })()}`}
                                 >
                                   {task.contentType || "None"}
@@ -3938,7 +4089,7 @@ const MyTasksTab = ({
                                             value="Not Started"
                                             className="bg-white dark:bg-gray-500 text-slate-700 dark:text-white"
                                           >
-                                            Pending
+                                            Not Started
                                           </option>
 
                                           <option
@@ -3954,7 +4105,7 @@ const MyTasksTab = ({
                                             value="Not Started"
                                             className="bg-white dark:bg-gray-500 text-slate-700 dark:text-white"
                                           >
-                                            Pending
+                                            Not Started
                                           </option>
                                           <option
                                             value="In Progress"
@@ -4144,6 +4295,16 @@ const MyTasksTab = ({
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <BlockerTimeCell task={task} />
+                              </td>
+                            )}
+
+                            {/* Unproductivity hours Column */}
+                            {!hiddenColumns.onHoldTime && (
+                              <td
+                                className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[140px] text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <OnHoldTimeCell task={task} />
                               </td>
                             )}
 
