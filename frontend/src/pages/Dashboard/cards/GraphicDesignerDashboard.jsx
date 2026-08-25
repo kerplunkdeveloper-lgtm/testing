@@ -223,15 +223,19 @@ export const calculateTaskProductivityForDate = (
     });
 
     // ✅ FIX Bug 3: Live session guard — fallback to statusHistory open entry or updatedAt if actualStartTime is missing
-    if (isSelectedToday && isStatusInProgress(task.status) && !task.autoPaused) {
+    if (
+      isSelectedToday &&
+      isStatusInProgress(task.status) &&
+      !task.autoPaused
+    ) {
       let liveSessionStart = task.actualStartTime
         ? new Date(task.actualStartTime).getTime()
         : 0;
 
       if (isNaN(liveSessionStart) || liveSessionStart <= 0) {
-        const openEntry = [...task.statusHistory].reverse().find(
-          (h) => isStatusInProgress(h.status) && !h.endTime
-        );
+        const openEntry = [...task.statusHistory]
+          .reverse()
+          .find((h) => isStatusInProgress(h.status) && !h.endTime);
         if (openEntry && openEntry.startTime) {
           liveSessionStart = new Date(openEntry.startTime).getTime();
         }
@@ -242,14 +246,18 @@ export const calculateTaskProductivityForDate = (
         }
       }
 
-      const liveSessionDateStr = liveSessionStart > 0
-        ? new Date(liveSessionStart).toLocaleDateString("en-CA", {
-            timeZone: "Asia/Kolkata",
-          })
-        : null;
+      const liveSessionDateStr =
+        liveSessionStart > 0
+          ? new Date(liveSessionStart).toLocaleDateString("en-CA", {
+              timeZone: "Asia/Kolkata",
+            })
+          : null;
 
       // Only add live elapsed time if liveSessionStart is valid
-      if (liveSessionStart > 0 && (liveSessionDateStr === selDateStr || isSelectedToday)) {
+      if (
+        liveSessionStart > 0 &&
+        (liveSessionDateStr === selDateStr || isSelectedToday)
+      ) {
         const nowMs = Date.now();
         let liveWorked = Math.max(0, nowMs - liveSessionStart);
         if (task.blockerHistory && Array.isArray(task.blockerHistory)) {
@@ -1716,6 +1724,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       let totalOffworkingLoggedMs = 0;
       let inProgressLoggedMs = 0;
       let totalBlockerMs = 0;
+      let totalOnHoldMs = 0;
       let totalApprovalMs = 0;
       let approvalCount = 0;
       const blockerTypesSet = new Set();
@@ -1786,6 +1795,38 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         }
 
         totalBlockerMs += taskBlockerMs;
+
+        let taskOnHoldMs = 0;
+        const selDateStr = selDateObj.toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+
+        if (Array.isArray(t.statusHistory)) {
+          t.statusHistory.forEach((h) => {
+            if (h.status === "On Hold") {
+              const hDate = new Date(h.startTime || h.date).toLocaleDateString("en-CA", {
+                timeZone: "Asia/Kolkata",
+              });
+              if (hDate === selDateStr) {
+                taskOnHoldMs += (h.duration || 0);
+              }
+            }
+          });
+        }
+
+        if (t.status === "On Hold" && t.holdStartedAt) {
+          const hDate = new Date(t.holdStartedAt).toLocaleDateString("en-CA", {
+            timeZone: "Asia/Kolkata",
+          });
+          if (hDate === selDateStr) {
+            const endMs = isSameDay(selDateObj, new Date())
+              ? Date.now()
+              : startOfDay(addDays(selDateObj, 1)).getTime();
+            taskOnHoldMs += Math.max(0, endMs - new Date(t.holdStartedAt).getTime());
+          }
+        }
+
+        totalOnHoldMs += taskOnHoldMs;
 
         const taskLoggedMs = calculateTaskProductivityForDate(
           t,
@@ -1908,6 +1949,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             ? Array.from(blockerTypesSet).join(", ")
             : "none",
         blockerTimeMs: totalBlockerMs,
+        onHoldTimeMs: totalOnHoldMs,
         lastSubmitted: lastSubmittedStr,
         // tasksWorkedOn: count of tasks that had productivity > 0 on selectedDate (all tasks, not just today-assigned)
         tasksWorkedOn: myTasks.filter(
@@ -3529,7 +3571,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                     Designer
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase bg-slate-200/80 dark:bg-slate-700/60 text-slate-800 dark:text-slate-100 whitespace-nowrap text-center">
-                    Assigned
+                    Assign
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase bg-red-100/80 dark:bg-red-950/60 text-red-700 dark:text-red-300 whitespace-nowrap text-center">
                     Pending
@@ -3548,20 +3590,23 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                   </th>
 
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Revisions
+                    Rev
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Blockers
+                    Blkr
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Blocker Timer
+                    Blkr Timer
                   </th>
 
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Prod Time
+                    Unproductive Time
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Efficiency
+                    Productive Time
+                  </th>
+                  <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
+                    Efficieny
                   </th>
 
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-rose-700 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-950/60 whitespace-nowrap text-center">
@@ -3779,6 +3824,26 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                             {(() => {
                               const totalMinutes = Math.floor(
                                 tp.blockerTimeMs / (1000 * 60),
+                              );
+                              const h = Math.floor(totalMinutes / 60);
+                              const m = totalMinutes % 60;
+                              return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                            })()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 font-bold text-[11.5px]">
+                            0m
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Unproductive Time */}
+                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center whitespace-nowrap">
+                        {tp.onHoldTimeMs > 0 ? (
+                          <span className="text-orange-600 dark:text-orange-400 font-black text-[11.5px]">
+                            {(() => {
+                              const totalMinutes = Math.floor(
+                                tp.onHoldTimeMs / (1000 * 60),
                               );
                               const h = Math.floor(totalMinutes / 60);
                               const m = totalMinutes % 60;
@@ -4059,6 +4124,33 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                           <span className="text-[11.5px] font-black text-white">
                             {blockerFmt}
                           </span>
+                        </td>
+
+                        {/* Unproductive Time */}
+                        <td className="h-[42px] bg-blue-600 py-2 px-2 align-middle text-center border-r border-white/20 text-white whitespace-nowrap">
+                          {(() => {
+                            const totalMs = teamPerformance.reduce(
+                              (acc, tp) => acc + (tp.onHoldTimeMs || 0),
+                              0,
+                            );
+                            if (totalMs === 0) {
+                              return (
+                                <span className="text-[12px] font-black text-white/70">
+                                  0m
+                                </span>
+                              );
+                            }
+                            const totalMinutes = Math.floor(
+                              totalMs / (1000 * 60),
+                            );
+                            const h = Math.floor(totalMinutes / 60);
+                            const m = totalMinutes % 60;
+                            return (
+                              <span className="text-[12px] font-black">
+                                {h > 0 ? `${h}h ${m}m` : `${m}m`}
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         {/* Productive Time */}

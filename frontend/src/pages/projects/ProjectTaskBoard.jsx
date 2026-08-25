@@ -4278,11 +4278,6 @@ const ProjectTaskBoard = ({
                                   </div>
                                 </th>
                               )}
-                              {!hiddenColumns.totalHours && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px]">
-                                  Inprogress taken
-                                </th>
-                              )}
                               {!hiddenColumns.approvalInfo && (
                                 <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[200px]">
                                   Approval Info
@@ -6055,29 +6050,6 @@ const ProjectTaskBoard = ({
                                                         </td>
                                                       )}
 
-                                                      {/* Total productivity */}
-                                                      {!hiddenColumns.totalHours && (
-                                                        <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
-                                                          <TimeTracker
-                                                            startTime={
-                                                              task.actualStartTime
-                                                            }
-                                                            endTime={
-                                                              task.actualEndTime
-                                                            }
-                                                            pausedAt={
-                                                              task.pausedAt
-                                                            }
-                                                            savedPausedMs={
-                                                              task.totalPausedMs
-                                                            }
-                                                            totalTrackedTime={
-                                                              task.totalTrackedTime
-                                                            }
-                                                            status={task.status}
-                                                          />
-                                                        </td>
-                                                      )}
 
                                                       {/* Approval Info */}
                                                       {!hiddenColumns.approvalInfo && (
@@ -7319,29 +7291,6 @@ const ProjectTaskBoard = ({
                                                                 </td>
                                                               )}
 
-                                                              {/* Total productivity Column */}
-                                                              {!hiddenColumns.totalHours && (
-                                                                <td className="px-3 py-1 border-r border-b border-t border-slate-300 dark:border-slate-700">
-                                                                  <TimeTracker
-                                                                    task={task}
-                                                                    startTime={
-                                                                      sub.actualStartTime
-                                                                    }
-                                                                    endTime={
-                                                                      sub.actualEndTime
-                                                                    }
-                                                                    pausedAt={
-                                                                      sub.pausedAt
-                                                                    }
-                                                                    savedPausedMs={
-                                                                      sub.totalPausedMs
-                                                                    }
-                                                                    status={
-                                                                      sub.status
-                                                                    }
-                                                                  />
-                                                                </td>
-                                                              )}
 
                                                               {/* Approval Info Column */}
                                                               {!hiddenColumns.approvalInfo && (

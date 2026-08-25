@@ -1041,6 +1041,9 @@ const getTaskYesterdayAndTodayStats = (
   let todayOnHoldMs = 0;
   let yesterdayOnHoldMs = 0;
 
+  let todayCorrectionMs = 0;
+  let yesterdayCorrectionMs = 0;
+
   const todayStr = today.toLocaleDateString("en-CA", {
     timeZone: "Asia/Kolkata",
   });
@@ -1101,7 +1104,7 @@ const getTaskYesterdayAndTodayStats = (
   }
 
   if (Array.isArray(task.statusHistory)) {
-    task.statusHistory.forEach((h) => {
+    task.statusHistory.forEach((h, idx) => {
       if (h.status === "On Hold") {
         const hDate = new Date(h.startTime || h.date).toLocaleDateString(
           "en-CA",
@@ -1114,6 +1117,18 @@ const getTaskYesterdayAndTodayStats = (
           todayOnHoldMs += duration;
         } else if (hDate === yesterdayStr) {
           yesterdayOnHoldMs += duration;
+        }
+      } else if (h.status === "Correction") {
+        const startMs = new Date(h.startTime || h.date).getTime();
+        const hDate = new Date(startMs).toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+        const isCurrent = idx === task.statusHistory.length - 1 && task.status === "Correction";
+        const duration = isCurrent ? Math.max(0, nowTick - startMs) : (h.duration || 0);
+        if (hDate === todayStr) {
+          todayCorrectionMs += duration;
+        } else if (hDate === yesterdayStr) {
+          yesterdayCorrectionMs += duration;
         }
       }
     });
@@ -1141,6 +1156,8 @@ const getTaskYesterdayAndTodayStats = (
     yesterdayBlockerMs,
     todayOnHoldMs,
     yesterdayOnHoldMs,
+    todayCorrectionMs,
+    yesterdayCorrectionMs,
   };
 };
 
@@ -1213,13 +1230,56 @@ const OnHoldTimeCell = React.memo(
     return (
       <div className="flex flex-col items-center justify-center text-[11px]">
         <span
-          className={`font-black ${todayOnHoldMs > 0 || isHold ? "text-blue-500 dark:text-blue-400" : "text-slate-400"}`}
+          className={`font-black ${todayOnHoldMs > 0 || isHold ? "text-yellow-500 dark:text-yellow-400" : "text-slate-400"}`}
         >
           {formatMsToHMS(todayOnHoldMs)}
         </span>
         {isHold && (
+          <span className="text-[9px] font-bold text-yellow-500 animate-pulse">
+            Active
+          </span>
+        )}
+      </div>
+    );
+  },
+);
+
+const CorrectionTimeCell = React.memo(
+  ({ task, officeHours = DEFAULT_OFFICE_HOURS }) => {
+    const [nowTick, setNowTick] = useState(Date.now());
+    const isCorrection = task?.status === "Correction";
+
+    useEffect(() => {
+      if (!isCorrection) return;
+      const interval = setInterval(() => {
+        setNowTick(Date.now());
+      }, 1000);
+      return () => clearInterval(interval);
+    }, [isCorrection]);
+
+    const { todayCorrectionMs } = React.useMemo(
+      () => getTaskYesterdayAndTodayStats(task, officeHours, nowTick),
+      [task, officeHours, nowTick],
+    );
+
+    if (todayCorrectionMs === 0 && !isCorrection) {
+      return (
+        <div className="text-slate-400 text-center font-bold text-[11px]">
+          0m
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-center justify-center text-[11px]">
+        <span
+          className={`font-black ${todayCorrectionMs > 0 || isCorrection ? "text-blue-500 dark:text-blue-400" : "text-slate-400"}`}
+        >
+          {formatMsToHMS(todayCorrectionMs)}
+        </span>
+        {isCorrection && (
           <span className="text-[9px] font-bold text-blue-500 animate-pulse">
-            Live
+            Active
           </span>
         )}
       </div>
@@ -1362,7 +1422,7 @@ const SaasTableSummaryBar = React.memo(
 
     const hasBlockedTask = React.useMemo(() => {
       const checkTask = (t) => {
-        if (t.isBlocked) return true;
+        if (t.isBlocked || t.status === "On Hold" || t.status === "Correction") return true;
         if (Array.isArray(t.subtasks)) return t.subtasks.some(checkTask);
         return false;
       };
@@ -1386,6 +1446,8 @@ const SaasTableSummaryBar = React.memo(
       let inProgressTodayWork = 0;
       let totalTodayWork = 0;
       let totalTodayBlocker = 0;
+      let totalTodayOnHold = 0;
+      let totalTodayCorrection = 0;
 
       tasks.forEach((t) => {
         const s = (t.status || "").toLowerCase();
@@ -1402,7 +1464,11 @@ const SaasTableSummaryBar = React.memo(
         }
         totalTodayWork += stats.todayWorkMs;
         totalTodayBlocker += stats.todayBlockerMs;
+        totalTodayOnHold += stats.todayOnHoldMs || 0;
+        totalTodayCorrection += stats.todayCorrectionMs || 0;
       });
+
+      const totalTodayUnproductive = totalTodayBlocker + totalTodayOnHold;
 
       return {
         total,
@@ -1413,7 +1479,10 @@ const SaasTableSummaryBar = React.memo(
         inProgressTodayWork,
         totalTodayWork,
         totalTodayBlocker,
-        totalTimeTracker: totalTodayWork + totalTodayBlocker,
+        totalTodayOnHold,
+        totalTodayUnproductive,
+        totalTodayCorrection,
+        totalTimeTracker: totalTodayWork + totalTodayUnproductive + totalTodayCorrection,
       };
     }, [tasks, officeHours, nowTick]);
 
@@ -1457,12 +1526,12 @@ const SaasTableSummaryBar = React.memo(
               Unproductive Time
             </div>
             <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none my-1">
-              {formatMsToHMS(counts.totalTodayBlocker)}
+              {formatMsToHMS(counts.totalTodayUnproductive)}
             </div>
             <div className="text-[10px] font-bold text-orange-500">
               {counts.totalTimeTracker > 0
                 ? Math.round(
-                    (counts.totalTodayBlocker / counts.totalTimeTracker) * 100,
+                    (counts.totalTodayUnproductive / counts.totalTimeTracker) * 100,
                   )
                 : 0}
               % of shift
@@ -1480,10 +1549,15 @@ const SaasTableSummaryBar = React.memo(
               Correction Time
             </div>
             <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none my-1">
-              0m
+              {formatMsToHMS(counts.totalTodayCorrection)}
             </div>
             <div className="text-[10px] font-bold text-blue-500">
-              0% of shift
+              {counts.totalTimeTracker > 0
+                ? Math.round(
+                    (counts.totalTodayCorrection / counts.totalTimeTracker) * 100,
+                  )
+                : 0}
+              % of shift
             </div>
           </div>
         </div>
@@ -1570,8 +1644,9 @@ const COLUMN_OPTIONS = [
   { key: "feedbackMom", label: "Feedback MOM" },
   { key: "blocker", label: "Blocker" },
   { key: "activeTime", label: "Productive (Today)" },
+  { key: "onHoldTime", label: "On Hold (Today)" },
   { key: "blockerTime", label: "Unproductive (Today)" },
-  { key: "onHoldTime", label: "Correction (Today)" },
+  { key: "correctionTime", label: "Correction (Today)" },
   { key: "timeTracker", label: "Time Tracker (Today)" },
   { key: "revision", label: "Revision" },
   { key: "startDate", label: "Start Date" },
@@ -1668,6 +1743,7 @@ const MyTasksTab = ({
       activeTime: false,
       blockerTime: false,
       onHoldTime: false,
+      correctionTime: false,
       timeTracker: false,
       revision: false,
       startDate: false,
@@ -2973,221 +3049,11 @@ const MyTasksTab = ({
 
   return (
     <>
-      {/* UNIFIED HEADER & CONTROLS */}
-      <div className="flex px-4 xl:px-6 py-2.5 items-center justify-between gap-3 bg-white dark:bg-[#11131e] relative z-30 border-b border-slate-100 dark:border-slate-800/60 flex-wrap xl:flex-nowrap">
-        {/* Left: Search Bar */}
-        <div className="relative w-40 sm:w-90 shrink-0">
-          <input
-            type="text"
-            placeholder="Search tasks..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-1.5 text-[11px] font-semibold rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200 shadow-2xs transition-all"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-            >
-              <FiX size={11} />
-            </button>
-          )}
-        </div>
-
-        {/* Right: Individual Filter Dropdowns & Export Button */}
-        <div className="flex items-center justify-end gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
-          {/* Date Filter Dropdown */}
-          <div className="relative shrink-0" ref={dateDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setShowDateDropdown((prev) => !prev)}
-              className={`py-1.5 px-2.5 flex items-center justify-center gap-1 rounded-xl border text-[11px] font-extrabold transition-all shadow-2xs cursor-pointer ${
-                dateFilter !== "All"
-                  ? "bg-emerald-50/80 border-emerald-300 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-500/40 dark:text-emerald-300 font-black"
-                  : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-emerald-500/50"
-              }`}
-            >
-              <FiFilter className="text-emerald-500 text-[11px]" />
-              <span>{dateFilter === "All" ? "Filter Date" : dateFilter}</span>
-              <FiChevronDown
-                size={11}
-                className={`text-slate-400 transition-transform duration-200 ${
-                  showDateDropdown ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            <AnimatePresence>
-              {showDateDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.96 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-2 w-44 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-1.5 z-[70] flex flex-col gap-0.5"
-                >
-                  {[
-                    { label: "All Dates", value: "All" },
-                    { label: "Today", value: "Today" },
-                    { label: "Yesterday", value: "Yesterday" },
-                    { label: "This Week", value: "This Week" },
-                    { label: "This Month", value: "This Month" },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        setDateFilter(option.value);
-                        setShowDateDropdown(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
-                        dateFilter === option.value
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold"
-                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
-                      }`}
-                    >
-                      <span>{option.label}</span>
-                      {dateFilter === option.value && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      )}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Offcanvas Filter Drawer Button */}
-          <button
-            type="button"
-            onClick={() => setFilterPanelOpen(true)}
-            className={`py-1.5 px-2.5 flex items-center justify-center gap-1.5 rounded-xl border text-[11px] font-extrabold transition-all shadow-2xs cursor-pointer ${
-              priorityFilter !== "All" ||
-              projectFilter !== "All" ||
-              statusFilter !== "All" ||
-              clientFilter !== "All" ||
-              dateFilter !== "All" ||
-              assignerFilter !== "All"
-                ? "bg-blue-50/80 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-300 font-black"
-                : "bg-white dark:bg-[#151725] border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-blue-500/50"
-            }`}
-            title="Open full offcanvas filter panel"
-          >
-            <FiFilter className="text-blue-500 text-[11px]" />
-            <span>Filter</span>
-            {(priorityFilter !== "All" ||
-              projectFilter !== "All" ||
-              statusFilter !== "All" ||
-              clientFilter !== "All" ||
-              dateFilter !== "All" ||
-              assignerFilter !== "All") && (
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            )}
-          </button>
-
-          {/* Export Excel Button */}
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="py-1.5 px-2.5 flex items-center justify-center gap-1 rounded-xl border border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 text-[11px] font-black cursor-pointer transition-all shadow-2xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 shrink-0"
-            title="Export table data to Excel"
-          >
-            <FiDownload
-              size={12}
-              className="text-emerald-600 dark:text-emerald-400"
-            />
-            <span>Export Excel</span>
-          </button>
-
-          {/* Hide Column Dropdown Button */}
-          <div className="relative" ref={colsDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setIsColsOpen(!isColsOpen)}
-              className="py-1.5 px-2.5 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#151725] text-slate-700 dark:text-slate-200 text-[11px] font-black cursor-pointer transition-all shadow-2xs hover:border-blue-500/50 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0"
-              title="Show or hide table columns"
-            >
-              <FiColumns className="text-blue-500 text-[11px]" />
-              <span>Hide Column</span>
-              {Object.values(hiddenColumns).filter(Boolean).length > 0 && (
-                <span className="text-[10px] font-black bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center ml-0.5">
-                  {Object.values(hiddenColumns).filter(Boolean).length}
-                </span>
-              )}
-            </button>
-
-            <AnimatePresence>
-              {isColsOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#151725] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-2.5 z-50 space-y-1.5 backdrop-blur-md"
-                >
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-1.5 px-1">
-                    <span className="text-[12px] font-bold text-slate-800 dark:text-white tracking-wider">
-                      Toggle Columns
-                    </span>
-                    {Object.values(hiddenColumns).some(Boolean) && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setHiddenColumns({
-                            id: false,
-                            priority: false,
-                            taskName: false,
-                            client: false,
-                            contentType: false,
-                            status: false,
-                            blocker: false,
-                            activeTime: false,
-                            blockerTime: false,
-                            onHoldTime: false,
-                            timeTracker: false,
-                            revision: false,
-                            startDate: false,
-                            endDate: false,
-                            assignedBy: false,
-                            approvalTime: false,
-                            contentCopy: false,
-                            createdTime: false,
-                          })
-                        }
-                        className="text-[11px] font-bold text-blue-500 hover:text-blue-600 transition-colors cursor-pointer"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-0.5 max-h-64 overflow-y-auto custom-scrollbar">
-                    {COLUMN_OPTIONS.map((col) => (
-                      <label
-                        key={col.key}
-                        className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer text-[12px] font-bold text-slate-700 dark:text-slate-300 select-none transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!hiddenColumns[col.key]}
-                          onChange={() =>
-                            setHiddenColumns((prev) => ({
-                              ...prev,
-                              [col.key]: !prev[col.key],
-                            }))
-                          }
-                          className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-white/10 dark:bg-black/20 cursor-pointer"
-                        />
-                        <span className="truncate">{col.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+      <div className="px-4 xl:px-6 pt-2 pb-2">
+        <SaasTableSummaryBar tasks={activeTasksList} officeHours={officeHours} />
       </div>
+
+
 
       {/* OFFCANVAS FILTER PANEL */}
       <AnimatePresence>
@@ -3766,6 +3632,15 @@ const MyTasksTab = ({
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
                       />
                     )}
+                    {!hiddenColumns.onHoldTime && (
+                      <ResizableHeader
+                        id="onHoldTime"
+                        label="Unproductivity hours"
+                        colWidths={colWidths}
+                        handleMouseDown={handleMouseDown}
+                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
+                      />
+                    )}
                     {!hiddenColumns.blockerTime && (
                       <ResizableHeader
                         id="blockerTime"
@@ -3775,13 +3650,13 @@ const MyTasksTab = ({
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-32 whitespace-nowrap"
                       />
                     )}
-                    {!hiddenColumns.onHoldTime && (
+                    {!hiddenColumns.correctionTime && (
                       <ResizableHeader
-                        id="onHoldTime"
-                        label="Unproductivity hours"
+                        id="correctionTime"
+                        label="Correction time"
                         colWidths={colWidths}
                         handleMouseDown={handleMouseDown}
-                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
+                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-32 whitespace-nowrap"
                       />
                     )}
                     {!hiddenColumns.timeTracker && (
@@ -4288,6 +4163,16 @@ const MyTasksTab = ({
                               </td>
                             )}
 
+                            {/* Unproductivity hours Column */}
+                            {!hiddenColumns.onHoldTime && (
+                              <td
+                                className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[140px] text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <OnHoldTimeCell task={task} />
+                              </td>
+                            )}
+
                             {/* Blocker Time Column */}
                             {!hiddenColumns.blockerTime && (
                               <td
@@ -4298,13 +4183,13 @@ const MyTasksTab = ({
                               </td>
                             )}
 
-                            {/* Unproductivity hours Column */}
-                            {!hiddenColumns.onHoldTime && (
+                            {/* Correction Time Column */}
+                            {!hiddenColumns.correctionTime && (
                               <td
                                 className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[140px] text-center"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <OnHoldTimeCell task={task} />
+                                <CorrectionTimeCell task={task} />
                               </td>
                             )}
 
