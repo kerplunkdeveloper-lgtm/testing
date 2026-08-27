@@ -110,13 +110,14 @@ const Settings = () => {
   const [loadingHours, setLoadingHours] = useState(true);
   const [savingHours, setSavingHours] = useState(false);
 
-  const canChangeOfficeHours = user?.role === "admin" || user?.role === "operationmanager";
+  const canChangeOfficeHours =
+    user?.role === "admin" || user?.role === "operationmanager";
 
   useEffect(() => {
     dispatch(getProfile());
   }, [dispatch, user]);
 
-  useEffect(() => { 
+  useEffect(() => {
     const fetchOfficeHours = async () => {
       try {
         const response = await axiosInstance.get("/settings/office-hours");
@@ -150,7 +151,6 @@ const Settings = () => {
       setSavingHours(false);
     }
   };
-
 
   const initials = user?.name ? user.name.charAt(0).toUpperCase() : "U";
   const avatarUrl = profile?.profileImage?.url;
@@ -402,7 +402,9 @@ const Settings = () => {
               </div>
 
               {loadingHours ? (
-                <div className="text-xs theme-text-secondary py-2">Loading hours config...</div>
+                <div className="text-xs theme-text-secondary py-2">
+                  Loading hours config...
+                </div>
               ) : (
                 <div className="space-y-4">
                   {/* Select Hours Fields */}
@@ -471,7 +473,6 @@ const Settings = () => {
               )}
             </div>
           </div>
-
         </div>
       </div>
     </div>

@@ -37,6 +37,8 @@ import { calculateBusinessMs } from "../../utils/businessHours";
 import toast from "react-hot-toast";
 import CorrectionModal from "../../components/CorrectionModal";
 import RejectionModal from "../../components/RejectionModal";
+import { HoldTaskModal } from "../../components/HoldTaskModal";
+import { BlockTaskModal } from "../../components/BlockTaskModal";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
 import {
   calculateTaskProductivityForDate,

@@ -65,9 +65,15 @@ async function checkAndAutoPauseTasks(io) {
           if (hasOpenSession) {
             task.totalTrackedTime = (task.totalTrackedTime || 0) + sessionWorkedMs;
             task.dailyTrackedTime = (task.dailyTrackedTime || 0) + sessionWorkedMs;
+            
+            history.push({
+              status: "On Hold",
+              startTime: pauseTime,
+              updatedBy: "System"
+            });
+            task.status = "On Hold";
             task.statusHistory = history;
             
-            // Do NOT change status. We leave it as In Progress.
             // Clear actualStartTime so a new session isn't immediately created tomorrow
             // without a fresh timestamp, but actually the next API call should start it.
             task.actualStartTime = null; 
@@ -112,6 +118,14 @@ async function checkAndAutoPauseTasks(io) {
             if (hasOpenSession) {
               sub.totalTrackedTime = (sub.totalTrackedTime || 0) + sessionWorkedMs;
               sub.dailyTrackedTime = (sub.dailyTrackedTime || 0) + sessionWorkedMs;
+
+              history.push({
+                status: "On Hold",
+                startTime: pauseTime,
+                updatedBy: "System"
+              });
+              sub.status = "On Hold";
+
               sub.statusHistory = history;
               sub.actualStartTime = null; 
               updated = true;
