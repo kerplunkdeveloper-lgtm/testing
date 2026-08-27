@@ -133,11 +133,17 @@ const StatusHistoryTable = ({ task, todayLoggedMs = 0 }) => {
   });
 
   const todayHistoryWorkedMs = statusHistory
-    .filter(
-      (h) =>
-        h.status === "In Progress" &&
-        formatDateOnly(h.startTime, h.date) === todayDateStr,
-    )
+    .filter((h) => {
+      if (h.status !== "In Progress") return false;
+      const d = h.startTime ? new Date(h.startTime) : (h.date ? new Date(h.date) : null);
+      if (!d || isNaN(d.getTime())) return false;
+      const hDateStr = d.toLocaleDateString("en-US", {
+        timeZone: "Asia/Kolkata",
+        month: "short",
+        day: "numeric",
+      });
+      return hDateStr === todayDateStr;
+    })
     .reduce((acc, curr) => acc + (curr.duration || 0), 0);
 
   const displayTodayMs =

@@ -1516,7 +1516,7 @@ const EodReports = () => {
                       DAY SUMMARY
       ========================================= */}
       {(tasksState.length > 0 || todayReport) && (
-        <div className="sidebar-bg rounded-2xl mt-8 p-6 text-left shadow-sm">
+        <div className="mt-8  text-left ">
           <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
             <div>
               <h2 className="text-md font-bold theme-text-primary">

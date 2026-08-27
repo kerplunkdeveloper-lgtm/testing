@@ -307,31 +307,11 @@ const SimpleTimeTracker = ({
     autoPaused,
     totalPausedMs: savedPausedMs,
     isBlocked,
-    blockerPausedAt,
-    blockerHistory,
     totalTrackedTime,
   };
 
   if (mode === "blocker") {
-    let blockerMs = 0;
-    if (blockerHistory && blockerHistory.length > 0) {
-      blockerHistory.forEach((b) => {
-        if (b.pausedAt) {
-          const p = new Date(b.pausedAt).getTime();
-          const r = b.resumedAt ? new Date(b.resumedAt).getTime() : now;
-          if (r >= p) blockerMs += r - p;
-        }
-      });
-    }
-    if (isBlocked && blockerPausedAt) {
-      const p = new Date(blockerPausedAt).getTime();
-      if (now > p) blockerMs += now - p;
-    }
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-xl text-[11px] font-black border shadow-2xs bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20">
-        {formatShortDuration(blockerMs)}
-      </span>
-    );
+    return null;
   }
 
   const totalMs = getTotalTrackedMs(taskObj, now);
@@ -373,8 +353,6 @@ const TimeTrackerBox = ({
   autoPaused,
   savedPausedMs = 0,
   isBlocked,
-  blockerPausedAt,
-  blockerHistory,
   totalTrackedTime = 0,
 }) => {
   const [now, setNow] = useState(Date.now());
@@ -394,8 +372,6 @@ const TimeTrackerBox = ({
     autoPaused,
     totalPausedMs: savedPausedMs,
     isBlocked,
-    blockerPausedAt,
-    blockerHistory,
     totalTrackedTime,
   };
 
@@ -1402,6 +1378,8 @@ const TaskOverviewTab = ({
 
   const [correctionModalData, setCorrectionModalData] = useState(null);
   const [rejectionModalData, setRejectionModalData] = useState(null);
+  const [holdTaskModalData, setHoldTaskModalData] = useState(null);
+  const [blockTaskModalData, setBlockTaskModalData] = useState(null);
 
   const handleTaskFieldChange = async (taskId, fields) => {
     const sanitizedFields = { ...fields };
@@ -1445,6 +1423,14 @@ const TaskOverviewTab = ({
         showStartInProgressWarning("hold");
         return;
       }
+      setHoldTaskModalData({ taskId, taskObj: currentTaskObj });
+      return;
+    }
+
+    if (sanitizedFields.status === "Blocked") {
+      const currentTaskObj = tasks?.find((t) => t._id === taskId);
+      setBlockTaskModalData({ taskId, taskObj: currentTaskObj });
+      return;
     }
 
     if (sanitizedFields.startDate === "") sanitizedFields.startDate = null;
@@ -1610,7 +1596,7 @@ const TaskOverviewTab = ({
     priority: false,
     status: false,
     totalHours: false,
-    blockerTime: false,
+
     timeTracker: false,
     approvalInfo: false,
     action: false,
@@ -2164,7 +2150,7 @@ const TaskOverviewTab = ({
       "Priority",
       "Status",
       "Total Inprogress",
-      "Blocker Time",
+
       "Total Time Tracker",
       "Approval Info",
     ];
@@ -2182,8 +2168,6 @@ const TaskOverviewTab = ({
       if (!task.actualStartTime) {
         const baseSecs = Math.floor(baseTracked / 1000);
         return {
-          activeStr: baseTracked > 0 ? formatSecs(baseSecs) : "Not started",
-          blockerStr: "0m 0s",
           totalStr: baseTracked > 0 ? formatSecs(baseSecs) : "0m 0s",
         };
       }
@@ -2200,51 +2184,10 @@ const TaskOverviewTab = ({
         end = Date.now();
       }
 
-      let sessionPauseMs = 0;
-      let lifetimeBlockerMs = 0;
-      if (task.blockerHistory && task.blockerHistory.length > 0) {
-        task.blockerHistory.forEach((item) => {
-          if (item.pausedAt) {
-            const p = new Date(item.pausedAt).getTime();
-            let r = item.resumedAt
-              ? new Date(item.resumedAt).getTime()
-              : Date.now();
-            if (r > end) r = end;
-            if (r >= p) {
-              lifetimeBlockerMs += r - p;
-              const oStart = Math.max(p, start);
-              const oEnd = Math.min(r, end);
-              if (oEnd > oStart) {
-                sessionPauseMs += oEnd - oStart;
-              }
-            }
-          }
-        });
-      }
-
-      if (task.isBlocked && task.blockerPausedAt) {
-        const pauseStart = new Date(task.blockerPausedAt).getTime();
-        if (pauseStart < end) {
-          lifetimeBlockerMs += end - pauseStart;
-          const oStart = Math.max(pauseStart, start);
-          if (end > oStart) {
-            sessionPauseMs += end - oStart;
-          }
-        }
-      }
-
-      const sessionElapsedMs = Math.max(
-        0,
-        end - start - (task.totalPausedMs || 0) - sessionPauseMs,
-      );
-      const totalElapsedMs = baseTracked + sessionElapsedMs;
-      const activeSecs = Math.max(0, Math.floor(totalElapsedMs / 1000));
-      const blockedSecs = Math.max(0, Math.floor(lifetimeBlockerMs / 1000));
+      const activeSecs = Math.floor((end - start + baseTracked) / 1000);
 
       return {
-        activeStr: formatSecs(activeSecs),
-        blockerStr: formatSecs(blockedSecs),
-        totalStr: formatSecs(activeSecs + blockedSecs),
+        totalStr: formatSecs(activeSecs),
       };
     };
 
@@ -2294,7 +2237,7 @@ const TaskOverviewTab = ({
       const startDate = task.startDate ? formatDate(task.startDate) : "—";
       const endDate = task.dueDate ? formatDate(task.dueDate) : "—";
 
-      const { activeStr, blockerStr, totalStr } = computeTaskTimes(task);
+      const { totalStr } = computeTaskTimes(task);
       const approvalStr = computeApprovalStr(task);
 
       return [
@@ -2309,8 +2252,6 @@ const TaskOverviewTab = ({
         endDate,
         task.priority || "Medium",
         task.status || "Not Started",
-        activeStr,
-        blockerStr,
         totalStr,
         approvalStr,
       ];
@@ -3164,7 +3105,7 @@ const TaskOverviewTab = ({
                                       priority: false,
                                       status: false,
                                       totalHours: false,
-                                      blockerTime: false,
+
                                       timeTracker: false,
                                       approvalInfo: false,
                                       action: false,
@@ -3193,7 +3134,6 @@ const TaskOverviewTab = ({
                                   key: "totalHours",
                                   label: "Total Inprogress",
                                 },
-                                { key: "blockerTime", label: "Blocker Time" },
                                 { key: "timeTracker", label: "Time Tracker" },
                                 { key: "approvalInfo", label: "Approve Info" },
                                 { key: "action", label: "Action" },
@@ -3292,11 +3232,6 @@ const TaskOverviewTab = ({
                     TOTAL INPROGRESS
                   </th>
                 )}
-                {!hiddenColumns.blockerTime && (
-                  <th className="py-2 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center whitespace-nowrap">
-                    BLOCKER TIME
-                  </th>
-                )}
                 {!hiddenColumns.timeTracker && (
                   <th className="py-2 px-2 border-r border-b border-slate-300 dark:border-white/15 text-center whitespace-nowrap">
                     TIMETRACKER
@@ -3315,7 +3250,6 @@ const TaskOverviewTab = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-white/10 text-[12px] font-semibold">
-              {/* task  name field  area */}
               {isAddingNewTask && (
                 <tr className="transition-colors border-b border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-100 hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
                   {!hiddenColumns.taskName && (
@@ -3549,11 +3483,6 @@ const TaskOverviewTab = ({
                       —
                     </td>
                   )}
-                  {!hiddenColumns.blockerTime && (
-                    <td className="py-2 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center text-slate-400 text-[11px]">
-                      —
-                    </td>
-                  )}
                   {!hiddenColumns.timeTracker && (
                     <td className="py-2 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center text-slate-400 text-[11px]">
                       —
@@ -3711,7 +3640,6 @@ const TaskOverviewTab = ({
                           </td>
                         )}
 
-                        {/*.............................................. project name field are ............................ */}
                         {!hiddenColumns.projectName && (
                           <td
                             className="py-1.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left whitespace-nowrap"
@@ -3729,7 +3657,6 @@ const TaskOverviewTab = ({
                           </td>
                         )}
 
-                        {/*................................... Client name field area................................................................... */}
                         {!hiddenColumns.clientName && (
                           <td className="py-2 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left whitespace-nowrap">
                             {clientObj && clientObj.companyName ? (
@@ -3745,7 +3672,6 @@ const TaskOverviewTab = ({
                             )}
                           </td>
                         )}
-                        {/*.......................................................... client name field area...................................................................................... */}
                         {!hiddenColumns.contentCopy && (
                           <td
                             className="py-1.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left whitespace-nowrap"
@@ -3766,7 +3692,6 @@ const TaskOverviewTab = ({
                                     contentCopy: val,
                                   });
                                 } else {
-                                  // Reset to original if unchanged or empty string where it should show placeholder
                                   e.target.innerText =
                                     task.contentCopy ||
                                     task.content_copy ||
@@ -3801,7 +3726,6 @@ const TaskOverviewTab = ({
                           </td>
                         )}
 
-                        {/* Content type field area....................................................................................... */}
                         {!hiddenColumns.contentType && (
                           <td
                             className="py-1.5 px-3 border-r border-b border-slate-200 dark:border-white/10"
@@ -3915,7 +3839,6 @@ const TaskOverviewTab = ({
                           </td>
                         )}
 
-                        {/*.................................. created at..................................  */}
                         {!hiddenColumns.createdBy && (
                           <td className="py-1.5 px-3 border-r border-b border-slate-200 dark:border-white/10 text-left whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
@@ -4165,15 +4088,17 @@ const TaskOverviewTab = ({
                                             ? "badge-status-correction"
                                             : task.status === "On Hold"
                                               ? "badge-status-on-hold"
-                                              : task.status === "Rejected"
-                                                ? "badge-status-rejected"
-                                                : "badge-status-not-started"
+                                              : task.status === "Blocked"
+                                                ? "badge-status-blocked bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700/50"
+                                                : task.status === "Rejected"
+                                                  ? "badge-status-rejected"
+                                                  : "badge-status-not-started"
                                   }`}
                                 >
                                   {task.contentType === "MOM" ? (
                                     <>
                                       <option value="Not Started">Not Started</option>
-                                      {["In Progress", "On Hold", "In Review", "Correction"].includes(task.status) && (
+                                      {["In Progress", "On Hold", "Blocked", "In Review", "Correction"].includes(task.status) && (
                                         <option value={task.status}>{task.status}</option>
                                       )}
                                       <option value="Completed">Completed</option>
@@ -4181,7 +4106,7 @@ const TaskOverviewTab = ({
                                   ) : (
                                     <>
                                       <option value="Not Started">Not Started</option>
-                                      {["In Progress", "On Hold", "In Review"].includes(task.status) && (
+                                      {["In Progress", "On Hold", "Blocked", "In Review"].includes(task.status) && (
                                         <option value={task.status}>{task.status}</option>
                                       )}
                                       <option value="Correction">Correction</option>
@@ -4201,9 +4126,11 @@ const TaskOverviewTab = ({
                                           ? "badge-status-in-review"
                                           : task.status === "On Hold"
                                             ? "badge-status-on-hold"
-                                            : task.status === "Rejected"
-                                              ? "badge-status-rejected"
-                                              : "badge-status-not-started"
+                                            : task.status === "Blocked"
+                                              ? "badge-status-blocked bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700/50"
+                                              : task.status === "Rejected"
+                                                ? "badge-status-rejected"
+                                                : "badge-status-not-started"
                                   }`}
                                 >
                                   {getStatusWithEmoji(task.status)}
@@ -4221,25 +4148,6 @@ const TaskOverviewTab = ({
                               pausedAt={task.pausedAt}
                               savedPausedMs={task.totalPausedMs}
                               status={task.status}
-                              isBlocked={task.isBlocked}
-                              blockerPausedAt={task.blockerPausedAt}
-                              blockerHistory={task.blockerHistory}
-                              totalTrackedTime={task.totalTrackedTime}
-                            />
-                          </td>
-                        )}
-                        {!hiddenColumns.blockerTime && (
-                          <td className="py-2 px-2 border-r border-b border-slate-200 dark:border-white/10 text-center whitespace-nowrap">
-                            <SimpleTimeTracker
-                              mode="blocker"
-                              startTime={task.actualStartTime}
-                              endTime={task.actualEndTime}
-                              pausedAt={task.pausedAt}
-                              savedPausedMs={task.totalPausedMs}
-                              status={task.status}
-                              isBlocked={task.isBlocked}
-                              blockerPausedAt={task.blockerPausedAt}
-                              blockerHistory={task.blockerHistory}
                               totalTrackedTime={task.totalTrackedTime}
                             />
                           </td>
@@ -4732,6 +4640,71 @@ const TaskOverviewTab = ({
           setRejectionModalData(null);
         }}
         task={rejectionModalData?.taskObj}
+      />
+
+      {/* HOLD TASK MODAL */}
+      <HoldTaskModal
+        isOpen={!!holdTaskModalData}
+        onClose={() => setHoldTaskModalData(null)}
+        onSubmit={async (data) => {
+          if (!holdTaskModalData) return;
+          try {
+            await updateTaskTrigger({
+              id: holdTaskModalData.taskId,
+              taskData: {
+                status: "On Hold",
+                holdReason: data.reason,
+                holdComment: data.comment,
+                relatedTaskId: data.relatedTaskId || null
+              },
+            }).unwrap();
+
+            if (data.reason === "Another Task" && data.relatedTaskId) {
+              await updateTaskTrigger({
+                id: data.relatedTaskId,
+                taskData: { status: "In Progress", forceSwitch: true },
+              }).unwrap();
+              toast.success("Task placed On Hold & Related Task started");
+            } else {
+              toast.success("Task placed On Hold");
+            }
+          } catch (err) {
+            toast.error("Failed to put task On Hold");
+          }
+          setHoldTaskModalData(null);
+        }}
+        task={holdTaskModalData?.taskObj}
+        tasks={tasks.filter(
+          (t) =>
+            t._id !== holdTaskModalData?.taskId &&
+            !["Completed", "In Progress", "In Review"].includes(t.status)
+        )}
+      />
+
+      {/* BLOCK TASK MODAL */}
+      <BlockTaskModal
+        isOpen={!!blockTaskModalData}
+        onClose={() => setBlockTaskModalData(null)}
+        onSubmit={async (data) => {
+          if (!blockTaskModalData) return;
+          try {
+            await updateTaskTrigger({
+              id: blockTaskModalData.taskId,
+              taskData: {
+                status: "Blocked",
+                blockerType: data.blockerType,
+                blockedBy: data.blockedBy,
+                blockedReason: data.reason,
+                blockedComment: data.comment,
+              },
+            }).unwrap();
+            toast.success("Task is now Blocked");
+          } catch (err) {
+            toast.error("Failed to block task");
+          }
+          setBlockTaskModalData(null);
+        }}
+        task={blockTaskModalData?.taskObj}
       />
     </>
   );

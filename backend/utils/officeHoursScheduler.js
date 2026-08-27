@@ -49,27 +49,7 @@ async function checkAndAutoPauseTasks(io) {
           let sessionWorkedMs = 0;
           if (task.actualStartTime) {
             const sStart = new Date(task.actualStartTime).getTime();
-            if (pauseTimeMs > sStart) {
-              let sessionPauses = 0;
-              if (task.blockerHistory && Array.isArray(task.blockerHistory)) {
-                task.blockerHistory.forEach(h => {
-                  if (h.pausedAt) {
-                    const p = new Date(h.pausedAt).getTime();
-                    let r = h.resumedAt ? new Date(h.resumedAt).getTime() : pauseTimeMs;
-                    if (r > pauseTimeMs) r = pauseTimeMs;
-                    const oStart = Math.max(p, sStart);
-                    const oEnd = Math.min(r, pauseTimeMs);
-                    if (oEnd > oStart) sessionPauses += (oEnd - oStart);
-                  }
-                });
-              }
-              if (task.isBlocked && task.blockerPausedAt) {
-                const p = new Date(task.blockerPausedAt).getTime();
-                const oStart = Math.max(p, sStart);
-                if (pauseTimeMs > oStart) sessionPauses += (pauseTimeMs - oStart);
-              }
-              sessionWorkedMs = Math.max(0, pauseTimeMs - sStart - sessionPauses);
-            }
+            sessionWorkedMs = Math.max(0, pauseTimeMs - sStart);
           }
 
           // Close open In Progress entry
@@ -116,25 +96,7 @@ async function checkAndAutoPauseTasks(io) {
             if (sub.actualStartTime) {
               const sStart = new Date(sub.actualStartTime).getTime();
               if (pauseTimeMs > sStart) {
-                let sessionPauses = 0;
-                if (sub.blockerHistory && Array.isArray(sub.blockerHistory)) {
-                  sub.blockerHistory.forEach(h => {
-                    if (h.pausedAt) {
-                      const p = new Date(h.pausedAt).getTime();
-                      let r = h.resumedAt ? new Date(h.resumedAt).getTime() : pauseTimeMs;
-                      if (r > pauseTimeMs) r = pauseTimeMs;
-                      const oStart = Math.max(p, sStart);
-                      const oEnd = Math.min(r, pauseTimeMs);
-                      if (oEnd > oStart) sessionPauses += (oEnd - oStart);
-                    }
-                  });
-                }
-                if (sub.isBlocked && sub.blockerPausedAt) {
-                  const p = new Date(sub.blockerPausedAt).getTime();
-                  const oStart = Math.max(p, sStart);
-                  if (pauseTimeMs > oStart) sessionPauses += (pauseTimeMs - oStart);
-                }
-                sessionWorkedMs = Math.max(0, pauseTimeMs - sStart - sessionPauses);
+                sessionWorkedMs = Math.max(0, pauseTimeMs - sStart);
               }
             }
 

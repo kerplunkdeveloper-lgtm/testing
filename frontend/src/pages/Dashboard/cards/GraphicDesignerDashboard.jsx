@@ -182,13 +182,23 @@ export const calculateTaskProductivityForDate = (
     let historyDuration = 0;
 
     task.statusHistory.forEach((h) => {
-      if (!isStatusInProgress(h.status)) return;
+      const isProductiveHold = h.status === "On Hold" && (h.reason === "Client Call" || h.reason === "Meeting");
+      if (!isStatusInProgress(h.status) && !isProductiveHold) return;
 
       let entryDate = h.date;
-      if (!entryDate && h.startTime) {
-        entryDate = new Date(h.startTime).toLocaleDateString("en-CA", {
-          timeZone: "Asia/Kolkata",
-        });
+      if (entryDate && entryDate.includes(",")) {
+        try {
+          entryDate = new Date(entryDate).toLocaleDateString("en-CA", {
+            timeZone: "Asia/Kolkata",
+          });
+        } catch (e) {}
+      }
+      if (!entryDate || entryDate.includes(",")) {
+        entryDate = h.startTime
+          ? new Date(h.startTime).toLocaleDateString("en-CA", {
+              timeZone: "Asia/Kolkata",
+            })
+          : null;
       }
       if (entryDate !== selDateStr) return;
 
@@ -203,7 +213,7 @@ export const calculateTaskProductivityForDate = (
         );
       } else if (
         isSelectedToday &&
-        isStatusInProgress(task.status) &&
+        (isStatusInProgress(task.status) || (task.status === "On Hold" && isProductiveHold)) &&
         !task.autoPaused
       ) {
         // Open entry on TODAY, still running — handled by live section below, skip here
@@ -223,19 +233,26 @@ export const calculateTaskProductivityForDate = (
     });
 
     // ✅ FIX Bug 3: Live session guard — fallback to statusHistory open entry or updatedAt if actualStartTime is missing
+    const currentIsProductiveHold = task.status === "On Hold" && task.statusHistory && task.statusHistory.length > 0 && 
+      (task.statusHistory[task.statusHistory.length - 1].reason === "Client Call" || task.statusHistory[task.statusHistory.length - 1].reason === "Meeting");
+      
     if (
       isSelectedToday &&
-      isStatusInProgress(task.status) &&
+      (isStatusInProgress(task.status) || currentIsProductiveHold) &&
       !task.autoPaused
     ) {
-      let liveSessionStart = task.actualStartTime
-        ? new Date(task.actualStartTime).getTime()
-        : 0;
+      let liveSessionStart = 0;
+      
+      if (isStatusInProgress(task.status) && task.actualStartTime) {
+        liveSessionStart = new Date(task.actualStartTime).getTime();
+      } else if (currentIsProductiveHold && task.holdStartedAt) {
+        liveSessionStart = new Date(task.holdStartedAt).getTime();
+      }
 
       if (isNaN(liveSessionStart) || liveSessionStart <= 0) {
         const openEntry = [...task.statusHistory]
           .reverse()
-          .find((h) => isStatusInProgress(h.status) && !h.endTime);
+          .find((h) => (isStatusInProgress(h.status) || (h.status === "On Hold" && (h.reason === "Client Call" || h.reason === "Meeting"))) && !h.endTime);
         if (openEntry && openEntry.startTime) {
           liveSessionStart = new Date(openEntry.startTime).getTime();
         }
@@ -1735,62 +1752,31 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         const dayStart = startOfDay(selDateObj).getTime();
         const nextDayStart = startOfDay(addDays(selDateObj, 1)).getTime();
 
-        if (t.blockerHistory && Array.isArray(t.blockerHistory)) {
-          t.blockerHistory.forEach((item) => {
-            if (!item.pausedAt) return;
-            const pStart = new Date(item.pausedAt).getTime();
-            if (isNaN(pStart)) return;
-
-            let pEnd = item.resumedAt
-              ? new Date(item.resumedAt).getTime()
-              : item.totalPauseMinutes
-                ? pStart + item.totalPauseMinutes * 60 * 1000
-                : t.pausedAt
-                  ? new Date(t.pausedAt).getTime()
-                  : isSameDay(selDateObj, new Date())
-                    ? Date.now()
-                    : nextDayStart;
-
-            if (isNaN(pEnd) || pEnd <= pStart) return;
-
-            const overlapStart = Math.max(pStart, dayStart);
-            const overlapEnd = Math.min(pEnd, nextDayStart);
-
-            if (overlapEnd > overlapStart) {
-              taskBlockerMs += overlapEnd - overlapStart;
-              if (item.blockerType) {
-                blockerTypesSet.add(item.blockerType);
+        if (Array.isArray(t.statusHistory)) {
+          t.statusHistory.forEach((h) => {
+            if (h.status === "Blocked") {
+              const hDate = new Date(h.startTime || h.date).toLocaleDateString("en-CA", {
+                timeZone: "Asia/Kolkata",
+              });
+              if (hDate === (selDateObj.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }))) {
+                taskBlockerMs += (h.duration || 0);
+                if (h.blockerType) {
+                  blockerTypesSet.add(h.blockerType);
+                }
               }
             }
           });
         }
 
-        if (t.isBlocked && t.blockerPausedAt) {
-          const pStart = new Date(t.blockerPausedAt).getTime();
-          if (!isNaN(pStart)) {
-            const pEnd = isSameDay(selDateObj, new Date())
+        if (t.status === "Blocked" && t.blockedStartedAt) {
+          const hDate = new Date(t.blockedStartedAt).toLocaleDateString("en-CA", {
+            timeZone: "Asia/Kolkata",
+          });
+          if (hDate === (selDateObj.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }))) {
+            const endMs = isSameDay(selDateObj, new Date())
               ? Date.now()
-              : nextDayStart;
-            const overlapStart = Math.max(pStart, dayStart);
-            const overlapEnd = Math.min(pEnd, nextDayStart);
-
-            if (overlapEnd > overlapStart) {
-              const alreadyHandled =
-                t.blockerHistory &&
-                t.blockerHistory.some((h) => {
-                  if (!h.pausedAt) return false;
-                  return (
-                    Math.abs(new Date(h.pausedAt).getTime() - pStart) < 1000
-                  );
-                });
-
-              if (!alreadyHandled) {
-                taskBlockerMs += overlapEnd - overlapStart;
-                if (t.blockerType) {
-                  blockerTypesSet.add(t.blockerType);
-                }
-              }
-            }
+              : startOfDay(addDays(selDateObj, 1)).getTime();
+            taskBlockerMs += Math.max(0, endMs - new Date(t.blockedStartedAt).getTime());
           }
         }
 

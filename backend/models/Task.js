@@ -54,47 +54,7 @@ const SubtaskSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  isBlocked: {
-    type: Boolean,
-    default: false,
-  },
-  blockerReason: {
-    type: String,
-    default: "",
-  },
-  blockerType: {
-    type: String,
-    default: "",
-  },
-  blockerDescription: {
-    type: String,
-    default: "",
-  },
-  blockerExpectedTime: {
-    type: String,
-    default: "",
-  },
-  blockerPriority: {
-    type: String,
-    default: "",
-  },
-  blockerPausedAt: {
-    type: Date,
-  },
-  blockerResumedAt: {
-    type: Date,
-  },
-  blockerHistory: [
-    {
-      blockerType: String,
-      blockerDescription: String,
-      blockerExpectedTime: String,
-      blockerPriority: String,
-      pausedAt: Date,
-      resumedAt: Date,
-      totalPauseMinutes: Number,
-    }
-  ],
+
   revisions: {
     type: Number,
     default: 0,
@@ -274,7 +234,7 @@ const TaskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Not Started", "In Progress", "Completed", "On Hold", "In Review", "Rejected", "Correction"],
+      enum: ["Not Started", "In Progress", "Completed", "On Hold", "Blocked", "In Review", "Rejected", "Correction"],
       default: "Not Started",
     },
     priority: {
@@ -346,47 +306,7 @@ const TaskSchema = new mongoose.Schema(
       }
     ],
 
-    isBlocked: {
-      type: Boolean,
-      default: false,
-    },
-    blockerReason: {
-      type: String,
-      default: "",
-    },
-    blockerType: {
-      type: String,
-      default: "",
-    },
-    blockerDescription: {
-      type: String,
-      default: "",
-    },
-    blockerExpectedTime: {
-      type: String,
-      default: "",
-    },
-    blockerPriority: {
-      type: String,
-      default: "",
-    },
-    blockerPausedAt: {
-      type: Date,
-    },
-    blockerResumedAt: {
-      type: Date,
-    },
-    blockerHistory: [
-      {
-        blockerType: String,
-        blockerDescription: String,
-        blockerExpectedTime: String,
-        blockerPriority: String,
-        pausedAt: Date,
-        resumedAt: Date,
-        totalPauseMinutes: Number,
-      }
-    ],
+
     revisions: {
       type: Number,
       default: 0,
@@ -411,11 +331,15 @@ const TaskSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    blockedStartedAt: {
+      type: Date,
+      default: null,
+    },
     statusHistory: [
       {
         status: {
           type: String,
-          enum: ["Not Started", "In Progress", "Completed", "On Hold", "In Review", "Rejected", "Correction"],
+          enum: ["Not Started", "In Progress", "Completed", "On Hold", "Blocked", "In Review", "Rejected", "Correction"],
           required: true,
         },
         startTime: {
@@ -439,6 +363,23 @@ const TaskSchema = new mongoose.Schema(
           ref: "User",
         },
         comment: {
+          type: String,
+          default: "",
+        },
+        reason: {
+          type: String,
+          default: "",
+        },
+        relatedTaskId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Task",
+          default: null,
+        },
+        blockerType: {
+          type: String,
+          default: "",
+        },
+        blockedBy: {
           type: String,
           default: "",
         },

@@ -90,6 +90,9 @@ export const apiSlice = createApi({
             const task = draft.find((t) => t._id === id);
             if (task) {
               Object.assign(task, taskData);
+              if (taskData.status && taskData.status !== "In Progress") {
+                task.actualStartTime = null;
+              }
             }
           })
         );

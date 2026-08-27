@@ -85,7 +85,7 @@ const getStatusWithEmoji = (status) => {
   return status || "Not Started";
 };
 
-export const isSameDate = (d1, d2) => {
+const isSameDate = (d1, d2) => {
   if (!d1 || !d2) return false;
   try {
     const s1 =
@@ -1498,12 +1498,7 @@ const ContentCopyInput = ({
         }
       }}
       placeholder={placeholder}
-      className="bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300 outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] transition-all placeholder:font-normal hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-[#0f172a] shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] focus:shadow-[0_0_0_2px_rgba(59,130,246,0.15)] text-center"
-      style={{
-        width: `${Math.max(val.length, placeholder.length) + 4}ch`,
-        minWidth: "120px",
-        maxWidth: "400px",
-      }}
+      className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300 outline-none focus:border-blue-500 dark:focus:border-[#3b82f6] transition-all placeholder:font-normal hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-[#0f172a] shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] focus:shadow-[0_0_0_2px_rgba(59,130,246,0.15)] text-left"
     />
   );
 };
@@ -1719,7 +1714,7 @@ const ProjectTaskBoard = ({
   const [deleteTaskMutation] = useDeleteTaskMutation();
 
   // Local State
-  const [activeTab, setActiveTab] = useState("List"); // "List" | "Kanban" | "Timeline" | "Dashboard"
+
   const [focusedTaskId, setFocusedTaskId] = useState(null);
   const [checkedProjects, setCheckedProjects] = useState({});
   const [expandedTasks, setExpandedTasks] = useState({}); // taskId -> boolean
@@ -2178,66 +2173,19 @@ const ProjectTaskBoard = ({
       return;
     }
 
-    if (activeTab === "Kanban") {
-      if (destination.droppableId === "Rejected") {
-        const taskObj = localTasks.find((t) => t._id === draggableId);
-        setTaskToReject({
-          taskId: draggableId,
-          subtaskId: null,
-          previousStatus: taskObj?.status,
-          taskObj,
-        });
-        setRejectionModalOpen(true);
-        return;
-      }
+    // Optimistically update local UI for section
+    const updatedTasks = localTasks.map((t) =>
+      t._id === draggableId ? { ...t, section: destination.droppableId } : t,
+    );
+    setLocalTasks(updatedTasks);
 
-      // Optimistically update local UI for status
-      const updatedTasks = localTasks.map((t) => {
-        if (t._id === draggableId) {
-          return { ...t, status: destination.droppableId };
-        }
-        return t;
-      });
-      setLocalTasks(updatedTasks);
-
-      try {
-        await updateTaskMutation({
-          id: draggableId,
-          taskData: { status: destination.droppableId },
-        }).unwrap();
-      } catch (err) {
-        console.error("Failed to drag and drop task:", err);
-        if (
-          err?.data?.isOfficeHoursEnded ||
-          err?.error?.data?.isOfficeHoursEnded
-        ) {
-          const errorData = err?.data || err?.error?.data;
-          window.dispatchEvent(
-            new CustomEvent("show-office-hours-ended-popup", {
-              detail: {
-                workingTimeMs: errorData.workingTimeMs,
-                pausedAtHour: errorData.pausedAt,
-              },
-            }),
-          );
-          dispatch(apiSlice.util.invalidateTags(["Task"]));
-        }
-      }
-    } else {
-      // Optimistically update local UI for section
-      const updatedTasks = localTasks.map((t) =>
-        t._id === draggableId ? { ...t, section: destination.droppableId } : t,
-      );
-      setLocalTasks(updatedTasks);
-
-      try {
-        await updateTaskMutation({
-          id: draggableId,
-          taskData: { section: destination.droppableId },
-        }).unwrap();
-      } catch (err) {
-        console.error("Failed to drag and drop task:", err);
-      }
+    try {
+      await updateTaskMutation({
+        id: draggableId,
+        taskData: { section: destination.droppableId },
+      }).unwrap();
+    } catch (err) {
+      console.error("Failed to drag and drop task:", err);
     }
   };
 
@@ -2357,6 +2305,7 @@ const ProjectTaskBoard = ({
       project: activeProjectId,
       section: resolvedSectionName,
       assignedTo: null,
+      startDate: new Date().toISOString(),
       dueDate: null,
       priority: "Medium",
       status: "Not Started",
@@ -2408,6 +2357,7 @@ const ProjectTaskBoard = ({
       project: activeProjectId,
       section: defaultSection,
       assignedTo: null,
+      startDate: new Date().toISOString(),
       dueDate: null,
       priority: "Medium",
       status: status,
@@ -2962,7 +2912,7 @@ const ProjectTaskBoard = ({
       title: subtaskTitle.trim(),
       status: "Not Started",
       assignedTo: null,
-      startDate: null,
+      startDate: new Date().toISOString(),
       dueDate: null,
       priority: "Medium",
     };
@@ -3325,7 +3275,7 @@ const ProjectTaskBoard = ({
       title: "",
       status: "Not Started",
       assignedTo: null,
-      startDate: null,
+      startDate: new Date().toISOString(),
       dueDate: null,
       priority: "Medium",
     };
@@ -3358,7 +3308,7 @@ const ProjectTaskBoard = ({
       title: "",
       status: "Not Started",
       assignedTo: null,
-      startDate: null,
+      startDate: new Date().toISOString(),
       dueDate: null,
       priority: "Medium",
     };
@@ -3524,78 +3474,10 @@ const ProjectTaskBoard = ({
 
         {/* Left Side: Spacer to keep Tab Selector centered */}
 
-        {/* Center: Tab Selector - High-end, Premium Design */}
-        <div className="flex items-center justify-center w-full lg:w-auto order-2 lg:order-none shrink-0">
-          <div className="bg-slate-100/80 dark:bg-[#121212] p-1 rounded-full flex items-center gap-1.5 border border-slate-200/60 dark:border-transparent shadow-inner backdrop-blur-md">
-            {["List", "Kanban", "Dashboard"].map((tab) => {
-              const isActive = activeTab === tab;
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`relative px-2 sm:px-4 py-1.5 text-[9px] sm:text-[11px] font-bold  tracking-wider transition-all duration-300 rounded-full shrink-0 cursor-pointer ${
-                    isActive
-                      ? "text-[var(--color-active-tab-text)]"
-                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-[#3b82f6]"
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeWorkspaceTabPill"
-                      className="absolute inset-0 bg-blue-600 dark:bg-[#3b82f6] rounded-full shadow-lg"
-                      style={{ zIndex: 0 }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 350,
-                        damping: 26,
-                      }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center justify-center gap-2">
-                    {tab === "List" && (
-                      <FiList
-                        size={12.5}
-                        className={`shrink-0 transition-colors duration-300 ${
-                          isActive
-                            ? "text-[var(--color-active-tab-text)]"
-                            : "text-slate-400 dark:text-slate-500"
-                        }`}
-                      />
-                    )}
-                    {tab === "Kanban" && (
-                      <FiGrid
-                        size={12.5}
-                        className={`shrink-0 transition-colors duration-300 ${
-                          isActive
-                            ? "text-[var(--color-active-tab-text)]"
-                            : "text-slate-400 dark:text-slate-500"
-                        }`}
-                      />
-                    )}
-                    {tab === "Dashboard" && (
-                      <FiPieChart
-                        size={12.5}
-                        className={`shrink-0 transition-colors duration-300 ${
-                          isActive
-                            ? "text-[var(--color-active-tab-text)]"
-                            : "text-slate-400 dark:text-slate-500"
-                        }`}
-                      />
-                    )}
-                    <span>{tab}</span>
-                    {isActive && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-active-tab-text)]" />
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+
 
         {/* Right Side: Filter & Sort Popover Dropdowns */}
-        <div className="flex items-center justify-between lg:justify-end gap-2 w-full lg:flex-1 order-3 lg:order-none relative">
-          {activeTab === "List" ? (
+        <div className="flex items-center px-15 justify-between lg:justify-end gap-2 w-full lg:flex-1 order-3 lg:order-none relative">
             <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
               {/* Status Filter Dropdown */}
               <div className="relative" ref={statusFilterDropdownRef}>
@@ -3809,14 +3691,20 @@ const ProjectTaskBoard = ({
                   )}
                 </AnimatePresence>
               </div>
+              <button
+                type="button"
+                onClick={() => handleAddTask(null)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[12px] font-black cursor-pointer transition-all shadow-md shrink-0"
+              >
+                <FiPlus size={14} className="stroke-[3]" />
+                <span>Add Task</span>
+              </button>
             </div>
-          ) : null}
         </div>
       </div>
 
       {/* TAB CONTENT */}
       <div className="min-h-[400px]">
-        {activeTab === "List" && (
           <DragDropContext onDragEnd={handleDragEnd}>
             {(() => {
               const showSelectionColumn = Object.values(
@@ -4029,16 +3917,6 @@ const ProjectTaskBoard = ({
 
               return (
                 <div className="pt-3 w-full">
-                  <div className="flex justify-end mb-3">
-                    <button
-                      type="button"
-                      onClick={() => handleAddTask(null)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[12px] font-black cursor-pointer transition-all shadow-md"
-                    >
-                      <FiPlus size={14} className="stroke-[3]" />
-                      <span>Add Task</span>
-                    </button>
-                  </div>
                   {/* Mobile Horizontal Scroll Indicator Cue */}
                   <div className="flex md:hidden items-center justify-between gap-1.5 py-1.5 px-3 mb-2 rounded-lg bg-indigo-50/50 dark:bg-white/[0.02] border border-indigo-100/30 dark:border-white/5 text-[9px] text-slate-500 dark:text-slate-400 font-medium">
                     <div className="flex items-center gap-1.5">
@@ -4143,7 +4021,7 @@ const ProjectTaskBoard = ({
                               </th>
                               {/* Content Copy Column */}
                               {!hiddenColumns.contentCopy && (
-                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[140px] md:min-w-[180px] w-auto group relative">
+                                <th className="px-3 py-1 border-b border-r border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[250px] md:min-w-[350px] w-auto group relative">
                                   <div className="flex items-center justify-between gap-2">
                                     <span>Content Copy</span>
                                     <div className="relative col-header-menu">
@@ -5567,17 +5445,15 @@ const ProjectTaskBoard = ({
                                                                   : task.assignedTo
                                                               }
                                                               users={users}
-                                                              onChange={(
-                                                                userId,
-                                                              ) =>
-                                                                handleTaskFieldChange(
-                                                                  task._id,
-                                                                  {
-                                                                    assignedTo:
-                                                                      userId,
-                                                                  },
-                                                                )
-                                                              }
+                                                              onChange={(userId) => {
+                                                                if (!task.title || task.title.trim() === "") {
+                                                                  toast.error("Please fill the task name first");
+                                                                  return;
+                                                                }
+                                                                handleTaskFieldChange(task._id, {
+                                                                  assignedTo: userId,
+                                                                });
+                                                              }}
                                                               isAdminOrManager={
                                                                 isAdminOrManager
                                                               }
@@ -6784,18 +6660,19 @@ const ProjectTaskBoard = ({
                                                                       users={
                                                                         users
                                                                       }
-                                                                      onChange={(
-                                                                        userId,
-                                                                      ) =>
+                                                                      onChange={(userId) => {
+                                                                        if (!sub.title || sub.title.trim() === "") {
+                                                                          toast.error("Please fill the task name first");
+                                                                          return;
+                                                                        }
                                                                         handleSubtaskFieldChange(
                                                                           task,
                                                                           sub._id,
                                                                           {
-                                                                            assignedTo:
-                                                                              userId,
-                                                                          },
-                                                                        )
-                                                                      }
+                                                                            assignedTo: userId,
+                                                                          }
+                                                                        );
+                                                                      }}
                                                                       isAdminOrManager={
                                                                         isAdminOrManager
                                                                       }
@@ -7395,570 +7272,8 @@ const ProjectTaskBoard = ({
               );
             })()}
           </DragDropContext>
-        )}
 
-        {activeTab === "Kanban" && (
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <div className="space-y-4 ">
-              {/* Board Columns Grid */}
-              <div className="flex gap-4 items-start overflow-x-auto pb-4 hide-scrollbar snap-x">
-                {[
-                  "Not Started",
-                  "In Progress",
-                  "On Hold",
-                  "IN-REVIEW",
-                  "Completed",
-                  "Rejected",
-                ].map((statusName) => {
-                  const columnTasks = activeProjectTasks.filter((t) => {
-                    if (statusName === "IN-REVIEW") {
-                      return (
-                        t.status === "IN-REVIEW" ||
-                        t.status === "In Review" ||
-                        t.status === "IN-Review"
-                      );
-                    }
-                    return t.status === statusName;
-                  });
 
-                  return (
-                    <div
-                      key={statusName}
-                      className="bg-slate-50/80 dark:bg-[#1a1a1a]/40 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex flex-col min-h-[380px] max-h-[700px] min-w-[280px] sm:min-w-[320px] snap-center shrink-0"
-                    >
-                      {/* Column Header */}
-                      <div className="flex items-center justify-between mb-4 px-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-800 dark:text-white">
-                            {statusName}
-                          </h4>
-                        </div>
-                        <span className="text-[10px] font-extrabold px-2 py-2 rounded-lg bg-slate-200/50 dark:bg-white/10 text-slate-600 dark:text-slate-300">
-                          {columnTasks.length}
-                        </span>
-                      </div>
-
-                      {/* Cards Container */}
-                      <StrictModeDroppable droppableId={statusName}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            className={`flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin rounded-xl p-1 transition-colors ${
-                              snapshot.isDraggingOver
-                                ? "bg-slate-100/50 dark:bg-white/5 ring-1 ring-blue-400/30 dark:ring-[#3b82f6]/30"
-                                : ""
-                            }`}
-                          >
-                            {columnTasks.map((task, index) => {
-                              const isCompleted = task.status === "Completed";
-                              const isTaskRejected = task.status === "Rejected";
-                              const isInReview =
-                                task.status === "In Review" ||
-                                task.status === "IN-REVIEW" ||
-                                task.status === "IN-Review";
-                              return (
-                                <Draggable
-                                  key={task._id}
-                                  draggableId={task._id}
-                                  index={index}
-                                >
-                                  {(provided, snapshot) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      {...provided.dragHandleProps}
-                                      style={provided.draggableProps.style}
-                                      onClick={() =>
-                                        setSelectedTaskId(task._id)
-                                      }
-                                      className={`p-2.5 rounded-xl border space-y-2 relative group select-none ${
-                                        isTaskRejected
-                                          ? "!bg-[#fde8e8] dark:!bg-[#2c1214] !border-rose-300 dark:!border-rose-800/60 opacity-80 pointer-events-none"
-                                          : snapshot.isDragging
-                                            ? "bg-white dark:bg-[#111111] shadow-2xl ring-2 ring-blue-500 dark:ring-[#3b82f6] scale-[1.03] z-50 border-blue-300 dark:border-[#3b82f6] cursor-pointer"
-                                            : "bg-white dark:bg-[#111111] border-slate-150 dark:border-white/5 hover:shadow-md hover:border-slate-200 dark:hover:border-[#3b82f6]/50 transition-shadow transition-colors cursor-pointer"
-                                      }`}
-                                    >
-                                      <div className="flex items-start gap-2">
-                                        {/* Status Checkbox */}
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleTaskFieldChange(task._id, {
-                                              status: isCompleted
-                                                ? "Not Started"
-                                                : "Completed",
-                                            });
-                                          }}
-                                          className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                                            isCompleted
-                                              ? "bg-emerald-500 border-emerald-500 text-white"
-                                              : "border-slate-350 dark:border-slate-650 hover:border-blue-500 dark:hover:border-[#3b82f6] text-transparent hover:text-slate-400 dark:hover:text-[#3b82f6]"
-                                          }`}
-                                        >
-                                          <FiCheck size={9} />
-                                        </button>
-
-                                        {/* Title */}
-                                        <span
-                                          className={`text-[11px] font-bold leading-normal text-slate-855 dark:text-white pr-6 ${
-                                            isCompleted
-                                              ? "line-through text-slate-400 dark:text-slate-500"
-                                              : ""
-                                          }`}
-                                        >
-                                          {task.title}
-                                        </span>
-                                      </div>
-
-                                      {/* Board Card Extra Data: Tags / Status */}
-                                      <div className="flex flex-wrap items-center gap-1 mt-1.5 mb-2">
-                                        {/* Status Badge */}
-                                        <span
-                                          className={`text-[8px] font-bold  tracking-wider px-1 py-2 rounded-md border ${
-                                            task.status === "Completed"
-                                              ? "bg-emerald-55/10 text-emerald-600 border-emerald-100 dark:bg-emerald-950/30 dark:border-emerald-900/40"
-                                              : task.status === "In Progress"
-                                                ? "bg-blue-50 text-blue-600 border-blue-100 dark:bg-[#3b82f6]/10 dark:text-[#3b82f6] dark:border-[#3b82f6]/30"
-                                                : task.status === "On Hold"
-                                                  ? "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-950/30 dark:border-amber-900/40"
-                                                  : "bg-slate-100 text-slate-500 border-slate-200 dark:bg-white/5 dark:text-slate-400 dark:border-white/10"
-                                          }`}
-                                        >
-                                          {task.status || "Not Started"}
-                                        </span>
-
-                                        {/* Priority Badge */}
-                                        <span
-                                          className={`text-[8px] font-bold tracking-wider px-1 py-2 rounded-md border whitespace-nowrap ${
-                                            isSameDate(
-                                              task.startDate,
-                                              task.dueDate,
-                                            ) || task.priority === "Top High"
-                                              ? "bg-red-50 text-red-600 border-red-100 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/40"
-                                              : task.priority === "High"
-                                                ? "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-955/20 dark:border-rose-900/40"
-                                                : task.priority === "Medium"
-                                                  ? "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-955/20 dark:border-amber-900/40"
-                                                  : "bg-slate-50 text-slate-500 border-slate-200 dark:bg-[#1a1a1a] dark:text-slate-400 dark:border-white/5"
-                                          }`}
-                                        >
-                                          {isSameDate(
-                                            task.startDate,
-                                            task.dueDate,
-                                          )
-                                            ? "🔴 Top High"
-                                            : task.priority || "Medium"}
-                                        </span>
-
-                                        {/* Due Date */}
-                                        {task.dueDate && (
-                                          <span className="flex items-center gap-1 text-[8px] font-bold px-1.5 py-2 rounded-md bg-rose-50 dark:bg-rose-955/20 border border-rose-100 dark:border-rose-900/40 text-rose-600 dark:text-rose-300">
-                                            <FiCalendar
-                                              size={8}
-                                              className="text-rose-505 dark:text-rose-400"
-                                            />
-                                            {new Date(
-                                              task.dueDate,
-                                            ).toLocaleDateString("en-GB", {
-                                              day: "2-digit",
-                                              month: "short",
-                                              year: "numeric",
-                                            })}
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Delete Action (visible on hover) */}
-                                      {isAdminOrManager && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleParentTaskDelete(task._id);
-                                          }}
-                                          className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-1.5 right-1.5 p-1 text-rose-500 bg-rose-50 dark:bg-rose-905/30 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/50"
-                                        >
-                                          <FiTrash2 size={11} />
-                                        </button>
-                                      )}
-
-                                      {/* Card Footer: Assignee */}
-                                      <div className="flex items-center justify-between pt-0.5 border-t border-slate-100 dark:border-slate-800/60">
-                                        <div
-                                          className="flex items-center gap-1 pt-1"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <AssigneeDropdown
-                                            selectedUser={
-                                              task.contentType === "MOM"
-                                                ? task.assignedTo ||
-                                                  task.createdBy?._id ||
-                                                  task.createdBy?.id ||
-                                                  task.createdBy ||
-                                                  currentUser?._id ||
-                                                  currentUser?.id
-                                                : task.assignedTo
-                                            }
-                                            users={users}
-                                            onChange={(userId) =>
-                                              handleTaskFieldChange(task._id, {
-                                                assignedTo: userId,
-                                              })
-                                            }
-                                            isAdminOrManager={isAdminOrManager}
-                                            disabled={
-                                              task.contentType === "MOM"
-                                            }
-                                            isLocked={
-                                              task.contentType === "MOM"
-                                            }
-                                            isMOM={task.contentType === "MOM"}
-                                            currentUser={currentUser}
-                                            getAvatarColor={getAvatarColor}
-                                            size="md"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </Draggable>
-                              );
-                            })}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </StrictModeDroppable>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </DragDropContext>
-        )}
-
-        {activeTab === "Dashboard" && (
-          <div className="space-y-6">
-            <h3 className="text-xs font-bold  tracking-wider text-slate-400 dark:text-white">
-              Dashboard Metrics
-            </h3>
-
-            {/* Stats Cards Grid - Premium Gradients & Glows */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Card 1: Total Completed */}
-              <div className="relative overflow-hidden p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-[#070b13] border-slate-200/60 dark:border-white/5 shadow-lg shadow-slate-100/40 dark:shadow-none hover:shadow-xl group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400 rounded-md blur-3xl -mr-10 -mt-10 transition-transform group-hover:scale-110 opacity-10 dark:opacity-20 pointer-events-none" />
-                <FiCheckCircle
-                  size={24}
-                  className="text-emerald-500/40 dark:text-emerald-400/25 absolute top-5 right-5 pointer-events-none"
-                />
-                <div className="relative z-10">
-                  <h4 className="text-[10px] font-bold  tracking-wider text-slate-500 dark:text-slate-400">
-                    Completed tasks
-                  </h4>
-                  <div className="text-4xl font-bold mt-4 drop-shadow-sm text-emerald-500 dark:text-emerald-400">
-                    {completedTasks}
-                  </div>
-                </div>
-                <div className="relative z-10 text-[9px] font-bold  tracking-wider mt-4 border-t border-slate-100 dark:border-white/5 pt-2 flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
-                  <FiClock size={11} /> 1 Filter
-                </div>
-              </div>
-
-              {/* Card 2: Total Incomplete */}
-              <div className="relative overflow-hidden p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-[#070b13] border-slate-200/60 dark:border-white/5 shadow-lg shadow-slate-100/40 dark:shadow-none hover:shadow-xl group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 dark:bg-[#3b82f6] rounded-full blur-3xl -mr-10 -mt-10 transition-transform group-hover:scale-110 opacity-10 dark:opacity-20 pointer-events-none" />
-                <FiClock
-                  size={24}
-                  className="text-blue-550/40 dark:text-[#3b82f6]/25 absolute top-5 right-5 pointer-events-none"
-                />
-                <div className="relative z-10">
-                  <h4 className="text-[10px] font-bold  tracking-wider text-slate-500 dark:text-slate-400">
-                    Incomplete tasks
-                  </h4>
-                  <div className="text-4xl font-bold mt-4 drop-shadow-sm text-blue-500 dark:text-[#3b82f6]">
-                    {incompleteTasks}
-                  </div>
-                </div>
-                <div className="relative z-10 text-[9px] font-bold  tracking-wider mt-4 border-t border-slate-100 dark:border-white/5 pt-2 flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
-                  <FiClock size={11} /> 1 Filter
-                </div>
-              </div>
-
-              {/* Card 3: Total Overdue */}
-              <div className="relative overflow-hidden p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-[#070b13] border-slate-200/60 dark:border-white/5 shadow-lg shadow-slate-100/40 dark:shadow-none hover:shadow-xl group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500 rounded-full blur-3xl -mr-10 -mt-10 transition-transform group-hover:scale-110 opacity-10 dark:opacity-20 pointer-events-none" />
-                <FiAlertTriangle
-                  size={24}
-                  className="text-rose-500/40 dark:text-rose-450/25 absolute top-5 right-5 pointer-events-none"
-                />
-                <div className="relative z-10">
-                  <h4 className="text-[10px] font-bold  tracking-wider text-slate-500 dark:text-slate-400">
-                    Overdue tasks
-                  </h4>
-                  <div className="text-4xl font-bold mt-4 drop-shadow-sm text-rose-500 dark:text-rose-455">
-                    {overdueTasks}
-                  </div>
-                </div>
-                <div className="relative z-10 text-[9px] font-bold  tracking-wider mt-4 border-t border-slate-100 dark:border-white/5 pt-2 flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
-                  <FiClock size={11} /> 1 Filter
-                </div>
-              </div>
-
-              {/* Card 4: Total Tasks */}
-              <div className="relative overflow-hidden p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-[#070b13] border-slate-200/60 dark:border-white/5 shadow-lg shadow-slate-100/40 dark:shadow-none hover:shadow-xl group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-slate-400 rounded-full blur-3xl -mr-10 -mt-10 transition-transform group-hover:scale-110 opacity-10 dark:opacity-10 pointer-events-none" />
-                <FiLayers
-                  size={24}
-                  className="text-slate-500/40 dark:text-white/20 absolute top-5 right-5 pointer-events-none"
-                />
-                <div className="relative z-10">
-                  <h4 className="text-[10px] font-bold  tracking-wider text-slate-500 dark:text-slate-400">
-                    Total tasks
-                  </h4>
-                  <div className="text-4xl font-bold mt-4 drop-shadow-sm text-slate-700 dark:text-white">
-                    {totalTasks}
-                  </div>
-                </div>
-                <div className="relative z-10 text-[9px] font-bold  tracking-wider mt-4 border-t border-slate-100 dark:border-white/5 pt-2 flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
-                  <FiClock size={11} /> No Filters
-                </div>
-              </div>
-            </div>
-
-            {/* Reports Charts Area */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-              {/* Chart 1: Total incomplete tasks by section (Status Breakdown) */}
-              <div className="bg-white dark:bg-[#070b13] p-6 rounded-2xl border border-slate-200/60 dark:border-white/5 shadow-xl shadow-slate-200/40 dark:shadow-none flex flex-col transition-all duration-300 hover:shadow-2xl hover:border-slate-300 dark:hover:border-[#3b82f6]/30">
-                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100  tracking-wider mb-8">
-                  Total incomplete tasks by section
-                </h4>
-
-                {/* Custom SVG Bar Chart */}
-                <div className="flex-1 min-h-[220px] flex items-end justify-around pb-6 border-b border-slate-200/50 dark:border-white/5 relative overflow-x-auto hide-scrollbar gap-4">
-                  {/* Grid Lines */}
-                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6 opacity-30">
-                    <div className="border-b border-slate-200 dark:border-white/10 w-full border-dashed" />
-                    <div className="border-b border-slate-200 dark:border-white/10 w-full border-dashed" />
-                    <div className="border-b border-slate-200 dark:border-white/10 w-full border-dashed" />
-                  </div>
-
-                  {/* Dynamic Section Bars */}
-                  {Array.from(
-                    new Set(
-                      activeProject.sections?.length > 0
-                        ? activeProject.sections
-                        : ["Recent assignment"],
-                    ),
-                  ).map((sectionName, index) => {
-                    const sectionIncompleteCount = activeProjectTasks.filter(
-                      (t) =>
-                        (t.section === sectionName ||
-                          (!t.section &&
-                            sectionName === "Recent assignment")) &&
-                        t.status !== "Completed",
-                    ).length;
-
-                    return (
-                      <div
-                        key={sectionName}
-                        className="flex flex-col items-center gap-2 z-10 w-20 group cursor-default shrink-0"
-                      >
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-405 opacity-0 group-hover:opacity-100 -translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                          {sectionIncompleteCount}
-                        </span>
-                        <motion.div
-                          initial={{ height: 0 }}
-                          animate={{
-                            height: `${totalTasks > 0 ? Math.max((sectionIncompleteCount / totalTasks) * 140, 2) : 2}px`,
-                          }}
-                          transition={{ delay: index * 0.1 }}
-                          className="w-10 rounded-t-xl bg-gradient-to-t from-blue-600 to-cyan-400 dark:from-[#99cc00] dark:to-[#3b82f6] shadow-[0_0_15px_rgba(56,189,248,0.3)] dark:shadow-[0_0_15px_rgba(229,255,0,0.3)] transition-all duration-300 group-hover:brightness-125"
-                        />
-                        <span
-                          className="text-[9px] font-bold  tracking-wider text-slate-500 dark:text-slate-400 mt-2 text-center w-full truncate"
-                          title={sectionName}
-                        >
-                          {sectionName}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-550  tracking-wider pt-4 flex items-center justify-between">
-                  <span>2 Filters Active</span>
-                  <button className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-[#1a1a1a] text-blue-600 dark:text-[#3b82f6] hover:bg-slate-200 dark:hover:bg-white/10 transition-all shadow-sm">
-                    View Details
-                  </button>
-                </div>
-              </div>
-
-              {/* Chart 2: Total tasks by completion status (Donut Chart) */}
-              <div className="bg-white dark:bg-[#070b13] p-6 rounded-2xl border border-slate-200/60 dark:border-white/5 shadow-xl shadow-slate-200/40 dark:shadow-none flex flex-col transition-all duration-300 hover:shadow-2xl hover:border-slate-300 dark:hover:border-[#3b82f6]/30">
-                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100  tracking-wider mb-6">
-                  Total tasks by completion status
-                </h4>
-
-                <div className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-10 py-4 border-b border-slate-200/50 dark:border-white/5">
-                  {/* SVG Donut Chart */}
-                  <div className="relative w-36 h-36 flex items-center justify-center filter drop-shadow-md">
-                    <svg
-                      className="w-full h-full transform -rotate-90"
-                      viewBox="0 0 36 36"
-                    >
-                      {/* Background circle */}
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="15.915"
-                        fill="transparent"
-                        stroke="rgba(226, 232, 240, 0.4)" // Light slate for track
-                        className="dark:stroke-white/5"
-                        strokeWidth="3.5"
-                      />
-
-                      {/* Completed Segment */}
-                      {totalTasks > 0 && completedTasks > 0 && (
-                        <motion.circle
-                          initial={{ strokeDasharray: `0 100` }}
-                          animate={{
-                            strokeDasharray: `${(completedTasks / totalTasks) * 100} ${100 - (completedTasks / totalTasks) * 100}`,
-                          }}
-                          transition={{
-                            type: "tween",
-                            ease: "easeOut",
-                            duration: 1.5,
-                          }}
-                          cx="18"
-                          cy="18"
-                          r="15.915"
-                          fill="transparent"
-                          stroke="url(#gradientCompleted)"
-                          strokeWidth="3.5"
-                          strokeLinecap="round"
-                        />
-                      )}
-
-                      {/* Foreground Circle (Incomplete Segment) */}
-                      {totalTasks > 0 && incompleteTasks > 0 && (
-                        <motion.circle
-                          initial={{
-                            strokeDasharray: `0 100`,
-                            strokeDashoffset: 0,
-                          }}
-                          animate={{
-                            strokeDasharray: `${(incompleteTasks / totalTasks) * 100} ${100 - (incompleteTasks / totalTasks) * 100}`,
-                            strokeDashoffset: -(
-                              (completedTasks / totalTasks) *
-                              100
-                            ),
-                          }}
-                          transition={{
-                            type: "tween",
-                            ease: "easeOut",
-                            duration: 1.5,
-                          }}
-                          cx="18"
-                          cy="18"
-                          r="15.915"
-                          fill="transparent"
-                          stroke="url(#gradientIncomplete)"
-                          strokeWidth="3.5"
-                          strokeLinecap="round"
-                        />
-                      )}
-
-                      {/* Define Gradients */}
-                      <defs>
-                        <linearGradient
-                          id="gradientIncomplete"
-                          x1="0%"
-                          y1="0%"
-                          x2="100%"
-                          y2="100%"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="var(--color-incomplete-start)"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="var(--color-incomplete-end)"
-                          />
-                        </linearGradient>
-                        <linearGradient
-                          id="gradientCompleted"
-                          x1="0%"
-                          y1="0%"
-                          x2="100%"
-                          y2="100%"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="var(--color-completed-start)"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="var(--color-completed-end)"
-                          />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-
-                    {/* Middle Text */}
-                    <motion.div
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.5, type: "spring" }}
-                      className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-                    >
-                      <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-violet-600 to-pink-500 dark:from-[#99cc00] dark:to-[#3b82f6] drop-shadow-sm">
-                        {incompleteTasks}
-                      </span>
-                      <span className="text-[8px] font-bold  text-slate-400 mt-1">
-                        Remaining
-                      </span>
-                    </motion.div>
-                  </div>
-
-                  {/* Legend details */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 rounded-full bg-gradient-to-br from-violet-550 to-pink-500 dark:from-[#99cc00] dark:to-[#3b82f6] shadow-sm shadow-violet-500/40 dark:shadow-[#3b82f6]/40 shrink-0" />
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400  tracking-wider block">
-                          Incomplete
-                        </span>
-                        <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                          {incompleteTasks} Tasks
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500/80 dark:to-emerald-500 shadow-sm shrink-0 border border-emerald-100 dark:border-white/10" />
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400  tracking-wider block">
-                          Completed
-                        </span>
-                        <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                          {completedTasks} Tasks
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-550  tracking-wider pt-4 flex items-center justify-between">
-                  <span>1 Filter Active</span>
-                  <button className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-[#1a1a1a] text-blue-600 dark:text-[#3b82f6] hover:bg-slate-200 dark:hover:bg-white/10 transition-all shadow-sm">
-                    View Details
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* OFFCANVAS TASK DETAILS DRAWER */}

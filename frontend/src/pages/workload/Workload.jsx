@@ -202,26 +202,7 @@ const calculateTaskProductivityForDate = (
       if (liveSessionStart > 0 && liveSessionDateStr === selDateStr) {
         const nowMs = Date.now();
         let liveWorked = Math.max(0, nowMs - liveSessionStart);
-        if (task.blockerHistory && Array.isArray(task.blockerHistory)) {
-          task.blockerHistory.forEach((b) => {
-            if (b.pausedAt) {
-              const p = new Date(b.pausedAt).getTime();
-              const r = b.resumedAt ? new Date(b.resumedAt).getTime() : nowMs;
-              const oStart = Math.max(p, liveSessionStart);
-              const oEnd = Math.min(r, nowMs);
-              if (oEnd > oStart) {
-                liveWorked -= (oEnd - oStart);
-              }
-            }
-          });
-        }
-        if (task.isBlocked && task.blockerPausedAt) {
-          const p = new Date(task.blockerPausedAt).getTime();
-          const oStart = Math.max(p, liveSessionStart);
-          if (nowMs > oStart) {
-            liveWorked -= (nowMs - oStart);
-          }
-        }
+
         return Math.max(0, historyDuration + Math.max(0, liveWorked)) + subtasksDuration;
       }
     }
@@ -303,33 +284,8 @@ const calculateTaskProductivityForDate = (
   if (daySpan <= 0) return 0;
 
   let dayPausedMs = 0;
-  let hasHistoryPause = false;
-  if (
-    task.blockerHistory &&
-    Array.isArray(task.blockerHistory) &&
-    task.blockerHistory.length > 0
-  ) {
-    task.blockerHistory.forEach((b) => {
-      if (b.pausedAt) {
-        const pStart = new Date(b.pausedAt).getTime();
-        const pEnd = b.resumedAt
-          ? new Date(b.resumedAt).getTime()
-          : isSameDay(selDateObj, new Date())
-          ? Date.now()
-          : dayWorkEnd;
-        if (!isNaN(pStart) && !isNaN(pEnd) && pEnd > pStart) {
-          const overlapStart = Math.max(pStart, dayWorkStart);
-          const overlapEnd = Math.min(pEnd, dayWorkEnd);
-          if (overlapEnd > overlapStart) {
-            dayPausedMs += overlapEnd - overlapStart;
-            hasHistoryPause = true;
-          }
-        }
-      }
-    });
-  }
 
-  if (!hasHistoryPause) {
+
     const totalPaused = task.totalPausedMs || 0;
     if (totalPaused > 0) {
       const lifetimeSpan = Math.max(
@@ -339,7 +295,6 @@ const calculateTaskProductivityForDate = (
       const ratio = daySpan / lifetimeSpan;
       dayPausedMs = Math.min(daySpan, totalPaused * ratio);
     }
-  }
 
   return Math.max(0, daySpan - dayPausedMs) + subtasksDuration;
 };
