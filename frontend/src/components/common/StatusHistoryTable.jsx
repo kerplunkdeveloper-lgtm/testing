@@ -216,6 +216,7 @@ const StatusHistoryTable = ({ task, todayLoggedMs = 0 }) => {
                   <th className="px-3.5 py-2">Status</th>
                   <th className="px-3.5 py-2">Start Time</th>
                   <th className="px-3.5 py-2">End Time</th>
+                  <th className="px-3.5 py-2">Hold Reason</th>
                   <th className="px-3.5 py-2 text-right">Duration</th>
                 </tr>
               </thead>
@@ -254,6 +255,9 @@ const StatusHistoryTable = ({ task, todayLoggedMs = 0 }) => {
                         </td>
                         <td className="px-3.5 py-2.5 whitespace-nowrap text-[11px] text-slate-500 dark:text-slate-400">
                           {endStr}
+                        </td>
+                        <td className="px-3.5 py-2.5 whitespace-nowrap text-[11px] text-slate-500 dark:text-slate-400">
+                          {item.reason || "—"}
                         </td>
                         <td className="px-3.5 py-2.5 whitespace-nowrap text-[11px] font-black text-right text-slate-800 dark:text-slate-100">
                           {durationStr}

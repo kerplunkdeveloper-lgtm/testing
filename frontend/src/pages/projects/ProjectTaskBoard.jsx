@@ -4195,18 +4195,6 @@ const ProjectTaskBoard = ({
                             }
                             return sectionsToRender.map(
                               (sectionName, sectionIndex) => {
-                                const STATUS_ORDER = {
-                                  "Not Started": 1,
-                                  "To Do": 1,
-                                  "In Progress": 2,
-                                  "On Hold": 3,
-                                  "In Review": 4,
-                                  "IN-REVIEW": 4,
-                                  Correction: 5,
-                                  Completed: 6,
-                                  Done: 6,
-                                  Rejected: 7,
-                                };
                                 const sectionTasks = sortedTasks
                                   .filter(
                                     (t) =>
@@ -4214,9 +4202,9 @@ const ProjectTaskBoard = ({
                                       (!t.section && sectionName === "General"),
                                   )
                                   .sort((a, b) => {
-                                    const orderA = STATUS_ORDER[a.status] || 99;
-                                    const orderB = STATUS_ORDER[b.status] || 99;
-                                    return orderA - orderB;
+                                    const dateA = new Date(a.createdAt || 0);
+                                    const dateB = new Date(b.createdAt || 0);
+                                    return dateA - dateB; // Sort ascending (one by one)
                                   });
                                 const isSectionCollapsed =
                                   !!collapsedSections[sectionName];

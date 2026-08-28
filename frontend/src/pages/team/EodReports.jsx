@@ -167,7 +167,7 @@ const getTaskInprogressTime = (task, selDateObj, officeHours) => {
   if (loggedMs > 0) {
     return formatMsToDuration(loggedMs);
   }
-  return task.time || "0s";
+  return "0s";
 };
 
 const LiveTimeTracker = ({
@@ -436,6 +436,86 @@ const calculateTotalLoggedTime = (
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
   return `${m}m`;
+};
+
+const calculateProductivityPercentage = (
+  tasks,
+  allTasks = [],
+  selectedDate,
+  officeHours,
+) => {
+  const selDateObj = selectedDate ? parseISO(selectedDate) : new Date();
+  const selDateStr = selDateObj.toLocaleDateString("en-CA", {
+    timeZone: "Asia/Kolkata",
+  });
+  let totalMs = 0;
+
+  (tasks || []).forEach((t) => {
+    const originalTask = (allTasks || []).find(
+      (at) => at._id === (t.taskId?._id || t.taskId || t.id || t._id),
+    );
+    const target = originalTask || t;
+
+    const msToday = calculateTaskProductivityForDate(
+      target,
+      selDateObj,
+      officeHours,
+    );
+
+    let blockerMs = 0;
+    if (target && Array.isArray(target.blockerHistory)) {
+      target.blockerHistory.forEach((b) => {
+        if (!b.pausedAt) return;
+        const pDate = new Date(b.pausedAt).toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
+        const pMs = new Date(b.pausedAt).getTime();
+        const rMs = b.resumedAt ? new Date(b.resumedAt).getTime() : Date.now();
+        if (pDate === selDateStr) {
+          blockerMs += Math.max(0, rMs - pMs);
+        }
+      });
+    }
+    if (target && target.isBlocked && target.blockerPausedAt) {
+      const pDate = new Date(target.blockerPausedAt).toLocaleDateString(
+        "en-CA",
+        { timeZone: "Asia/Kolkata" },
+      );
+      if (pDate === selDateStr) {
+        blockerMs += Math.max(
+          0,
+          Date.now() - new Date(target.blockerPausedAt).getTime(),
+        );
+      }
+    }
+
+    const taskTotalToday = msToday + blockerMs;
+
+    if (taskTotalToday > 0) {
+      totalMs += taskTotalToday;
+    } else {
+      const timeStr = t.time || "";
+      const hoursMatch = timeStr.match(/(\d+)\s*h/i);
+      const minsMatch = timeStr.match(/(\d+)\s*m/i);
+      const secsMatch = timeStr.match(/(\d+)\s*s/i);
+
+      let mins = 0;
+      if (hoursMatch) mins += parseInt(hoursMatch[1], 10) * 60;
+      if (minsMatch) mins += parseInt(minsMatch[1], 10);
+      if (secsMatch && !hoursMatch && !minsMatch) {
+        const secs = parseInt(secsMatch[1], 10);
+        if (secs > 0) mins += Math.ceil(secs / 60);
+      }
+      totalMs += mins * 60 * 1000;
+    }
+  });
+
+  const totalOfficeMs =
+    (officeHours.endHour - officeHours.startHour) * 3600 * 1000;
+
+  if (totalOfficeMs <= 0) return 0;
+  
+  return Math.min(100, Math.round((totalMs / totalOfficeMs) * 100));
 };
 
 const EodReports = () => {
@@ -1185,7 +1265,8 @@ const EodReports = () => {
   return (
     <div className="min-h-screen max-w-7xl mx-auto">
       {/* Header Card */}
-      <div className="theme-bg-card">
+      <div className="bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl  rounded-3xl p-6 sm:p-8 shadow-sm mb-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="text-left">
             <h1 className="text-md font-bold theme-text-primary text-left">
@@ -1215,7 +1296,7 @@ const EodReports = () => {
 
       {/* Task Table Section */}
       {tasksState.length === 0 ? (
-        <div className="mt-8 theme-bg-card border border-dashed theme-border rounded-2xl p-12 text-center flex flex-col items-center justify-center">
+        <div className="mt-8 theme-bg-card  rounded-2xl p-12 text-center flex flex-col items-center justify-center">
           <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400 border theme-border">
             <FiCheckCircle size={22} />
           </div>
@@ -1233,7 +1314,7 @@ const EodReports = () => {
       ) : (
         <div className="mt-5 space-y-4">
           {/* Controls Bar: Task Count & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-slate-900/60 p-2.5 rounded-2xl border theme-border shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white/60 dark:bg-slate-900/40 backdrop-blur-md p-3 rounded-2xl  shadow-sm relative z-10">
             <div className="flex items-center gap-2 px-1">
               <h2 className="text-xs font-bold theme-text-primary uppercase tracking-wider">
                 All Tasks
@@ -1266,25 +1347,24 @@ const EodReports = () => {
           </div>
 
           {/* Table Container */}
-          <div className="bg-white dark:bg-[#0f172a] shadow-xs rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden">
+          <div className="bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl shadow-lg shadow-slate-200/30 dark:shadow-none rounded-3xl  overflow-hidden relative z-10 mt-2">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse min-w-[1100px]">
                 <thead>
-                  <tr className="bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none">
+                  <tr className="bg-slate-100/50 dark:bg-slate-800/30  text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest select-none backdrop-blur-md">
                     <th className="px-4 py-3 text-center w-24"># / Code</th>
                     <th className="px-4 py-3 min-w-[260px]">Task Name & Client</th>
                     <th className="px-4 py-3 min-w-[130px]">Assigned By</th>
                     <th className="px-4 py-3 min-w-[120px]">Priority / Rev</th>
-                    <th className="px-4 py-3 min-w-[130px]">Logged Time</th>
+                    <th className="px-4 py-3 min-w-[130px]">Productivity Time</th>
                     <th className="px-4 py-3 min-w-[120px]">Status</th>
                     <th className="px-4 py-3 min-w-[210px]">Reason for Status</th>
-                    <th className="px-4 py-3 min-w-[210px]">Next Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150 dark:divide-slate-800/80 text-xs">
                   {filteredTasks.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center">
+                      <td colSpan={7} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <FiSearch className="text-slate-400" size={24} />
                           <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -1319,15 +1399,15 @@ const EodReports = () => {
                       return (
                         <tr
                           key={task.id || task.taskId || idx}
-                          className={`transition-colors ${
+                          className={`transition-all duration-300 ${
                             isCompleted
-                              ? "bg-emerald-50/15 dark:bg-emerald-950/10 hover:bg-emerald-50/35 dark:hover:bg-emerald-950/20"
+                              ? "bg-emerald-50/20 dark:bg-emerald-950/10 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/25"
                               : isInProgress
-                                ? "bg-blue-50/20 dark:bg-blue-950/15 hover:bg-blue-50/45 dark:hover:bg-blue-950/25"
+                                ? "bg-blue-50/20 dark:bg-blue-950/15 hover:bg-blue-50/40 dark:hover:bg-blue-950/30"
                                 : isInReview
-                                  ? "bg-amber-50/15 dark:bg-amber-950/10 hover:bg-amber-50/35 dark:hover:bg-amber-950/20"
-                                  : "hover:bg-slate-50/80 dark:hover:bg-slate-850/40"
-                          }`}
+                                  ? "bg-amber-50/20 dark:bg-amber-950/10 hover:bg-amber-50/40 dark:hover:bg-amber-950/25"
+                                  : "bg-transparent hover:bg-slate-50/80 dark:hover:bg-slate-800/30"
+                          } group`}
                         >
                           {/* 1. Code */}
                           <td className="px-4 py-3 whitespace-nowrap align-middle">
@@ -1355,16 +1435,16 @@ const EodReports = () => {
                                 title={task.title}
                               >
                                 <FiFileText
-                                  className="text-slate-400 dark:text-slate-500 shrink-0"
+                                  className="text-slate-500 dark:text-slate-300 shrink-0"
                                   size={13}
                                 />
-                                <span className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">
+                                <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
                                   {task.title}
                                 </span>
                               </div>
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {task.client && (
-                                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80 text-[9.5px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                  <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-black border border-slate-300 dark:border-slate-600 text-[9.5px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
                                     {task.client}
                                   </span>
                                 )}
@@ -1380,10 +1460,7 @@ const EodReports = () => {
                           {/* 3. Assigned By */}
                           <td className="px-4 py-3 whitespace-nowrap align-middle">
                             <div className="flex items-center gap-1.5">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold border border-slate-200 dark:border-slate-700 shrink-0">
-                                <FiUser size={11} />
-                              </div>
-                              <span className="text-xs font-semibold text-slate-750 dark:text-slate-250">
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white">
                                 {assignerName}
                               </span>
                             </div>
@@ -1399,7 +1476,7 @@ const EodReports = () => {
                               >
                                 {task.priority || "Normal"}
                               </span>
-                              <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">
+                              <span className="text-[9.5px] font-bold text-slate-700 dark:text-black bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 px-1.5 py-0.5 rounded">
                                 Rev. {task.revision || 0}
                               </span>
                             </div>
@@ -1473,34 +1550,6 @@ const EodReports = () => {
                               />
                             )}
                           </td>
-
-                          {/* 8. Next Action */}
-                          <td className="px-4 py-3 align-middle">
-                            {isCompleted ? (
-                              <span className="text-slate-300 dark:text-slate-600 text-xs font-medium">
-                                —
-                              </span>
-                            ) : isInReview ? (
-                              <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 italic">
-                                Ready for review
-                              </span>
-                            ) : (
-                              <input
-                                type="text"
-                                placeholder="Next plan..."
-                                className="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-semibold"
-                                value={task.nextAction || ""}
-                                onChange={(e) =>
-                                  updateTask(
-                                    task.id,
-                                    "nextAction",
-                                    e.target.value,
-                                  )
-                                }
-                                disabled={isSubmitted}
-                              />
-                            )}
-                          </td>
                         </tr>
                       );
                     })
@@ -1516,8 +1565,9 @@ const EodReports = () => {
                       DAY SUMMARY
       ========================================= */}
       {(tasksState.length > 0 || todayReport) && (
-        <div className="mt-8  text-left ">
-          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
+        <div className="mt-8 text-left md:p-8 rounded-3xl shadow-sm relative z-10 overflow-hidden">
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl -mr-32 -mb-32 pointer-events-none" />
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 relative z-10">
             <div>
               <h2 className="text-md font-bold theme-text-primary">
                 EOD REPORT
@@ -1528,7 +1578,7 @@ const EodReports = () => {
             </span>
           </div>{" "}
           {/* eod summary cards  */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4 mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 mt-4 mb-5">
             {/* 1. In Review Card */}
             <div className="bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent dark:from-amber-500/20 dark:via-amber-500/5 dark:to-transparent border border-amber-500/30 dark:border-amber-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
@@ -1589,6 +1639,25 @@ const EodReports = () => {
                 Total Time Taken
               </span>
             </div>
+
+            {/* 7. Productivity % Card */}
+            <div className="bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent dark:from-emerald-500/20 dark:via-emerald-500/5 dark:to-transparent border border-emerald-500/30 dark:border-emerald-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+              <div className="flex items-center justify-between relative z-10">
+                <span className="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+                  {calculateProductivityPercentage(
+                    tasksState,
+                    allTasks,
+                    selectedDate,
+                    officeHours,
+                  )}%
+                </span>
+                <FiCheckCircle className="text-emerald-500/60 text-lg group-hover:text-emerald-500 transition-colors" />
+              </div>
+              <span className="text-[10px] font-black text-emerald-700/90 dark:text-emerald-300/90 uppercase tracking-widest mt-2 block relative z-10">
+                Productivity
+              </span>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
             <div>
@@ -1597,7 +1666,7 @@ const EodReports = () => {
               </label>
               <div className="relative mt-2">
                 <select
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold"
+                  className="w-full bg-white/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl py-2.5 px-4 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold backdrop-blur-sm"
                   value={
                     daySummary.toolsIssues === "None"
                       ? "None"
@@ -1643,7 +1712,7 @@ const EodReports = () => {
                     <input
                       type="text"
                       placeholder="Specify other issue..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-4 pr-10 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold"
+                      className="w-full bg-white/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl py-2.5 pl-4 pr-10 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold backdrop-blur-sm"
                       value={daySummary.toolsIssues}
                       onChange={(e) =>
                         setDaySummary({
@@ -1708,13 +1777,13 @@ const EodReports = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
             <div>
-              <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
+              <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block relative z-10">
                 Anything Else Ops Should Know
               </label>
               <textarea
                 rows={4}
                 placeholder="Operational difficulties, approvals pending etc..."
-                className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none font-semibold"
+                className="w-full mt-2 bg-white/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none font-semibold backdrop-blur-sm relative z-10"
                 value={daySummary.anythingElseOps}
                 onChange={(e) =>
                   setDaySummary({
@@ -1727,11 +1796,11 @@ const EodReports = () => {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block">
+              <label className="text-[10px] font-bold theme-text-secondary uppercase tracking-wider block relative z-10">
                 Tomorrow Plan <span className="text-rose-500">*</span>
               </label>
               <select
-                className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold"
+                className="w-full mt-2 bg-white/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl py-2.5 px-4 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all font-semibold backdrop-blur-sm relative z-10"
                 value={
                   tomorrowPlan === "None"
                     ? "None"
@@ -1762,11 +1831,11 @@ const EodReports = () => {
 
               {tomorrowPlan !== "None" &&
                 (!tomorrowPlan || !dynamicPlans.includes(tomorrowPlan)) && (
-                  <div className="relative mt-2">
+                  <div className="relative mt-2 z-10">
                     <textarea
                       rows={3}
                       placeholder="What tasks do you plan to work on tomorrow?"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 pr-10 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none font-semibold"
+                      className="w-full bg-white/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 pr-10 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none font-semibold backdrop-blur-sm"
                       value={tomorrowPlan}
                       onChange={(e) => setTomorrowPlan(e.target.value)}
                       disabled={isSubmitted}
@@ -1785,7 +1854,7 @@ const EodReports = () => {
             </div>
           </div>
           {/* Footer actions */}
-          <div className="flex flex-col md:flex-row justify-between items-center gap-5 mt-8 border-t theme-border pt-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-5 mt-8 border-t border-slate-200/60 dark:border-slate-800/60 pt-6 relative z-10">
             <p className="text-xs font-semibold theme-text-secondary">
               {completedCount + pendingCount + rejectedCount} of {totalTasks}{" "}
               tasks logged

@@ -721,22 +721,40 @@ const WorkTimeCell = React.memo(
       return () => clearInterval(interval);
     }, [isActive]);
 
-    const { workMs } = React.useMemo(
-      () => getTaskStatsForDateFilter(task, dateFilter, officeHours, nowTick),
-      [task, dateFilter, officeHours, nowTick],
+    const { workMs: totalWorkMs } = React.useMemo(
+      () => getTaskStatsForDateFilter(task, "All", officeHours, nowTick),
+      [task, officeHours, nowTick],
     );
 
+    const { workMs: todayWorkMs } = React.useMemo(
+      () => getTaskStatsForDateFilter(task, "Today", officeHours, nowTick),
+      [task, officeHours, nowTick],
+    );
+
+    const previousWorkMs = Math.max(0, totalWorkMs - todayWorkMs);
+
     return (
-      <div className="flex flex-col items-center justify-center text-[11px]">
-        <span
-          className={`font-black ${workMs > 0 || isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}
-        >
-          {formatMsToHMS(workMs)}
-        </span>
-        {isActive && (
-          <span className="text-[9px] font-bold text-emerald-500 animate-pulse">
-            Live
-          </span>
+      <div className="flex flex-col items-center justify-center gap-1.5 w-full py-1">
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-1.5">
+            {isActive && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+            )}
+            <span
+              className={`font-black text-[12px] ${todayWorkMs > 0 || isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}
+            >
+              {formatMsToHMS(todayWorkMs)}
+            </span>
+          </div>
+        </div>
+        
+        {previousWorkMs > 0 && (
+          <div className="flex items-center gap-1 px-1.5 py-[2px] rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50 shadow-[0_1px_2px_rgba(0,0,0,0.02)]" title="Previous tracked time">
+            <FiClock size={8} className="text-slate-400" />
+            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wide">
+              {formatMsToHMS(previousWorkMs)}
+            </span>
+          </div>
         )}
       </div>
     );
@@ -747,21 +765,36 @@ const OnHoldTimeCell = React.memo(
   ({ task, officeHours = DEFAULT_OFFICE_HOURS, dateFilter = "Today" }) => {
     const [nowTick, setNowTick] = useState(Date.now());
     const isHold = task?.status === "On Hold";
+    
+    let isUnproductiveActive = isHold;
+    if (isHold && task.statusHistory && Array.isArray(task.statusHistory)) {
+      const openEntry = [...task.statusHistory].reverse().find(h => h.status === "On Hold" && !h.endTime);
+      if (openEntry && (openEntry.reason === "Client Call" || openEntry.reason === "Meeting" || openEntry.reason === "Another Task")) {
+        isUnproductiveActive = false;
+      }
+    }
 
     useEffect(() => {
-      if (!isHold) return;
+      if (!isUnproductiveActive) return;
       const interval = setInterval(() => {
         setNowTick(Date.now());
       }, 1000);
       return () => clearInterval(interval);
-    }, [isHold]);
+    }, [isUnproductiveActive]);
 
-    const { onHoldMs } = React.useMemo(
-      () => getTaskStatsForDateFilter(task, dateFilter, officeHours, nowTick),
-      [task, dateFilter, officeHours, nowTick],
+    const { onHoldMs: totalOnHoldMs } = React.useMemo(
+      () => getTaskStatsForDateFilter(task, "All", officeHours, nowTick),
+      [task, officeHours, nowTick],
     );
 
-    if (onHoldMs === 0 && !isHold) {
+    const { onHoldMs: todayOnHoldMs } = React.useMemo(
+      () => getTaskStatsForDateFilter(task, "Today", officeHours, nowTick),
+      [task, officeHours, nowTick],
+    );
+
+    const previousOnHoldMs = Math.max(0, totalOnHoldMs - todayOnHoldMs);
+
+    if (totalOnHoldMs === 0 && !isUnproductiveActive) {
       return (
         <div className="text-slate-400 text-center font-bold text-[11px]">
           0m
@@ -770,16 +803,27 @@ const OnHoldTimeCell = React.memo(
     }
 
     return (
-      <div className="flex flex-col items-center justify-center text-[11px]">
-        <span
-          className={`font-black ${onHoldMs > 0 || isHold ? "text-yellow-500 dark:text-yellow-400" : "text-slate-400"}`}
-        >
-          {formatMsToHMS(onHoldMs)}
-        </span>
-        {isHold && (
-          <span className="text-[9px] font-bold text-yellow-500 animate-pulse">
-            Active
-          </span>
+      <div className="flex flex-col items-center justify-center gap-1.5 w-full py-1">
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-1.5">
+            {isUnproductiveActive && (
+              <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.8)]"></span>
+            )}
+            <span
+              className={`font-black text-[12px] ${todayOnHoldMs > 0 || isUnproductiveActive ? "text-yellow-500 dark:text-yellow-400" : "text-slate-400"}`}
+            >
+              {formatMsToHMS(todayOnHoldMs)}
+            </span>
+          </div>
+        </div>
+
+        {previousOnHoldMs > 0 && (
+          <div className="flex items-center gap-1 px-1.5 py-[2px] rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50 shadow-[0_1px_2px_rgba(0,0,0,0.02)]" title="Previous tracked time">
+            <FiClock size={8} className="text-slate-400" />
+            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wide">
+              {formatMsToHMS(previousOnHoldMs)}
+            </span>
+          </div>
         )}
       </div>
     );
@@ -789,22 +833,29 @@ const OnHoldTimeCell = React.memo(
 const BlockedTimeCell = React.memo(
   ({ task, officeHours = DEFAULT_OFFICE_HOURS, dateFilter = "Today" }) => {
     const [nowTick, setNowTick] = useState(Date.now());
-    const isBlocked = task?.status === "Blocked";
+    
+    let isBlockedActive = task?.status === "Blocked";
+    if (task?.status === "On Hold" && task.statusHistory && Array.isArray(task.statusHistory)) {
+      const openEntry = [...task.statusHistory].reverse().find(h => h.status === "On Hold" && !h.endTime);
+      if (openEntry && (openEntry.reason === "Client Call" || openEntry.reason === "Meeting")) {
+        isBlockedActive = true;
+      }
+    }
 
     useEffect(() => {
-      if (!isBlocked) return;
+      if (!isBlockedActive) return;
       const interval = setInterval(() => {
         setNowTick(Date.now());
       }, 1000);
       return () => clearInterval(interval);
-    }, [isBlocked]);
+    }, [isBlockedActive]);
 
     const { blockedMs } = React.useMemo(
       () => getTaskStatsForDateFilter(task, dateFilter, officeHours, nowTick),
       [task, dateFilter, officeHours, nowTick],
     );
 
-    if (blockedMs === 0 && !isBlocked) {
+    if (blockedMs === 0 && !isBlockedActive) {
       return (
         <div className="text-slate-400 text-center font-bold text-[11px]">
           0m
@@ -814,16 +865,16 @@ const BlockedTimeCell = React.memo(
 
     return (
       <div className="flex flex-col items-center justify-center text-[11px]">
-        <span
-          className={`font-black ${blockedMs > 0 || isBlocked ? "text-red-500 dark:text-red-400" : "text-slate-400"}`}
-        >
-          {formatMsToHMS(blockedMs)}
-        </span>
-        {isBlocked && (
-          <span className="text-[9px] font-bold text-red-500 animate-pulse">
-            Active
+        <div className="flex items-center gap-1.5">
+          {isBlockedActive && (
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+          )}
+          <span
+            className={`font-black text-[12px] ${blockedMs > 0 || isBlockedActive ? "text-red-500 dark:text-red-400" : "text-slate-400"}`}
+          >
+            {formatMsToHMS(blockedMs)}
           </span>
-        )}
+        </div>
       </div>
     );
   },
@@ -959,17 +1010,41 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
 
   if (dateFilter === "All") {
     workMs = task.totalTrackedTime || 0;
-    if (
-      task.status === "In Progress" &&
-      !task.autoPaused &&
-      task.actualStartTime
-    ) {
-      workMs += Math.max(0, nowTick - new Date(task.actualStartTime).getTime());
-    } else if (task.status === "On Hold" && task.holdStartedAt) {
-      const holdEntry = [...(task.statusHistory || [])].reverse().find(h => h.status === "On Hold");
-      const reason = holdEntry?.reason;
-      if (reason === "Client Call" || reason === "Meeting") {
-        workMs += Math.max(0, nowTick - new Date(task.holdStartedAt).getTime());
+    
+    // Check if task is actively productive (In Progress or Productive Hold)
+    const currentIsProductiveHold =
+      task.status === "On Hold" &&
+      task.statusHistory &&
+      task.statusHistory.length > 0 &&
+      (task.statusHistory[task.statusHistory.length - 1].reason === "Client Call" ||
+       task.statusHistory[task.statusHistory.length - 1].reason === "Meeting");
+
+    if ((task.status === "In Progress" || currentIsProductiveHold) && !task.autoPaused) {
+      let liveStart = 0;
+      
+      // 1. Try to find the open entry in status history
+      if (task.statusHistory && Array.isArray(task.statusHistory)) {
+        const openEntry = [...task.statusHistory].reverse().find(
+          (h) => (h.status === "In Progress" || 
+                 (h.status === "On Hold" && (h.reason === "Client Call" || h.reason === "Meeting"))) && 
+                 !h.endTime
+        );
+        if (openEntry && openEntry.startTime) {
+          liveStart = new Date(openEntry.startTime).getTime();
+        }
+      }
+      
+      // 2. Fallback
+      if (!liveStart || liveStart <= 0) {
+        if (task.status === "In Progress" && task.actualStartTime) {
+          liveStart = new Date(task.actualStartTime).getTime();
+        } else if (currentIsProductiveHold && task.holdStartedAt) {
+          liveStart = new Date(task.holdStartedAt).getTime();
+        }
+      }
+      
+      if (liveStart > 0) {
+        workMs += Math.max(0, nowTick - liveStart);
       }
     }
   } else {
@@ -1064,7 +1139,7 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
         if (isDateInFilter(h.startTime || h.date)) {
           if (h.reason === "Client Call" || h.reason === "Meeting") {
             blockedMs += h.duration || 0;
-          } else {
+          } else if (h.reason !== "Another Task") {
             onHoldMs += h.duration || 0;
           }
         }
@@ -1096,7 +1171,7 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
       const reason = holdEntry?.reason;
       if (reason === "Client Call" || reason === "Meeting") {
         blockedMs += duration;
-      } else {
+      } else if (reason !== "Another Task") {
         onHoldMs += duration;
       }
     }
@@ -3151,6 +3226,15 @@ const MyTasksTab = ({
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[150px]"
                       />
                     )}
+                    {!hiddenColumns.blockedTime && (
+                      <ResizableHeader
+                        id="blockedTime"
+                        label="Blocked"
+                        colWidths={colWidths}
+                        handleMouseDown={handleMouseDown}
+                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
+                      />
+                    )}
                     {!hiddenColumns.activeTime && (
                       <ResizableHeader
                         id="activeTime"
@@ -3164,15 +3248,6 @@ const MyTasksTab = ({
                       <ResizableHeader
                         id="onHoldTime"
                         label="Unproductivity"
-                        colWidths={colWidths}
-                        handleMouseDown={handleMouseDown}
-                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
-                      />
-                    )}
-                    {!hiddenColumns.blockedTime && (
-                      <ResizableHeader
-                        id="blockedTime"
-                        label="Blocked"
                         colWidths={colWidths}
                         handleMouseDown={handleMouseDown}
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
@@ -3500,6 +3575,19 @@ const MyTasksTab = ({
                               </td>
                             )}
 
+                            {!hiddenColumns.blockedTime && (
+                              <td
+                                className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[140px] text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <BlockedTimeCell
+                                  task={task}
+                                  dateFilter={dateFilter}
+                                  officeHours={officeHours}
+                                />
+                              </td>
+                            )}
+
                             {!hiddenColumns.activeTime && (
                               <td
                                 className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[140px] text-center"
@@ -3519,19 +3607,6 @@ const MyTasksTab = ({
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <OnHoldTimeCell
-                                  task={task}
-                                  dateFilter={dateFilter}
-                                  officeHours={officeHours}
-                                />
-                              </td>
-                            )}
-
-                            {!hiddenColumns.blockedTime && (
-                              <td
-                                className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[140px] text-center"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <BlockedTimeCell
                                   task={task}
                                   dateFilter={dateFilter}
                                   officeHours={officeHours}

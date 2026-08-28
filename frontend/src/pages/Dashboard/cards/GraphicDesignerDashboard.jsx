@@ -251,13 +251,8 @@ export const calculateTaskProductivityForDate = (
     ) {
       let liveSessionStart = 0;
 
-      if (isStatusInProgress(task.status) && task.actualStartTime) {
-        liveSessionStart = new Date(task.actualStartTime).getTime();
-      } else if (currentIsProductiveHold && task.holdStartedAt) {
-        liveSessionStart = new Date(task.holdStartedAt).getTime();
-      }
-
-      if (isNaN(liveSessionStart) || liveSessionStart <= 0) {
+      // 1. Try to find the open entry in status history (most accurate for current chunk)
+      if (task.statusHistory && Array.isArray(task.statusHistory)) {
         const openEntry = [...task.statusHistory]
           .reverse()
           .find(
@@ -271,6 +266,17 @@ export const calculateTaskProductivityForDate = (
           liveSessionStart = new Date(openEntry.startTime).getTime();
         }
       }
+
+      // 2. Fallback to actualStartTime or holdStartedAt
+      if (isNaN(liveSessionStart) || liveSessionStart <= 0) {
+        if (isStatusInProgress(task.status) && task.actualStartTime) {
+          liveSessionStart = new Date(task.actualStartTime).getTime();
+        } else if (currentIsProductiveHold && task.holdStartedAt) {
+          liveSessionStart = new Date(task.holdStartedAt).getTime();
+        }
+      }
+      
+      // 3. Fallback to updatedAt
       if (isNaN(liveSessionStart) || liveSessionStart <= 0) {
         if (task.updatedAt) {
           liveSessionStart = new Date(task.updatedAt).getTime();
@@ -290,13 +296,16 @@ export const calculateTaskProductivityForDate = (
         (liveSessionDateStr === selDateStr || isSelectedToday)
       ) {
         const nowMs = Math.min(Date.now(), dayWorkEnd);
-        let liveWorked = Math.max(0, nowMs - liveSessionStart);
+        // Ensure we only calculate time that occurred within today's working hours
+        const effectiveLiveStart = Math.max(liveSessionStart, dayWorkStart);
+        let liveWorked = Math.max(0, nowMs - effectiveLiveStart);
+        
         if (task.blockerHistory && Array.isArray(task.blockerHistory)) {
           task.blockerHistory.forEach((b) => {
             if (b.pausedAt) {
               const p = new Date(b.pausedAt).getTime();
               const r = b.resumedAt ? new Date(b.resumedAt).getTime() : nowMs;
-              const oStart = Math.max(p, liveSessionStart);
+              const oStart = Math.max(p, effectiveLiveStart);
               const oEnd = Math.min(r, nowMs);
               if (oEnd > oStart) {
                 liveWorked -= oEnd - oStart;
@@ -306,31 +315,23 @@ export const calculateTaskProductivityForDate = (
         }
         if (task.isBlocked && task.blockerPausedAt) {
           const p = new Date(task.blockerPausedAt).getTime();
-          const oStart = Math.max(p, liveSessionStart);
+          const oStart = Math.max(p, effectiveLiveStart);
           if (nowMs > oStart) {
             liveWorked -= nowMs - oStart;
           }
         }
-        const effectiveHistoryDuration = Math.max(
-          historyDuration,
-          task.dailyTrackedTime || 0,
-        );
         return (
-          Math.max(0, effectiveHistoryDuration + Math.max(0, liveWorked)) +
+          Math.max(0, historyDuration + Math.max(0, liveWorked)) +
           subtasksDuration
         );
       }
     }
 
-    const finalHistoryDuration = Math.max(
-      historyDuration,
-      isSelectedToday ? task.dailyTrackedTime || 0 : 0,
-    );
     if (
-      finalHistoryDuration > 0 ||
+      historyDuration > 0 ||
       (task.statusHistory.length > 0 && !task.actualStartTime)
     ) {
-      return finalHistoryDuration + subtasksDuration;
+      return historyDuration + subtasksDuration;
     }
   }
 
@@ -1759,6 +1760,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       let totalApprovalMs = 0;
       let approvalCount = 0;
       const blockerTypesSet = new Set();
+      const holdReasonsSet = new Set();
 
       myTasks.forEach((t) => {
         let taskBlockerMs = 0;
@@ -1829,6 +1831,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
               );
               if (hDate === selDateStr) {
                 taskOnHoldMs += h.duration || 0;
+                if (h.reason) holdReasonsSet.add(h.reason);
               }
             }
           });
@@ -1846,6 +1849,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
               0,
               endMs - new Date(t.holdStartedAt).getTime(),
             );
+            const liveHoldEntry = [...(t.statusHistory || [])].reverse().find(x => x.status === "On Hold");
+            if (liveHoldEntry && liveHoldEntry.reason) {
+              holdReasonsSet.add(liveHoldEntry.reason);
+            }
           }
         }
 
@@ -1971,6 +1978,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           blockerTypesSet.size > 0
             ? Array.from(blockerTypesSet).join(", ")
             : "none",
+        holdReasons:
+          holdReasonsSet.size > 0
+            ? Array.from(holdReasonsSet).join(", ")
+            : "none",
         blockerTimeMs: totalBlockerMs,
         onHoldTimeMs: totalOnHoldMs,
         lastSubmitted: lastSubmittedStr,
@@ -2009,36 +2020,40 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       days.push(subDays(selectedDate, i));
     }
 
-    return days.map((day) => {
-      let totalMs = 0;
-      designers.forEach((designer) => {
-        const designerTasksFromAll = allTasks.filter((t) => {
-          if (!t.assignedTo) return false;
-          const aId =
-            typeof t.assignedTo === "object" ? t.assignedTo._id : t.assignedTo;
-          if (aId !== designer._id) return false;
-          const s = (t.status || "").toLowerCase();
-          if (s.includes("reject") || s.includes("cancel")) return false;
-          return true;
-        });
+    return {
+      labels: days.map(day => format(day, "d MMM")),
+      datasets: designers.map((designer) => {
+        const data = days.map((day) => {
+          let totalMs = 0;
+          const designerTasksFromAll = allTasks.filter((t) => {
+            if (!t.assignedTo) return false;
+            const aId = typeof t.assignedTo === "object" ? t.assignedTo._id : t.assignedTo;
+            if (aId !== designer._id) return false;
+            const s = (t.status || "").toLowerCase();
+            if (s.includes("reject") || s.includes("cancel")) return false;
+            return true;
+          });
 
-        designerTasksFromAll.forEach((t) => {
-          totalMs += calculateTaskProductivityForDate(t, day, officeHours);
-        });
-      });
+          designerTasksFromAll.forEach((t) => {
+            totalMs += calculateTaskProductivityForDate(t, day, officeHours);
+          });
 
-      const totalHours = totalMs / (1000 * 60 * 60);
-      return {
-        date: day,
-        label: format(day, "d MMM"), // e.g. "13 Aug"
-        hours: totalHours,
-        formatted: (() => {
+          const totalHours = totalMs / (1000 * 60 * 60);
           const mins = Math.round((totalMs / (1000 * 60)) % 60);
           const hrs = Math.floor(totalMs / (1000 * 60 * 60));
-          return `${hrs}h ${String(mins).padStart(2, "0")}m`;
-        })(),
-      };
-    });
+          
+          return {
+            hours: totalHours,
+            formatted: `${hrs}h ${String(mins).padStart(2, "0")}m`,
+          };
+        });
+
+        return {
+          designer,
+          data,
+        };
+      }),
+    };
   }, [selectedDate, designers, allTasks, officeHours]);
 
   // 6. Client Progress
@@ -2288,10 +2303,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
   }, [designerTasksList, selectedDate]);
 
   const activeModalTasksList = useMemo(() => {
-    return modalGroupTab === "assignedToday"
-      ? groupedModalTasks.assignedToday
-      : groupedModalTasks.carriedForward;
-  }, [modalGroupTab, groupedModalTasks]);
+    return designerTasksList;
+  }, [designerTasksList]);
 
   const filteredModalTasks = useMemo(() => {
     const filtered = activeModalTasksList.filter((task) => {
@@ -2672,49 +2685,51 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
     },
   };
 
+  const chartLineColors = [
+    "#a855f7", "#3b82f6", "#10b981", "#f97316", "#eab308", 
+    "#ef4444", "#06b6d4", "#f43f5e", "#6366f1", "#8b5cf6",
+  ];
+
   const lineChartData = {
-    labels: productivityTrendData.map((d) => d.label),
-    datasets: [
-      {
-        label: "Productivity",
-        data: productivityTrendData.map((d) => d.hours),
-        borderColor: "#a855f7", // Purple line matching the mockup
-        borderWidth: 2.5,
-        pointBackgroundColor: "#a855f7",
+    labels: productivityTrendData.labels,
+    datasets: productivityTrendData.datasets.map((ds, i) => {
+      const color = chartLineColors[i % chartLineColors.length];
+      return {
+        label: ds.designer.name,
+        data: ds.data.map(d => d.hours),
+        borderColor: color,
+        borderWidth: 2,
+        pointBackgroundColor: color,
         pointBorderColor: "#ffffff",
         pointBorderWidth: 1.5,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        tension: 0.35, // Smooth curve
-        fill: true,
-        backgroundColor: (context) => {
-          const chart = context.chart;
-          const { ctx, chartArea } = chart;
-          if (!chartArea) return null;
-          const gradient = ctx.createLinearGradient(
-            0,
-            chartArea.top,
-            0,
-            chartArea.bottom,
-          );
-          gradient.addColorStop(0, "rgba(168, 85, 247, 0.25)");
-          gradient.addColorStop(1, "rgba(168, 85, 247, 0.0)");
-          return gradient;
-        },
-      },
-    ],
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        tension: 0.35,
+        fill: false,
+      };
+    }),
   };
 
   const lineChartOptions = {
     plugins: {
       legend: {
-        display: false,
+        display: true,
+        position: 'bottom',
+        labels: {
+          boxWidth: 8,
+          usePointStyle: true,
+          font: { size: 9 },
+          color: isDarkMode ? "#cbd5e1" : "#475569"
+        }
       },
       tooltip: {
         callbacks: {
           label: (context) => {
+            const dsIndex = context.datasetIndex;
             const index = context.dataIndex;
-            return ` Productivity: ${productivityTrendData[index].formatted}`;
+            const ds = productivityTrendData.datasets[dsIndex];
+            const formatted = ds.data[index].formatted;
+            return ` ${ds.designer.name}: ${formatted}`;
           },
         },
       },
@@ -3031,60 +3046,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           );
         })}
       </div>
-      {/* Today's Interruptions */}
-      <div ref={performanceTableRef} className="mb-8 relative z-10">
-        <div className="sidebar-bg p-5 rounded-3xl backdrop-blur-md shadow-lg">
-          <div className="flex flex-col md:flex-row md:items-center gap-6">
-            <div className="flex-shrink-0 min-w-[150px] border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 pb-4 md:pb-0 md:pr-6">
-              <h3 className="text-xs font-black tracking-widest text-slate-500 dark:text-slate-400 mb-2 uppercase flex items-center gap-2">
-                <FiAlertCircle className="text-orange-500" size={14} />
-                Interruptions
-              </h3>
-              <span className="text-4xl font-black text-slate-800 dark:text-white block leading-none">
-                {interruptions.total}
-              </span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase mt-1.5 block">
-                Total Blockers Today
-              </span>
-            </div>
 
-            <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:border-blue-400 transition-colors group">
-                <span className="text-2xl font-black text-blue-600 dark:text-blue-400 block group-hover:scale-105 transition-transform origin-left">
-                  {interruptions.counts["Client Calls"]}
-                </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
-                  Client Calls
-                </span>
-              </div>
-              <div className="bg-white dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:border-rose-400 transition-colors group">
-                <span className="text-2xl font-black text-rose-600 dark:text-rose-400 block group-hover:scale-105 transition-transform origin-left">
-                  {interruptions.counts["Urgent Tasks"]}
-                </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
-                  Urgent Tasks
-                </span>
-              </div>
-              <div className="bg-white dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:border-purple-400 transition-colors group">
-                <span className="text-2xl font-black text-purple-600 dark:text-purple-400 block group-hover:scale-105 transition-transform origin-left">
-                  {interruptions.counts["Revisions"]}
-                </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
-                  Revisions
-                </span>
-              </div>
-              <div className="bg-white dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:border-emerald-400 transition-colors group">
-                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 block group-hover:scale-105 transition-transform origin-left">
-                  {interruptions.counts["Meetings"]}
-                </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
-                  Meetings
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       {/* Live Task Board */}
       <div className="relative z-10 space-y-3">
         {/* Header & Controls */}
@@ -3594,16 +3556,16 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                     Designer
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase bg-slate-200/80 dark:bg-slate-700/60 text-slate-800 dark:text-slate-100 whitespace-nowrap text-center">
-                    Assign
+                    Assigned
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase bg-red-100/80 dark:bg-red-950/60 text-red-700 dark:text-red-300 whitespace-nowrap text-center">
-                    Pending
+                    Not Started
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase bg-violet-100/80 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 whitespace-nowrap text-center">
-                    Inprogress
+                    In-progress
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase bg-fuchsia-100/80 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 whitespace-nowrap text-center">
-                    Hold
+                   On-Hold
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase bg-amber-100/80 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 whitespace-nowrap text-center">
                     IN-Review
@@ -3615,18 +3577,13 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
                     Rev
                   </th>
-                  <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Blkr
-                  </th>
-                  <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Blkr Timer
-                  </th>
+
 
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Unproductive Time
+                    Unproductive Hours
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
-                    Productive Time
+                    Productive Hours
                   </th>
                   <th className="h-[40px] py-1.5 px-2 align-middle border-b border-slate-250 dark:border-slate-700/80 text-[11px] font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 whitespace-nowrap text-center">
                     Efficieny
@@ -3820,45 +3777,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                         </span>
                       </td>
 
-                      {/* Blockers */}
-                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center">
-                        {tp.blockers === "none" ? (
-                          <span className="text-slate-400 dark:text-slate-500 font-bold italic text-[10px]">
-                            none
-                          </span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1 justify-center max-w-[110px] mx-auto">
-                            {tp.blockers.split(", ").map((b, bIdx) => (
-                              <span
-                                key={bIdx}
-                                className="px-1.5 py-0.3 text-[8.5px] font-extrabold rounded bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20"
-                              >
-                                {b}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
 
-                      {/* Blocker Timer */}
-                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center">
-                        {tp.blockerTimeMs > 0 ? (
-                          <span className="text-orange-600 dark:text-orange-400 font-black text-[11.5px]">
-                            {(() => {
-                              const totalMinutes = Math.floor(
-                                tp.blockerTimeMs / (1000 * 60),
-                              );
-                              const h = Math.floor(totalMinutes / 60);
-                              const m = totalMinutes % 60;
-                              return h > 0 ? `${h}h ${m}m` : `${m}m`;
-                            })()}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 font-bold text-[11.5px]">
-                            0m
-                          </span>
-                        )}
-                      </td>
 
                       {/* Unproductive Time */}
                       <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center whitespace-nowrap">
@@ -4139,15 +4058,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                           </span>
                         </td>
 
-                        {/* Blockers */}
-                        <td className="h-[42px] bg-blue-600 py-2 px-2 align-middle text-center border-r border-white/20 text-white" />
 
-                        {/* Blocker Timer */}
-                        <td className="h-[42px] bg-blue-600 py-2 px-2 align-middle text-center border-r border-white/20 text-white">
-                          <span className="text-[11.5px] font-black text-white">
-                            {blockerFmt}
-                          </span>
-                        </td>
 
                         {/* Unproductive Time */}
                         <td className="h-[42px] bg-blue-600 py-2 px-2 align-middle text-center border-r border-white/20 text-white whitespace-nowrap">
@@ -4602,10 +4513,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                 <div className="flex items-center flex-wrap sm:flex-nowrap gap-2 sm:gap-3">
                   {/* Search Input */}
                   <div className="relative flex-1 sm:w-48 min-w-[130px]">
-                    <FiSearch
-                      className="absolute left-2.5 top-2.5 text-slate-400 dark:text-slate-500"
-                      size={13}
-                    />
                     <input
                       type="text"
                       value={taskSearch}
@@ -4660,143 +4567,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
 
               {/* Modal Body Container */}
               <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-slate-50/20 dark:bg-slate-900/10">
-                {/* Task Group Toggle Tabs */}
-                <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 px-3.5 sm:px-5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModalGroupTab("assignedToday");
-                      setTaskTab("all");
-                    }}
-                    className={`py-2.5 px-4 text-xs font-black tracking-wider uppercase border-b-2 transition-all cursor-pointer ${
-                      modalGroupTab === "assignedToday"
-                        ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
-                        : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    Today's Assigned Batch (
-                    {groupedModalTasks.assignedToday.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModalGroupTab("carriedForward");
-                      setTaskTab("all");
-                    }}
-                    className={`py-2.5 px-4 text-xs font-black tracking-wider uppercase border-b-2 transition-all cursor-pointer ${
-                      modalGroupTab === "carriedForward"
-                        ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
-                        : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    Carried Forward Tasks (
-                    {groupedModalTasks.carriedForward.length})
-                  </button>
-                </div>
-                {/* Top Metrics Strip (Swipable on mobile, grid on desktop) */}
-                <div className="flex sm:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3.5 p-3.5 sm:p-5 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 overflow-x-auto custom-scrollbar shrink-0 select-none">
-                  {[
-                    {
-                      id: "all",
-                      label: "Assigned",
-                      count: modalTabCounts.all,
-                      activeClass:
-                        "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20 scale-[1.02]",
-                      dotBg: "bg-blue-500",
-                    },
-                    {
-                      id: "pending",
-                      label: "Not Started",
-                      count: modalTabCounts.pending,
-                      activeClass:
-                        "bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-md shadow-rose-500/20 scale-[1.02]",
-                      dotBg: "bg-rose-500",
-                    },
-                    {
-                      id: "inprogress",
-                      label: "In Progress",
-                      count: modalTabCounts.inprogress,
-                      activeClass:
-                        "bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-md shadow-violet-500/20 scale-[1.02]",
-                      dotBg: "bg-violet-500",
-                    },
-                    {
-                      id: "onhold",
-                      label: "On Hold",
-                      count: modalTabCounts.onhold,
-                      activeClass:
-                        "bg-gradient-to-br from-fuchsia-500 to-pink-600 text-white shadow-md shadow-fuchsia-500/20 scale-[1.02]",
-                      dotBg: "bg-fuchsia-500",
-                    },
-                    {
-                      id: "inreview",
-                      label: "In Review",
-                      count: modalTabCounts.inreview,
-                      activeClass:
-                        "bg-gradient-to-br from-amber-500 to-yellow-600 text-white shadow-md shadow-amber-500/20 scale-[1.02]",
-                      dotBg: "bg-amber-500",
-                    },
-                    {
-                      id: "completed",
-                      label: "Completed",
-                      count: modalTabCounts.completed,
-                      activeClass:
-                        "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20 scale-[1.02]",
-                      dotBg: "bg-emerald-500",
-                    },
-                  ].map((card) => {
-                    const isActive = taskTab === card.id;
-                    return (
-                      <button
-                        key={card.id}
-                        type="button"
-                        onClick={() => setTaskTab(card.id)}
-                        className={`p-3 sm:p-3.5 rounded-2xl border text-left transition-all duration-200 flex flex-col justify-between min-w-[110px] sm:min-w-0 h-20 sm:h-22 relative overflow-hidden cursor-pointer ${
-                          isActive
-                            ? `${card.activeClass} border-transparent`
-                            : "bg-white dark:bg-slate-900/80 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-2xs hover:scale-[1.01]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span
-                            className={`text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider ${
-                              isActive
-                                ? "text-white/90"
-                                : "text-slate-400 dark:text-slate-500"
-                            }`}
-                          >
-                            {card.label}
-                          </span>
-                          <span
-                            className={`w-2 h-2 rounded-full shrink-0 ${
-                              isActive ? "bg-white" : card.dotBg
-                            }`}
-                          />
-                        </div>
-                        <div className="mt-1.5 flex items-baseline gap-1">
-                          <span
-                            className={`text-xl sm:text-2xl font-black ${
-                              isActive
-                                ? "text-white"
-                                : "text-slate-850 dark:text-white"
-                            }`}
-                          >
-                            {card.count}
-                          </span>
-                          <span
-                            className={`text-[9px] font-bold ${
-                              isActive
-                                ? "text-white/80"
-                                : "text-slate-400 dark:text-slate-500"
-                            }`}
-                          >
-                            tasks
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+
 
                 {/* Main Task List Container */}
                 <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-[#0f172a] p-3 sm:p-5 overflow-hidden">
@@ -4977,6 +4748,17 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                       <span className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                                         {task.title}
                                       </span>
+                                      <div className="mt-1.5">
+                                        {(() => {
+                                          const assignmentDate = task.startDate || task.createdAt;
+                                          const isAssignedToday = assignmentDate && isSameDay(new Date(assignmentDate), selectedDate);
+                                          return (
+                                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isAssignedToday ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                              {isAssignedToday ? 'Today Assigned' : 'Carried Forward'}
+                                            </span>
+                                          );
+                                        })()}
+                                      </div>
                                     </td>
                                     <td className="py-3 px-4">
                                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border text-[10px] font-extrabold bg-slate-100/70 text-slate-700 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700 shadow-2xs">
@@ -5017,42 +4799,65 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                       )}
                                     </td>
                                     <td className="py-3 px-4 text-xs font-semibold text-slate-600 dark:text-slate-350">
-                                      {targetDate ? (
-                                        <span className="flex items-center gap-1 text-[11px]">
-                                          <FiClock
-                                            size={11}
-                                            className="text-slate-400 shrink-0"
-                                          />
-                                          {(() => {
-                                            try {
-                                              const isDueDateCol =
-                                                !taskTab ||
-                                                taskTab === "all" ||
-                                                targetDate === task.dueDate;
-                                              const d = parseISO(targetDate);
-                                              if (
-                                                isDueDateCol &&
-                                                (String(targetDate).includes(
-                                                  "00:00:00",
-                                                ) ||
-                                                  !String(targetDate).includes(
-                                                    "T",
-                                                  ))
-                                              ) {
-                                                d.setHours(17, 30, 0, 0);
-                                              }
-                                              return format(
-                                                d,
-                                                "MMM dd, h:mm a",
+                                      <td className="py-3 px-4 text-xs font-semibold text-slate-600 dark:text-slate-350">
+                                        {targetDate ? (
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="flex items-center gap-1 text-[11px]">
+                                              <FiClock
+                                                size={11}
+                                                className="text-slate-400 shrink-0"
+                                              />
+                                              {(() => {
+                                                try {
+                                                  const isDueDateCol =
+                                                    !taskTab ||
+                                                    taskTab === "all" ||
+                                                    targetDate === task.dueDate;
+                                                  const d = parseISO(targetDate);
+                                                  if (
+                                                    isDueDateCol &&
+                                                    (String(targetDate).includes(
+                                                      "00:00:00",
+                                                    ) ||
+                                                      !String(targetDate).includes(
+                                                        "T",
+                                                      ))
+                                                  ) {
+                                                    d.setHours(17, 30, 0, 0);
+                                                  }
+                                                  return format(
+                                                    d,
+                                                    "MMM dd, h:mm a",
+                                                  );
+                                                } catch (e) {
+                                                  return "—";
+                                                }
+                                              })()}
+                                            </span>
+                                            {task.dueDate && (!taskTab || taskTab === "all" || targetDate === task.dueDate) && (() => {
+                                              const text = getDeadlineBadgeText(task.dueDate, task.status);
+                                              if (!text) return null;
+                                              const isDelayed = text.includes("overdue");
+                                              const isDueToday = text === "Due Today";
+                                              const isCompleted = text === "Completed";
+                                              const colorClass = isCompleted
+                                                ? "text-emerald-500 dark:text-emerald-400"
+                                                : isDelayed
+                                                ? "text-rose-500 dark:text-rose-400"
+                                                : isDueToday
+                                                ? "text-amber-500 dark:text-amber-400"
+                                                : "text-slate-500 dark:text-slate-400";
+                                              return (
+                                                <span className={`text-[9px] font-bold ${colorClass}`}>
+                                                  {text}
+                                                </span>
                                               );
-                                            } catch (e) {
-                                              return "—";
-                                            }
-                                          })()}
-                                        </span>
-                                      ) : (
-                                        "—"
-                                      )}
+                                            })()}
+                                          </div>
+                                        ) : (
+                                          "—"
+                                        )}
+                                      </td>
                                     </td>
                                     <td className="py-3 px-4">
                                       <span
@@ -5123,9 +4928,20 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                               >
                                 {/* Title & Priority */}
                                 <div className="flex items-start justify-between gap-2">
-                                  <h4 className="text-xs font-black text-slate-850 dark:text-white leading-snug">
-                                    {task.title}
-                                  </h4>
+                                  <div className="flex flex-col gap-1.5">
+                                    <h4 className="text-xs font-black text-slate-850 dark:text-white leading-snug">
+                                      {task.title}
+                                    </h4>
+                                    {(() => {
+                                      const assignmentDate = task.startDate || task.createdAt;
+                                      const isAssignedToday = assignmentDate && isSameDay(new Date(assignmentDate), selectedDate);
+                                      return (
+                                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isAssignedToday ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                          {isAssignedToday ? 'Today Assigned' : 'Carried Forward'}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
                                   {task.priority && (
                                     <span
                                       className={`px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase shrink-0 ${getPriorityStyle(
@@ -5159,30 +4975,51 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                                   </span>
 
                                   {targetDate && (
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                      <FiClock size={10} />
-                                      {(() => {
-                                        try {
-                                          const isDueDateCol =
-                                            !taskTab ||
-                                            taskTab === "all" ||
-                                            targetDate === task.dueDate;
-                                          const d = parseISO(targetDate);
-                                          if (
-                                            isDueDateCol &&
-                                            (String(targetDate).includes(
-                                              "00:00:00",
-                                            ) ||
-                                              !String(targetDate).includes("T"))
-                                          ) {
-                                            d.setHours(17, 30, 0, 0);
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                        <FiClock size={10} />
+                                        {(() => {
+                                          try {
+                                            const isDueDateCol =
+                                              !taskTab ||
+                                              taskTab === "all" ||
+                                              targetDate === task.dueDate;
+                                            const d = parseISO(targetDate);
+                                            if (
+                                              isDueDateCol &&
+                                              (String(targetDate).includes(
+                                                "00:00:00",
+                                              ) ||
+                                                !String(targetDate).includes("T"))
+                                            ) {
+                                              d.setHours(17, 30, 0, 0);
+                                            }
+                                            return format(d, "MMM dd, h:mm a");
+                                          } catch (e) {
+                                            return "—";
                                           }
-                                          return format(d, "MMM dd, h:mm a");
-                                        } catch (e) {
-                                          return "—";
-                                        }
+                                        })()}
+                                      </span>
+                                      {task.dueDate && (!taskTab || taskTab === "all" || targetDate === task.dueDate) && (() => {
+                                        const text = getDeadlineBadgeText(task.dueDate, task.status);
+                                        if (!text) return null;
+                                        const isDelayed = text.includes("overdue");
+                                        const isDueToday = text === "Due Today";
+                                        const isCompleted = text === "Completed";
+                                        const colorClass = isCompleted
+                                          ? "text-emerald-500 dark:text-emerald-400"
+                                          : isDelayed
+                                          ? "text-rose-500 dark:text-rose-400"
+                                          : isDueToday
+                                          ? "text-amber-500 dark:text-amber-400"
+                                          : "text-slate-500 dark:text-slate-400";
+                                        return (
+                                          <span className={`text-[9px] font-bold ${colorClass}`}>
+                                            {text}
+                                          </span>
+                                        );
                                       })()}
-                                    </span>
+                                    </div>
                                   )}
                                 </div>
 
