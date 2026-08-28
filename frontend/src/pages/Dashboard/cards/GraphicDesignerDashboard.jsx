@@ -3097,23 +3097,6 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 sidebar-bg px-2.5 py-1 rounded-lg ">
               {boardColumns.length} Columns
             </span>
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl shadow-2xs">
-              <button
-                onClick={() => scrollBoard("left")}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-                title="Scroll Left"
-              >
-                <FiChevronLeft size={16} />
-              </button>
-              <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-700" />
-              <button
-                onClick={() => scrollBoard("right")}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-                title="Scroll Right"
-              >
-                <FiChevronRight size={16} />
-              </button>
-            </div>
           </div>
         </div>
 
@@ -3240,11 +3223,8 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           </div>
         )}
 
-        {/* Horizontally Scrollable Kanban Columns */}
-        <div
-          ref={boardScrollRef}
-          className="flex gap-4 overflow-x-auto pb-4 pt-1 px-0.5 custom-scrollbar scroll-smooth snap-x snap-mandatory w-full min-h-[400px]"
-        >
+        {/* Kanban Columns (Scrollable on Mobile, Stretched on Desktop) */}
+        <div className="flex flex-nowrap overflow-x-auto gap-4 pb-4 pt-1 px-0.5 custom-scrollbar w-full min-h-[400px]">
           {boardColumns.map((col, i) => {
             let colBg = "bg-slate-50 dark:bg-slate-800/80";
             let boardBg = "bg-slate-50/60 dark:bg-[#0f172a]";
@@ -3321,7 +3301,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
               return (
                 <div
                   key={i}
-                  className={`w-[290px] md:w-[310px] min-w-[290px] md:min-w-[310px] shrink-0 snap-start ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[600px] shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden`}
+                  className={`flex-1 min-w-[280px] shrink-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[600px] shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden`}
                 >
                   <div
                     className={`p-3 px-3.5 border-b flex flex-col gap-1.5 rounded-t-2xl backdrop-blur-md ${colBg} ${colBorder}`}
@@ -3460,7 +3440,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             return (
               <div
                 key={i}
-                className={`w-[290px] md:w-[310px] min-w-[290px] md:min-w-[310px] shrink-0 snap-start ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[600px] shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden`}
+                className={`flex-1 min-w-[280px] shrink-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[600px] shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden`}
               >
                 <div
                   className={`p-3 px-3.5 border-b flex items-center justify-between rounded-t-2xl backdrop-blur-md ${colBg} ${colBorder}`}
@@ -4222,7 +4202,93 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
       </div>
 
       {/* Delayed Projects & Bottlenecks */}
-      <div className="sidebar-bg backdrop-blur-md rounded-2xl  overflow-hidden shadow-sm dark:shadow-xl relative z-10">
+      {(() => {
+        const getChartColors = (count) => {
+          const baseColors = [
+            "rgba(244, 63, 94, 0.8)",
+            "rgba(139, 92, 246, 0.8)",
+            "rgba(245, 158, 11, 0.8)",
+            "rgba(16, 185, 129, 0.8)",
+            "rgba(59, 130, 246, 0.8)",
+            "rgba(217, 70, 239, 0.8)",
+            "rgba(14, 165, 233, 0.8)",
+          ];
+          return Array.from(
+            { length: count },
+            (_, i) => baseColors[i % baseColors.length]
+          );
+        };
+
+        const assigneeCounts = {};
+        const statusCounts = {};
+
+        delayedTasks.forEach((t) => {
+          const a = t.assigneeName || "Unassigned";
+          const s = t.status || "Unknown";
+          assigneeCounts[a] = (assigneeCounts[a] || 0) + 1;
+          statusCounts[s] = (statusCounts[s] || 0) + 1;
+        });
+
+        const assigneeLabels = Object.keys(assigneeCounts);
+        const statusLabels = Object.keys(statusCounts);
+
+        const bottleneckAssigneeData = {
+          labels: assigneeLabels,
+          datasets: [
+            {
+              data: Object.values(assigneeCounts),
+              backgroundColor: getChartColors(assigneeLabels.length).reverse(),
+              borderWidth: 0,
+              hoverOffset: 6,
+            },
+          ],
+        };
+
+        const bottleneckStatusData = {
+          labels: statusLabels,
+          datasets: [
+            {
+              data: Object.values(statusCounts),
+              backgroundColor: getChartColors(statusLabels.length),
+              borderWidth: 0,
+              hoverOffset: 6,
+            },
+          ],
+        };
+
+        const bOptions = {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: "right",
+              labels: {
+                color: isDarkMode ? "#cbd5e1" : "#475569",
+                font: { size: 10, weight: "bold" },
+                boxWidth: 10,
+                padding: 10,
+              },
+            },
+            tooltip: {
+              backgroundColor: isDarkMode
+                ? "rgba(15, 23, 42, 0.9)"
+                : "rgba(255, 255, 255, 0.95)",
+              titleColor: isDarkMode ? "#f8fafc" : "#0f172a",
+              bodyColor: isDarkMode ? "#cbd5e1" : "#475569",
+              borderColor: isDarkMode
+                ? "rgba(51, 65, 85, 0.5)"
+                : "rgba(226, 232, 240, 0.8)",
+              borderWidth: 1,
+              padding: 8,
+              boxPadding: 4,
+              usePointStyle: true,
+            },
+          },
+          cutout: "65%",
+        };
+
+        return (
+          <div className="sidebar-bg backdrop-blur-md rounded-2xl  overflow-hidden shadow-sm dark:shadow-xl relative z-10">
         <div className="p-5 border-b border-slate-200 dark:border-slate-700/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50 dark:bg-transparent">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-rose-100 dark:bg-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400">
@@ -4288,6 +4354,27 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             </select>
           </div>
         </div>
+
+        {delayedTasks.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 border-b border-slate-100 dark:border-slate-800/80 bg-white/50 dark:bg-slate-900/30">
+            <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+              <h4 className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3 text-center">
+                By Assignee
+              </h4>
+              <div className="h-[160px] relative">
+                <Doughnut data={bottleneckAssigneeData} options={bOptions} />
+              </div>
+            </div>
+            <div className="bg-white dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+              <h4 className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3 text-center">
+                By Status
+              </h4>
+              <div className="h-[160px] relative">
+                <Doughnut data={bottleneckStatusData} options={bOptions} />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="p-5 space-y-4 max-h-[420px] overflow-y-auto custom-scrollbar">
           {delayedTasks.length === 0 ? (
@@ -4453,7 +4540,9 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             })
           )}
         </div>
-      </div>
+          </div>
+        );
+      })()}
       {viewTasksModal.open &&
         createPortal(
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-2 sm:p-4 md:p-6">

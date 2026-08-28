@@ -127,7 +127,7 @@ html {
   --color-incomplete-start: #8b5cf6;
   --color-incomplete-end: #ec4899;
   --color-completed-start: #10b981;
-  --sidebar-bg: color-mix(in srgb, var(--accent-color) 15%, rgba(255, 255, 255, 0.8));
+  --sidebar-bg: color-mix(in srgb, var(--accent-color) 8%, rgba(255, 255, 255, 0.8));
 }
 
 body {
