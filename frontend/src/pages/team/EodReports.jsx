@@ -1265,7 +1265,7 @@ const EodReports = () => {
   return (
     <div className="min-h-screen max-w-7xl mx-auto">
       {/* Header Card */}
-      <div className="bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl  rounded-3xl p-6 sm:p-8 shadow-sm mb-6 relative overflow-hidden">
+      <div className=" relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="text-left">
@@ -1314,7 +1314,7 @@ const EodReports = () => {
       ) : (
         <div className="mt-5 space-y-4">
           {/* Controls Bar: Task Count & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white/60 dark:bg-slate-900/40 backdrop-blur-md p-3 rounded-2xl  shadow-sm relative z-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
             <div className="flex items-center gap-2 px-1">
               <h2 className="text-xs font-bold theme-text-primary uppercase tracking-wider">
                 All Tasks
@@ -1565,11 +1565,11 @@ const EodReports = () => {
                       DAY SUMMARY
       ========================================= */}
       {(tasksState.length > 0 || todayReport) && (
-        <div className="mt-8 text-left md:p-8 rounded-3xl shadow-sm relative z-10 overflow-hidden">
+        <div className="mt-8 text-left relative z-10 overflow-hidden">
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl -mr-32 -mb-32 pointer-events-none" />
           <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 relative z-10">
             <div>
-              <h2 className="text-md font-bold theme-text-primary">
+              <h2 className="text-md md:text-xl font-bold">
                 EOD REPORT
               </h2>
             </div>
@@ -1580,52 +1580,58 @@ const EodReports = () => {
           {/* eod summary cards  */}
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 mt-4 mb-5">
             {/* 1. In Review Card */}
-            <div className="bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent dark:from-amber-500/20 dark:via-amber-500/5 dark:to-transparent border border-amber-500/30 dark:border-amber-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+            <div className="bg-white dark:bg-[#0f172a]/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:shadow-amber-500/10 hover:border-amber-500/30 dark:hover:border-amber-500/30 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-900/10 rounded-full -mr-6 -mt-6 blur-2xl group-hover:scale-150 transition-all duration-500" />
               <div className="flex items-center justify-between relative z-10">
-                <span className="text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400">
+                <span className="text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
                   {inReviewCount}
                 </span>
-                <FiClock className="text-amber-500/60 text-lg group-hover:text-amber-500 transition-colors" />
+                <div className="p-2.5 bg-amber-50 dark:bg-amber-500/10 rounded-xl group-hover:bg-amber-100 dark:group-hover:bg-amber-500/20 transition-colors duration-300">
+                  <FiClock className="text-amber-600 dark:text-amber-400 text-xl" />
+                </div>
               </div>
-              <span className="text-[10px] font-black text-amber-700/90 dark:text-amber-300/90 uppercase tracking-widest mt-2 block relative z-10">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-3 block relative z-10">
                 In Review
               </span>
             </div>
 
             {/* 2. In Progress Card */}
-            <div className="bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent dark:from-blue-500/20 dark:via-blue-500/5 dark:to-transparent border border-blue-500/30 dark:border-blue-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+            <div className="bg-white dark:bg-[#0f172a]/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 hover:border-blue-500/30 dark:hover:border-blue-500/30 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/40 dark:to-blue-900/10 rounded-full -mr-6 -mt-6 blur-2xl group-hover:scale-150 transition-all duration-500" />
               <div className="flex items-center justify-between relative z-10">
-                <span className="text-2xl font-black tracking-tight text-blue-600 dark:text-blue-400">
+                <span className="text-3xl font-bold tracking-tight text-blue-600 dark:text-blue-400">
                   {inProgressCount}
                 </span>
-                <FiTool className="text-blue-500/60 text-lg group-hover:text-blue-500 transition-colors" />
+                <div className="p-2.5 bg-blue-50 dark:bg-blue-500/10 rounded-xl group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 transition-colors duration-300">
+                  <FiTool className="text-blue-600 dark:text-blue-400 text-xl" />
+                </div>
               </div>
-              <span className="text-[10px] font-black text-blue-700/90 dark:text-blue-300/90 uppercase tracking-widest mt-2 block relative z-10">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-3 block relative z-10">
                 In Progress
               </span>
             </div>
 
             {/* 3. Pending Card */}
-            <div className="bg-gradient-to-br from-indigo-500/15 via-indigo-500/5 to-transparent dark:from-indigo-500/20 dark:via-indigo-500/5 dark:to-transparent border border-indigo-500/30 dark:border-indigo-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+            <div className="bg-white dark:bg-[#0f172a]/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-500/30 dark:hover:border-indigo-500/30 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-100 to-indigo-50 dark:from-indigo-900/40 dark:to-indigo-900/10 rounded-full -mr-6 -mt-6 blur-2xl group-hover:scale-150 transition-all duration-500" />
               <div className="flex items-center justify-between relative z-10">
-                <span className="text-2xl font-black tracking-tight text-indigo-600 dark:text-indigo-400">
+                <span className="text-3xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
                   {pendingCount}
                 </span>
-                <FiCalendar className="text-indigo-500/60 text-lg group-hover:text-indigo-500 transition-colors" />
+                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors duration-300">
+                  <FiCalendar className="text-indigo-600 dark:text-indigo-400 text-xl" />
+                </div>
               </div>
-              <span className="text-[10px] font-black text-indigo-700/90 dark:text-indigo-300/90 uppercase tracking-widest mt-2 block relative z-10">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-3 block relative z-10">
                 Pending
               </span>
             </div>
 
             {/* 6. Total Logged Card */}
-            <div className="bg-gradient-to-br from-purple-500/15 via-purple-500/5 to-transparent dark:from-purple-500/20 dark:via-purple-500/5 dark:to-transparent border border-purple-500/30 dark:border-purple-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+            <div className="bg-white dark:bg-[#0f172a]/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:shadow-purple-500/10 hover:border-purple-500/30 dark:hover:border-purple-500/30 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-50 dark:from-purple-900/40 dark:to-purple-900/10 rounded-full -mr-6 -mt-6 blur-2xl group-hover:scale-150 transition-all duration-500" />
               <div className="flex items-center justify-between relative z-10">
-                <span className="text-lg font-black tracking-tight text-purple-600 dark:text-purple-400 truncate">
+                <span className="text-2xl font-bold tracking-tight text-purple-600 dark:text-purple-400">
                   {calculateTotalLoggedTime(
                     tasksState,
                     allTasks,
@@ -1633,18 +1639,20 @@ const EodReports = () => {
                     officeHours,
                   )}
                 </span>
-                <FiClock className="text-purple-500/60 text-lg group-hover:text-purple-500 transition-colors shrink-0 ml-1" />
+                <div className="p-2.5 bg-purple-50 dark:bg-purple-500/10 rounded-xl group-hover:bg-purple-100 dark:group-hover:bg-purple-500/20 transition-colors duration-300 shrink-0 ml-1">
+                  <FiClock className="text-purple-600 dark:text-purple-400 text-xl" />
+                </div>
               </div>
-              <span className="text-[10px] font-black text-purple-700/90 dark:text-purple-300/90 uppercase tracking-widest mt-2 block relative z-10">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-3 block relative z-10">
                 Total Time Taken
               </span>
             </div>
 
             {/* 7. Productivity % Card */}
-            <div className="bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent dark:from-emerald-500/20 dark:via-emerald-500/5 dark:to-transparent border border-emerald-500/30 dark:border-emerald-500/40 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full -mr-6 -mt-6 blur-md group-hover:scale-125 transition-all duration-300" />
+            <div className="bg-white dark:bg-[#0f172a]/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:shadow-emerald-500/10 hover:border-emerald-500/30 dark:hover:border-emerald-500/30 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/40 dark:to-emerald-900/10 rounded-full -mr-6 -mt-6 blur-2xl group-hover:scale-150 transition-all duration-500" />
               <div className="flex items-center justify-between relative z-10">
-                <span className="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+                <span className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
                   {calculateProductivityPercentage(
                     tasksState,
                     allTasks,
@@ -1652,9 +1660,11 @@ const EodReports = () => {
                     officeHours,
                   )}%
                 </span>
-                <FiCheckCircle className="text-emerald-500/60 text-lg group-hover:text-emerald-500 transition-colors" />
+                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 transition-colors duration-300">
+                  <FiCheckCircle className="text-emerald-600 dark:text-emerald-400 text-xl" />
+                </div>
               </div>
-              <span className="text-[10px] font-black text-emerald-700/90 dark:text-emerald-300/90 uppercase tracking-widest mt-2 block relative z-10">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-3 block relative z-10">
                 Productivity
               </span>
             </div>

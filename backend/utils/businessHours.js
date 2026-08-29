@@ -70,29 +70,7 @@ function calculateBusinessMs(startDate, endDate, startHour = 9, endHour = 19, wo
     curBlockEndIST.setUTCHours(endHour, 0, 0, 0);
     const curBlockEndTime = curBlockEndIST.getTime() - IST_OFFSET;
 
-    // However, if curTime is before breakStartTime and blockEnd goes into break, we should only jump to breakStartTime
-    const breakStartIST = new Date(curIST);
-    breakStartIST.setUTCHours(breakStartHour, 0, 0, 0);
-    const breakStartTime = breakStartIST.getTime() - IST_OFFSET;
-
-    const breakEndIST = new Date(curIST);
-    breakEndIST.setUTCHours(breakEndHour, 0, 0, 0);
-    const breakEndTime = breakEndIST.getTime() - IST_OFFSET;
-
-    if (hour >= breakStartHour && hour < breakEndHour) {
-      // Currently inside break, skip to end of break
-      const msUntilBreakEnd = ((breakEndHour - hour) * 3600 - min * 60 - sec) * 1000 - ms;
-      curTime += msUntilBreakEnd;
-      continue;
-    }
-
-    // Determine the end of the current continuous working block (either endHour or breakStartHour)
-    let blockEndTime = curBlockEndTime;
-    if (hour < breakStartHour) {
-      blockEndTime = Math.min(curBlockEndTime, breakStartTime);
-    }
-    
-    const blockEnd = Math.min(end, blockEndTime);
+    const blockEnd = Math.min(end, curBlockEndTime);
     totalMs += (blockEnd - curTime);
     curTime = blockEnd;
   }
@@ -121,9 +99,6 @@ async function checkWithinBusinessHours() {
 
     if (!workingDays.includes(day)) {
       return false;
-    }
-    if (currentHour >= breakStartHour && currentHour < breakEndHour) {
-      return false; // Break time is not within business hours
     }
     return currentHour >= startHour && currentHour < endHour;
   } catch (err) {

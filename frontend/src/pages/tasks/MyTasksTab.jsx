@@ -122,8 +122,24 @@ const checkTaskProductivityAndDate = (
   }
 
   if (dateFilter === "This Month") {
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const startOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1,
+      0,
+      0,
+      0,
+      0,
+    );
+    const endOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
 
     return createdDate >= startOfMonth && createdDate <= endOfMonth;
   }
@@ -195,14 +211,7 @@ const TimeTracker = ({
       const interval = setInterval(update, 1000);
       return () => clearInterval(interval);
     }
-  }, [
-    startTime,
-    endTime,
-    pausedAt,
-    autoPaused,
-    status,
-    savedPausedMs,
-  ]);
+  }, [startTime, endTime, pausedAt, autoPaused, status, savedPausedMs]);
 
   const formatTime = (secs) => {
     const h = Math.floor(secs / 3600);
@@ -317,14 +326,7 @@ const SingleTimeDisplay = React.memo(
         const interval = setInterval(update, 1000);
         return () => clearInterval(interval);
       }
-    }, [
-      startTime,
-      endTime,
-      pausedAt,
-      autoPaused,
-      status,
-      savedPausedMs,
-    ]);
+    }, [startTime, endTime, pausedAt, autoPaused, status, savedPausedMs]);
 
     const formatTime = (secs) => {
       const h = Math.floor(secs / 3600);
@@ -710,8 +712,7 @@ const WorkTimeCell = React.memo(
       .trim()
       .toUpperCase()
       .replace(/[-_]/g, " ");
-    const isActive =
-      statusUpper === "IN PROGRESS" && !task?.autoPaused;
+    const isActive = statusUpper === "IN PROGRESS" && !task?.autoPaused;
 
     useEffect(() => {
       if (!isActive) return;
@@ -736,20 +737,23 @@ const WorkTimeCell = React.memo(
     return (
       <div className="flex flex-col items-center justify-center gap-1.5 w-full py-1">
         <div className="flex flex-col items-center">
-          <div className="flex items-center gap-1.5">
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border-2 transition-all ${isActive ? "border-violet-500 animate-pulse shadow-[0_0_8px_rgba(139,92,246,0.3)] bg-violet-50 dark:bg-violet-500/10" : (todayWorkMs > 0 ? "border-violet-200 dark:border-violet-800/50 bg-violet-50/50 dark:bg-violet-500/5" : "border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/30")}`}>
             {isActive && (
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shadow-[0_0_5px_rgba(139,92,246,0.8)]"></span>
             )}
             <span
-              className={`font-black text-[12px] ${todayWorkMs > 0 || isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}
+              className={`font-black text-[12px] ${todayWorkMs > 0 || isActive ? "text-violet-600 dark:text-violet-400" : "text-slate-400"}`}
             >
               {formatMsToHMS(todayWorkMs)}
             </span>
           </div>
         </div>
-        
+
         {previousWorkMs > 0 && (
-          <div className="flex items-center gap-1 px-1.5 py-[2px] rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50 shadow-[0_1px_2px_rgba(0,0,0,0.02)]" title="Previous tracked time">
+          <div
+            className="flex items-center gap-1 px-1.5 py-[2px] rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+            title="Previous tracked time"
+          >
             <FiClock size={8} className="text-slate-400" />
             <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wide">
               {formatMsToHMS(previousWorkMs)}
@@ -765,11 +769,18 @@ const OnHoldTimeCell = React.memo(
   ({ task, officeHours = DEFAULT_OFFICE_HOURS, dateFilter = "Today" }) => {
     const [nowTick, setNowTick] = useState(Date.now());
     const isHold = task?.status === "On Hold";
-    
+
     let isUnproductiveActive = isHold;
     if (isHold && task.statusHistory && Array.isArray(task.statusHistory)) {
-      const openEntry = [...task.statusHistory].reverse().find(h => h.status === "On Hold" && !h.endTime);
-      if (openEntry && (openEntry.reason === "Client Call" || openEntry.reason === "Meeting" || openEntry.reason === "Another Task")) {
+      const openEntry = [...task.statusHistory]
+        .reverse()
+        .find((h) => h.status === "On Hold" && !h.endTime);
+      if (
+        openEntry &&
+        (openEntry.reason === "Client Call" ||
+          openEntry.reason === "Meeting" ||
+          openEntry.reason === "Another Task")
+      ) {
         isUnproductiveActive = false;
       }
     }
@@ -805,12 +816,12 @@ const OnHoldTimeCell = React.memo(
     return (
       <div className="flex flex-col items-center justify-center gap-1.5 w-full py-1">
         <div className="flex flex-col items-center">
-          <div className="flex items-center gap-1.5">
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border-2 transition-all ${isUnproductiveActive ? "border-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.3)] bg-amber-50 dark:bg-amber-500/10" : (todayOnHoldMs > 0 ? "border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-500/5" : "border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/30")}`}>
             {isUnproductiveActive && (
-              <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.8)]"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.8)]"></span>
             )}
             <span
-              className={`font-black text-[12px] ${todayOnHoldMs > 0 || isUnproductiveActive ? "text-yellow-500 dark:text-yellow-400" : "text-slate-400"}`}
+              className={`font-black text-[12px] ${todayOnHoldMs > 0 || isUnproductiveActive ? "text-amber-600 dark:text-amber-400" : "text-slate-400"}`}
             >
               {formatMsToHMS(todayOnHoldMs)}
             </span>
@@ -818,7 +829,10 @@ const OnHoldTimeCell = React.memo(
         </div>
 
         {previousOnHoldMs > 0 && (
-          <div className="flex items-center gap-1 px-1.5 py-[2px] rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50 shadow-[0_1px_2px_rgba(0,0,0,0.02)]" title="Previous tracked time">
+          <div
+            className="flex items-center gap-1 px-1.5 py-[2px] rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+            title="Previous tracked time"
+          >
             <FiClock size={8} className="text-slate-400" />
             <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wide">
               {formatMsToHMS(previousOnHoldMs)}
@@ -833,11 +847,20 @@ const OnHoldTimeCell = React.memo(
 const BlockedTimeCell = React.memo(
   ({ task, officeHours = DEFAULT_OFFICE_HOURS, dateFilter = "Today" }) => {
     const [nowTick, setNowTick] = useState(Date.now());
-    
+
     let isBlockedActive = task?.status === "Blocked";
-    if (task?.status === "On Hold" && task.statusHistory && Array.isArray(task.statusHistory)) {
-      const openEntry = [...task.statusHistory].reverse().find(h => h.status === "On Hold" && !h.endTime);
-      if (openEntry && (openEntry.reason === "Client Call" || openEntry.reason === "Meeting")) {
+    if (
+      task?.status === "On Hold" &&
+      task.statusHistory &&
+      Array.isArray(task.statusHistory)
+    ) {
+      const openEntry = [...task.statusHistory]
+        .reverse()
+        .find((h) => h.status === "On Hold" && !h.endTime);
+      if (
+        openEntry &&
+        (openEntry.reason === "Client Call" || openEntry.reason === "Meeting")
+      ) {
         isBlockedActive = true;
       }
     }
@@ -930,8 +953,7 @@ const TodayTrackerCell = React.memo(
       .trim()
       .toUpperCase()
       .replace(/[-_]/g, " ");
-    const isActive =
-      statusUpper === "IN PROGRESS" && !task?.autoPaused;
+    const isActive = statusUpper === "IN PROGRESS" && !task?.autoPaused;
 
     useEffect(() => {
       if (!isActive) return;
@@ -1010,30 +1032,38 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
 
   if (dateFilter === "All") {
     workMs = task.totalTrackedTime || 0;
-    
+
     // Check if task is actively productive (In Progress or Productive Hold)
     const currentIsProductiveHold =
       task.status === "On Hold" &&
       task.statusHistory &&
       task.statusHistory.length > 0 &&
-      (task.statusHistory[task.statusHistory.length - 1].reason === "Client Call" ||
-       task.statusHistory[task.statusHistory.length - 1].reason === "Meeting");
+      (task.statusHistory[task.statusHistory.length - 1].reason ===
+        "Client Call" ||
+        task.statusHistory[task.statusHistory.length - 1].reason === "Meeting");
 
-    if ((task.status === "In Progress" || currentIsProductiveHold) && !task.autoPaused) {
+    if (
+      (task.status === "In Progress" || currentIsProductiveHold) &&
+      !task.autoPaused
+    ) {
       let liveStart = 0;
-      
+
       // 1. Try to find the open entry in status history
       if (task.statusHistory && Array.isArray(task.statusHistory)) {
-        const openEntry = [...task.statusHistory].reverse().find(
-          (h) => (h.status === "In Progress" || 
-                 (h.status === "On Hold" && (h.reason === "Client Call" || h.reason === "Meeting"))) && 
-                 !h.endTime
-        );
+        const openEntry = [...task.statusHistory]
+          .reverse()
+          .find(
+            (h) =>
+              (h.status === "In Progress" ||
+                (h.status === "On Hold" &&
+                  (h.reason === "Client Call" || h.reason === "Meeting"))) &&
+              !h.endTime,
+          );
         if (openEntry && openEntry.startTime) {
           liveStart = new Date(openEntry.startTime).getTime();
         }
       }
-      
+
       // 2. Fallback
       if (!liveStart || liveStart <= 0) {
         if (task.status === "In Progress" && task.actualStartTime) {
@@ -1042,7 +1072,7 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
           liveStart = new Date(task.holdStartedAt).getTime();
         }
       }
-      
+
       if (liveStart > 0) {
         workMs += Math.max(0, nowTick - liveStart);
       }
@@ -1068,7 +1098,11 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
     } else if (dateFilter && dateFilter !== "All") {
       const parsed = new Date(dateFilter);
       if (!isNaN(parsed.getTime())) {
-        start = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+        start = new Date(
+          parsed.getFullYear(),
+          parsed.getMonth(),
+          parsed.getDate(),
+        );
         end = start;
       }
     }
@@ -1122,11 +1156,13 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
       );
       return d >= start && d <= end;
     }
-    
+
     if (dateFilter && dateFilter !== "All") {
       const parsed = new Date(dateFilter);
       if (!isNaN(parsed.getTime())) {
-        const filterStr = parsed.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        const filterStr = parsed.toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        });
         return dStr === filterStr;
       }
     }
@@ -1167,7 +1203,9 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
       nowTick - new Date(task.holdStartedAt).getTime(),
     );
     if (isDateInFilter(task.holdStartedAt)) {
-      const holdEntry = [...(task.statusHistory || [])].reverse().find(h => h.status === "On Hold");
+      const holdEntry = [...(task.statusHistory || [])]
+        .reverse()
+        .find((h) => h.status === "On Hold");
       const reason = holdEntry?.reason;
       if (reason === "Client Call" || reason === "Meeting") {
         blockedMs += duration;
@@ -1189,8 +1227,6 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
 
   return { workMs, onHoldMs, blockedMs, correctionMs };
 };
-
-
 
 const PriorityBadge = ({ priority, isTopHigh }) => {
   const p = isTopHigh ? "Top High" : priority || "Medium";
@@ -1216,7 +1252,7 @@ const PriorityBadge = ({ priority, isTopHigh }) => {
   }
   return (
     <div
-      className={`flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold w-max mx-auto border ${bgClass.replace("bg-", "border-").replace("dark:bg-", "dark:border-")} ${bgClass} ${textClass} ${p === "Top High" ? "animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" : ""}`}
+      className={`flex items-center justify-center gap-1.5 px-3.5 py-3 rounded-full text-[11px] font-bold w-max mx-auto border ${bgClass.replace("bg-", "border-").replace("dark:bg-", "dark:border-")} ${bgClass} ${textClass} ${p === "Top High" ? "animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" : ""}`}
     >
       {p !== "Top High" && <FiFlag size={12} />}
       {p}
@@ -1722,7 +1758,6 @@ const MyTasksTab = ({
     );
   };
 
-
   const [correctionModalData, setCorrectionModalData] = useState(null);
   const [rejectionModalData, setRejectionModalData] = useState(null);
   const [holdModalData, setHoldModalData] = useState(null);
@@ -2117,43 +2152,43 @@ const MyTasksTab = ({
     switch (status) {
       case "Completed":
         return {
-          bg: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-transparent rounded-full font-bold",
-          dot: "bg-emerald-500",
+          bg: "bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:bg-emerald-500/20 dark:border-emerald-500/50 dark:text-emerald-400 rounded-full font-bold",
+          dot: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]",
           icon: FiCheckSquare,
         };
       case "In Progress":
         return {
-          bg: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border-transparent rounded-full font-bold",
-          dot: "bg-blue-500",
+          bg: "bg-violet-500/10 border border-violet-500/30 text-violet-600 dark:bg-violet-500/20 dark:border-violet-500/50 dark:text-violet-400 rounded-full font-bold",
+          dot: "bg-violet-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]",
           icon: FiClock,
         };
       case "On Hold":
         return {
-          bg: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 border-transparent rounded-full font-bold",
-          dot: "bg-orange-500",
+          bg: "bg-orange-500/10 border border-orange-500/30 text-orange-600 dark:bg-orange-500/20 dark:border-orange-500/50 dark:text-orange-400 rounded-full font-bold",
+          dot: "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]",
           icon: FiAlertCircle,
         };
       case "In Review":
         return {
-          bg: "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 border-transparent rounded-full font-bold",
-          dot: "bg-yellow-500",
+          bg: "bg-yellow-500/10 border border-yellow-500/30 text-yellow-600 dark:bg-yellow-500/20 dark:border-yellow-500/50 dark:text-yellow-400 rounded-full font-bold",
+          dot: "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.8)]",
           icon: FiClock,
         };
       case "Correction":
         return {
-          bg: "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 border-transparent rounded-full font-bold",
-          dot: "bg-indigo-500",
+          bg: "bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:bg-indigo-500/20 dark:border-indigo-500/50 dark:text-indigo-400 rounded-full font-bold",
+          dot: "bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]",
           icon: FiAlertCircle,
         };
       case "Rejected":
         return {
-          bg: "bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-400 border-transparent rounded-full font-bold",
-          dot: "bg-rose-500",
+          bg: "bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:bg-rose-500/20 dark:border-rose-500/50 dark:text-rose-400 rounded-full font-bold",
+          dot: "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]",
           icon: FiAlertCircle,
         };
       default: // Not Started
         return {
-          bg: "bg-slate-100 dark:bg-slate-800/40 text-slate-700 dark:text-slate-400 border-transparent rounded-full font-bold",
+          bg: "bg-slate-500/10 border border-slate-500/30 text-slate-600 dark:bg-slate-500/20 dark:border-slate-500/50 dark:text-slate-400 rounded-full font-bold",
           dot: "bg-slate-400",
           icon: FiClock,
         };
@@ -2433,10 +2468,7 @@ const MyTasksTab = ({
       const contentCopy = task.contentCopy || task.copy || "—";
       const revisionCount = task.reviewCycles?.length || 0;
 
-      const {
-        activeStr,
-        totalStr,
-      } = computeTaskTimes(task);
+      const { activeStr, totalStr } = computeTaskTimes(task);
       const approvalStr = computeApprovalStr(task);
 
       return [
@@ -2492,7 +2524,6 @@ const MyTasksTab = ({
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-[12px] font-semibold bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-xl text-emerald-900 dark:text-emerald-100 placeholder-emerald-600/50 dark:placeholder-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
             />
-          
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -2509,7 +2540,9 @@ const MyTasksTab = ({
               >
                 <div className="flex items-center gap-1.5">
                   <FiFilter className="text-blue-500" size={13} />
-                  <span>{dateFilter === "All" ? "Filter Date" : dateFilter}</span>
+                  <span>
+                    {dateFilter === "All" ? "Filter Date" : dateFilter}
+                  </span>
                 </div>
                 <FiChevronDown
                   className={`text-slate-400 transition-transform duration-200 ${
@@ -2626,11 +2659,11 @@ const MyTasksTab = ({
                         { key: "client", label: "Client" },
                         { key: "contentType", label: "Content-type" },
                         { key: "status", label: "Status" },
-                        { key: "holdReason", label: "Hold Reason" },
-                        { key: "feedbackMom", label: "Feedback MOM" },
                         { key: "activeTime", label: "Productivity" },
                         { key: "onHoldTime", label: "Unproductivity" },
+                        { key: "holdReason", label: "Hold Reason" },
                         { key: "blockedTime", label: "Blocked" },
+                        { key: "feedbackMom", label: "Feedback MOM" },
                         { key: "timeTracker", label: "Time Tracker" },
                         { key: "revision", label: "Revision" },
                         { key: "startDate", label: "Start Date" },
@@ -2638,7 +2671,7 @@ const MyTasksTab = ({
                         { key: "assignedBy", label: "Assigned By" },
                         { key: "approvalTime", label: "Approval Info" },
                         { key: "contentCopy", label: "Content Copy" },
-                        { key: "createdTime", label: "Created Time" }
+                        { key: "createdTime", label: "Created Time" },
                       ].map((col) => (
                         <label
                           key={col.key}
@@ -3217,24 +3250,6 @@ const MyTasksTab = ({
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-48 min-w-[180px]"
                       />
                     )}
-                    {!hiddenColumns.holdReason && (
-                      <ResizableHeader
-                        id="holdReason"
-                        label="Hold Reason"
-                        colWidths={colWidths}
-                        handleMouseDown={handleMouseDown}
-                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[150px]"
-                      />
-                    )}
-                    {!hiddenColumns.blockedTime && (
-                      <ResizableHeader
-                        id="blockedTime"
-                        label="Blocked"
-                        colWidths={colWidths}
-                        handleMouseDown={handleMouseDown}
-                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
-                      />
-                    )}
                     {!hiddenColumns.activeTime && (
                       <ResizableHeader
                         id="activeTime"
@@ -3248,6 +3263,24 @@ const MyTasksTab = ({
                       <ResizableHeader
                         id="onHoldTime"
                         label="Unproductivity"
+                        colWidths={colWidths}
+                        handleMouseDown={handleMouseDown}
+                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
+                      />
+                    )}
+                    {!hiddenColumns.holdReason && (
+                      <ResizableHeader
+                        id="holdReason"
+                        label="Hold Reason"
+                        colWidths={colWidths}
+                        handleMouseDown={handleMouseDown}
+                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[150px]"
+                      />
+                    )}
+                    {!hiddenColumns.blockedTime && (
+                      <ResizableHeader
+                        id="blockedTime"
+                        label="Blocked"
                         colWidths={colWidths}
                         handleMouseDown={handleMouseDown}
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
@@ -3304,7 +3337,7 @@ const MyTasksTab = ({
                         label="Approval Info"
                         colWidths={colWidths}
                         handleMouseDown={handleMouseDown}
-                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-36 whitespace-nowrap"
+                        defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-52 whitespace-nowrap"
                       />
                     )}
                     {!hiddenColumns.contentCopy && (
@@ -3390,11 +3423,11 @@ const MyTasksTab = ({
                                     className={`flex items-center gap-2 ${isCompleted ? "line-through text-slate-400" : "text-slate-800 dark:text-white"}`}
                                   >
                                     <BiFile
-                                      size={16}
+                                      size={25}
                                       className="text-slate-400 shrink-0"
                                     />
                                     <span
-                                      className="text-sm font-black truncate max-w-[200px]"
+                                      className="text-sm font-black truncate max-w-[260px]"
                                       title={task.title}
                                     >
                                       {task.title}
@@ -3426,7 +3459,7 @@ const MyTasksTab = ({
                             )}
 
                             {!hiddenColumns.client && (
-                              <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent text-center">
+                              <td className="px-3 py-4.5 border border-slate-200/70 dark:border-transparent text-center">
                                 {(() => {
                                   const projId =
                                     task.project?._id || task.project;
@@ -3440,7 +3473,7 @@ const MyTasksTab = ({
                                       task.project?.client;
                                   if (client) {
                                     return (
-                                      <ClientBadge client={client} size="sm" />
+                                      <ClientBadge client={client} size="lg" />
                                     );
                                   }
                                   return (
@@ -3455,7 +3488,7 @@ const MyTasksTab = ({
                             {!hiddenColumns.contentType && (
                               <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent whitespace-nowrap text-center">
                                 <span
-                                  className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-pink-50 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400 whitespace-nowrap`}
+                                  className={`px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase bg-pink-50 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400 whitespace-nowrap`}
                                 >
                                   {task.contentType || "None"}
                                 </span>
@@ -3468,19 +3501,31 @@ const MyTasksTab = ({
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 {task.status === "Completed" ? (
-                                  <div className="px-3 py-1.5 text-[11px] font-bold rounded-full border border-emerald-200/80 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center gap-1.5 shadow-2xs">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  <div
+                                    className={`px-3 py-3 text-[13px] flex items-center justify-center gap-1.5 shadow-2xs ${statusStyle.bg}`}
+                                  >
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}
+                                    />
                                     Completed
                                   </div>
                                 ) : task.status === "In Review" ? (
-                                  <div className="px-3 py-1.5 text-[11px] font-bold rounded-full border border-amber-200/80 dark:border-amber-500/20 text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center gap-1.5 shadow-2xs">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  <div
+                                    className={`px-3 py-3 text-[13px] flex items-center justify-center gap-1.5 shadow-2xs ${statusStyle.bg}`}
+                                  >
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}
+                                    />
                                     In Review
                                   </div>
                                 ) : task.status === "Correction" ? (
                                   <div className="flex flex-col gap-1 items-center">
-                                    <div className="px-3 py-1 text-[11px] font-bold rounded-full border border-orange-200/80 dark:border-orange-500/20 text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center gap-1.5 shadow-2xs">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                                    <div
+                                      className={`px-3 py-3 text-[13px] flex items-center justify-center gap-1.5 shadow-2xs ${statusStyle.bg}`}
+                                    >
+                                      <span
+                                        className={`w-1.5 h-1.5 rounded-full animate-pulse ${statusStyle.dot}`}
+                                      />
                                       Corrections Required
                                     </div>
                                     <button
@@ -3497,12 +3542,32 @@ const MyTasksTab = ({
                                     </button>
                                   </div>
                                 ) : task.status === "Rejected" ? (
-                                  <div className="px-3 py-1.5 text-[11px] font-bold rounded-full border border-rose-200/80 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center gap-1.5 shadow-2xs">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  <div
+                                    className={`px-3 py-3 text-[13px] flex items-center justify-center gap-1.5 shadow-2xs ${statusStyle.bg}`}
+                                  >
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}
+                                    />
                                     Rejected
                                   </div>
                                 ) : (
                                   <div className="relative w-full group">
+                                    <div
+                                      className={`px-3 py-3 text-[13px] flex items-center justify-center gap-1.5 shadow-sm transition-all group-hover:shadow ${statusStyle.bg}`}
+                                    >
+                                      <span
+                                        className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}
+                                      />
+                                      <span className="pr-3 whitespace-nowrap">
+                                        {task.status}
+                                      </span>
+                                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+                                        <FiChevronDown
+                                          size={10}
+                                          strokeWidth={2.5}
+                                        />
+                                      </div>
+                                    </div>
                                     <select
                                       value={task.status}
                                       onChange={(e) =>
@@ -3511,80 +3576,35 @@ const MyTasksTab = ({
                                           e.target.value,
                                         )
                                       }
-                                      className={`appearance-none pl-2.5 pr-6 py-0.5 text-[11px] sm:text-[9.5px] font-bold rounded-full border-2 cursor-pointer w-full text-left transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-sm hover:shadow ${statusStyle.bg}`}
+                                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                     >
                                       <option
                                         value="Not Started"
-                                        className="bg-white dark:bg-gray-500 text-slate-700 dark:text-white"
+                                        className="bg-white dark:bg-gray-800 text-slate-700 dark:text-white"
                                       >
                                         Not Started
                                       </option>
                                       <option
                                         value="In Progress"
-                                        className="bg-white dark:bg-blue-500 text-slate-700 dark:text-white"
+                                        className="bg-white dark:bg-gray-800 text-slate-700 dark:text-white"
                                       >
                                         In Progress
                                       </option>
                                       <option
                                         value="In Review"
-                                        className="bg-white dark:bg-[#11131e] text-slate-700 dark:text-slate-200"
+                                        className="bg-white dark:bg-gray-800 text-slate-700 dark:text-white"
                                       >
                                         In Review
                                       </option>
                                       <option
                                         value="On Hold"
-                                        className="bg-white dark:bg-[#11131e] text-slate-700 dark:text-slate-200"
+                                        className="bg-white dark:bg-gray-800 text-slate-700 dark:text-white"
                                       >
                                         On Hold
                                       </option>
                                     </select>
-                                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-505 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
-                                      <FiChevronDown
-                                        size={9}
-                                        strokeWidth={2.5}
-                                      />
-                                    </div>
                                   </div>
                                 )}
-                              </td>
-                            )}
-
-                            {!hiddenColumns.holdReason && (
-                              <td
-                                className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[150px] text-center"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {(() => {
-                                  if (task.status !== "On Hold") {
-                                    return <span className="text-slate-300 dark:text-slate-600 font-semibold text-xs">—</span>;
-                                  }
-                                  const holdEntry = [...(task.statusHistory || [])].reverse().find(h => h.status === "On Hold");
-                                  const reason = holdEntry?.reason;
-                                  if (!reason) {
-                                    return <span className="text-slate-400 italic text-[10px]">No Reason</span>;
-                                  }
-                                  return (
-                                    <span 
-                                      className="inline-block px-2.5 py-1 bg-amber-50 border border-amber-200/60 dark:border-amber-500/20 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-md text-[10.5px] font-bold shadow-sm truncate max-w-[130px]" 
-                                      title={reason}
-                                    >
-                                      {reason}
-                                    </span>
-                                  );
-                                })()}
-                              </td>
-                            )}
-
-                            {!hiddenColumns.blockedTime && (
-                              <td
-                                className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[140px] text-center"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <BlockedTimeCell
-                                  task={task}
-                                  dateFilter={dateFilter}
-                                  officeHours={officeHours}
-                                />
                               </td>
                             )}
 
@@ -3607,6 +3627,57 @@ const MyTasksTab = ({
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <OnHoldTimeCell
+                                  task={task}
+                                  dateFilter={dateFilter}
+                                  officeHours={officeHours}
+                                />
+                              </td>
+                            )}
+
+                            {!hiddenColumns.holdReason && (
+                              <td
+                                className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[150px] text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {(() => {
+                                  if (task.status !== "On Hold") {
+                                    return (
+                                      <span className="text-slate-300 dark:text-slate-600 font-semibold text-xs">
+                                        —
+                                      </span>
+                                    );
+                                  }
+                                  const holdEntry = [
+                                    ...(task.statusHistory || []),
+                                  ]
+                                    .reverse()
+                                    .find((h) => h.status === "On Hold");
+                                  const reason = holdEntry?.reason;
+                                  if (!reason) {
+                                    return (
+                                      <span className="text-slate-400 italic text-[10px]">
+                                        No Reason
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span
+                                      className="inline-block px-2.5 py-1 bg-amber-50 border border-amber-200/60 dark:border-amber-500/20 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-md text-[10.5px] font-bold shadow-sm truncate max-w-[130px]"
+                                      title={reason}
+                                    >
+                                      {reason}
+                                    </span>
+                                  );
+                                })()}
+                              </td>
+                            )}
+
+                            {!hiddenColumns.blockedTime && (
+                              <td
+                                className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[140px] text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <BlockedTimeCell
                                   task={task}
                                   dateFilter={dateFilter}
                                   officeHours={officeHours}
@@ -3886,7 +3957,7 @@ const MyTasksTab = ({
                   <FiCheckSquare size={24} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-white">
                     Submit Task for Review?
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed font-medium">
@@ -3904,7 +3975,7 @@ const MyTasksTab = ({
                 <button
                   type="button"
                   onClick={() => setReviewModalData(null)}
-                  className="px-4.5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="px-4.5 py-2.5 rounded-xl text-xs font-bold  text-slate-600 dark:text-white dark:hover:text-black transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -3973,7 +4044,7 @@ const MyTasksTab = ({
               id: holdModalData.taskId,
               taskData: { ...data, relatedTaskId: data.relatedTaskId || null },
             }).unwrap();
-            
+
             if (data.reason === "Another Task" && data.relatedTaskId) {
               await updateTaskTrigger({
                 id: data.relatedTaskId,
@@ -3992,7 +4063,7 @@ const MyTasksTab = ({
         tasks={tasks.filter(
           (t) =>
             t._id !== holdModalData?.taskId &&
-            !["Completed", "In Progress", "In Review"].includes(t.status)
+            !["Completed", "In Progress", "In Review"].includes(t.status),
         )}
       />
 
@@ -4014,7 +4085,6 @@ const MyTasksTab = ({
           setBlockModalData(null);
         }}
       />
-
 
       {/* OFF-CANVAS WORKSPACE PREVIEW DRAWER */}
       <AnimatePresence>
@@ -4369,7 +4439,6 @@ const MyTasksTab = ({
                     />
                   </div>
                 )}
-
               </div>
             </motion.div>
           </div>
