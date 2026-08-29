@@ -1830,8 +1830,13 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                 },
               );
               if (hDate === selDateStr) {
-                taskOnHoldMs += h.duration || 0;
-                if (h.reason) holdReasonsSet.add(h.reason);
+                if (h.reason === "Client Call" || h.reason === "Meeting") {
+                  taskBlockerMs += h.duration || 0;
+                  if (h.reason) blockerTypesSet.add(h.reason);
+                } else if (h.reason !== "Another Task") {
+                  taskOnHoldMs += h.duration || 0;
+                  if (h.reason) holdReasonsSet.add(h.reason);
+                }
               }
             }
           });
@@ -1845,13 +1850,18 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             const endMs = isSameDay(selDateObj, new Date())
               ? Date.now()
               : startOfDay(addDays(selDateObj, 1)).getTime();
-            taskOnHoldMs += Math.max(
-              0,
-              endMs - new Date(t.holdStartedAt).getTime(),
-            );
+            const duration = Math.max(0, endMs - new Date(t.holdStartedAt).getTime());
+            
             const liveHoldEntry = [...(t.statusHistory || [])].reverse().find(x => x.status === "On Hold");
-            if (liveHoldEntry && liveHoldEntry.reason) {
-              holdReasonsSet.add(liveHoldEntry.reason);
+            
+            if (liveHoldEntry && (liveHoldEntry.reason === "Client Call" || liveHoldEntry.reason === "Meeting")) {
+              taskBlockerMs += duration;
+              blockerTypesSet.add(liveHoldEntry.reason);
+            } else if (!liveHoldEntry || liveHoldEntry.reason !== "Another Task") {
+              taskOnHoldMs += duration;
+              if (liveHoldEntry && liveHoldEntry.reason) {
+                holdReasonsSet.add(liveHoldEntry.reason);
+              }
             }
           }
         }
@@ -3483,7 +3493,10 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
           <div className="px-4 py-3 min-h-[58px] border-b border-slate-200 dark:border-slate-800  flex flex-wrap items-center justify-between gap-2.5">
             <div className="min-w-0">
               <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-wide uppercase truncate">
-                Team Performance & Today's Productivity
+                <span className="text-xl bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
+                  {targetDept}
+                </span>{" "}
+                - Team Performance & Today's Productivity
               </h3>
               <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-500 tracking-wide truncate block">
                 Today's Assigned, Carry Forward & Actual Work Tracker
@@ -3511,10 +3524,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                   })()}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/50 dark:border-blue-800/40 text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping shrink-0" />
-                <span className="text-[12px]">Live Tracker</span>
-              </div>
+             
               <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg sidebar-bg border border-slate-200/60 dark:border-slate-800 text-[9px] font-extrabold text-slate-700 dark:text-slate-300">
                 <FiCalendar
                   className="text-indigo-500 dark:text-indigo-400 shrink-0"
@@ -3690,7 +3700,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                       </td>
 
                       {/* Pending */}
-                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-red-500/5 dark:bg-red-950/10">
+                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-slate-200 dark:bg-slate-100">
                         <StatusCellValue
                           todayVal={tp.pending}
                           carryVal={tp.carryForward?.pending || 0}
@@ -3700,7 +3710,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                       </td>
 
                       {/* In Progress */}
-                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-violet-500/5 dark:bg-violet-950/10">
+                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-violet-200 dark:bg-violet-400">
                         <StatusCellValue
                           todayVal={tp.inProgress}
                           carryVal={tp.carryForward?.inProgress || 0}
@@ -3711,17 +3721,17 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                       </td>
 
                       {/* On Hold */}
-                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-fuchsia-500/5 dark:bg-fuchsia-950/10">
+                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-orange-200 dark:bg-orange-400">
                         <StatusCellValue
                           todayVal={tp.onHold}
                           carryVal={tp.carryForward?.onHold || 0}
-                          activeTextClass="text-fuchsia-600 dark:text-fuchsia-400"
-                          badgeClass="bg-white dark:bg-slate-955 text-fuchsia-600 dark:text-fuchsia-400 border-fuchsia-200/50 dark:border-fuchsia-900/60 shadow-3xs"
+                          activeTextClass="text-orange-600 dark:text-orange-400"
+                          badgeClass="bg-white dark:bg-slate-955 text-orange-600 dark:text-orange-400 border-orange-200/50 dark:border-orange-900/60 shadow-3xs"
                         />
                       </td>
 
                       {/* In Review */}
-                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-amber-500/5 dark:bg-amber-955/10">
+                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-amber-200 dark:bg-amber-400">
                         <StatusCellValue
                           todayVal={tp.inReview}
                           carryVal={tp.carryForward?.inReview || 0}
@@ -3731,7 +3741,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
                       </td>
 
                       {/* Completed */}
-                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-emerald-500/5 dark:bg-emerald-950/10">
+                      <td className="py-2 px-2 border-b border-slate-250 dark:border-slate-700/80 text-center bg-emerald-200 dark:bg-emerald-400">
                         <StatusCellValue
                           todayVal={tp.completed}
                           carryVal={tp.carryForward?.completed || 0}
