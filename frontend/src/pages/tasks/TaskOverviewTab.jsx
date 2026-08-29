@@ -2040,7 +2040,15 @@ const TaskOverviewTab = ({
         );
       })
       .sort((a, b) => {
-        // 1. Primary sort: Status Order (Not Started -> In Progress -> On Hold -> In Review -> Correction -> Rejected -> Completed)
+        // 1. Primary sort: Most recent date first (createdAt)
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+
+        if (timeA !== timeB) {
+          return timeB - timeA;
+        }
+
+        // 2. Secondary sort: Status Order (Not Started -> In Progress -> On Hold -> In Review -> Correction -> Rejected -> Completed)
         const getStatusSortRank = (task) => {
           const s = (task.status || "Not Started").toUpperCase();
           if (s === "NOT STARTED" || s === "PENDING" || s === "TO DO" || s === "TODO") {

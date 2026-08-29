@@ -737,9 +737,11 @@ const WorkTimeCell = React.memo(
     return (
       <div className="flex flex-col items-center justify-center gap-1.5 w-full py-1">
         <div className="flex flex-col items-center">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border-2 transition-all ${isActive ? "border-violet-500 animate-pulse shadow-[0_0_8px_rgba(139,92,246,0.3)] bg-violet-50 dark:bg-violet-500/10" : (todayWorkMs > 0 ? "border-violet-200 dark:border-violet-800/50 bg-violet-50/50 dark:bg-violet-500/5" : "border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/30")}`}>
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border-2 transition-all duration-300 ${isActive ? "border-violet-500 bg-violet-50 dark:bg-violet-500/10 shadow-[0_0_12px_rgba(139,92,246,0.6)] animate-[pulse_1.5s_ease-in-out_infinite]" : todayWorkMs > 0 ? "border-transparent bg-violet-50/50 dark:bg-violet-500/5" : "border-transparent bg-slate-50 dark:bg-slate-800/30"}`}
+          >
             {isActive && (
-              <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shadow-[0_0_5px_rgba(139,92,246,0.8)]"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shadow-[0_0_6px_rgba(139,92,246,1)]"></span>
             )}
             <span
               className={`font-black text-[12px] ${todayWorkMs > 0 || isActive ? "text-violet-600 dark:text-violet-400" : "text-slate-400"}`}
@@ -816,9 +818,11 @@ const OnHoldTimeCell = React.memo(
     return (
       <div className="flex flex-col items-center justify-center gap-1.5 w-full py-1">
         <div className="flex flex-col items-center">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border-2 transition-all ${isUnproductiveActive ? "border-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.3)] bg-amber-50 dark:bg-amber-500/10" : (todayOnHoldMs > 0 ? "border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-500/5" : "border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/30")}`}>
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border-2 transition-all duration-300 ${isUnproductiveActive ? "border-amber-500 bg-amber-50 dark:bg-amber-500/10 shadow-[0_0_12px_rgba(245,158,11,0.6)] animate-[pulse_1.5s_ease-in-out_infinite]" : todayOnHoldMs > 0 ? "border-transparent bg-amber-50/50 dark:bg-amber-500/5" : "border-transparent bg-slate-50 dark:bg-slate-800/30"}`}
+          >
             {isUnproductiveActive && (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.8)]"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,1)]"></span>
             )}
             <span
               className={`font-black text-[12px] ${todayOnHoldMs > 0 || isUnproductiveActive ? "text-amber-600 dark:text-amber-400" : "text-slate-400"}`}
@@ -983,39 +987,6 @@ const TodayTrackerCell = React.memo(
             <FiClock size={11} className="text-slate-400" />
             {formatMsToHMS(totalMs)}
           </div>
-          <div className="text-[9px] text-slate-400 font-bold ml-[18px]">
-            of 8h 00m
-          </div>
-        </div>
-
-        <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
-          <svg
-            className="w-full h-full transform -rotate-90"
-            viewBox="0 0 36 36"
-          >
-            <circle
-              cx="18"
-              cy="18"
-              r="15"
-              fill="none"
-              className="stroke-slate-100 dark:stroke-slate-800"
-              strokeWidth="4"
-            />
-            <circle
-              cx="18"
-              cy="18"
-              r="15"
-              fill="none"
-              className="stroke-teal-500"
-              strokeWidth="4"
-              strokeDasharray="94.2"
-              strokeDashoffset={94.2 - (94.2 * percentage) / 100}
-              strokeLinecap="round"
-            />
-          </svg>
-          <span className="absolute text-[7px] font-bold text-slate-700 dark:text-slate-300">
-            {percentage}%
-          </span>
         </div>
       </div>
     );
@@ -1042,40 +1013,35 @@ const getTaskStatsForDateFilter = (task, dateFilter, officeHours, nowTick) => {
         "Client Call" ||
         task.statusHistory[task.statusHistory.length - 1].reason === "Meeting");
 
-    if (
-      (task.status === "In Progress" || currentIsProductiveHold) &&
-      !task.autoPaused
-    ) {
-      let liveStart = 0;
+    let liveStart = 0;
 
-      // 1. Try to find the open entry in status history
-      if (task.statusHistory && Array.isArray(task.statusHistory)) {
-        const openEntry = [...task.statusHistory]
-          .reverse()
-          .find(
-            (h) =>
-              (h.status === "In Progress" ||
-                (h.status === "On Hold" &&
-                  (h.reason === "Client Call" || h.reason === "Meeting"))) &&
-              !h.endTime,
-          );
-        if (openEntry && openEntry.startTime) {
-          liveStart = new Date(openEntry.startTime).getTime();
-        }
+    // 1. Try to find the open entry in status history
+    if (task.statusHistory && Array.isArray(task.statusHistory)) {
+      const openEntry = [...task.statusHistory]
+        .reverse()
+        .find(
+          (h) =>
+            (h.status === "In Progress" ||
+              (h.status === "On Hold" &&
+                (h.reason === "Client Call" || h.reason === "Meeting"))) &&
+            !h.endTime,
+        );
+      if (openEntry && openEntry.startTime) {
+        liveStart = new Date(openEntry.startTime).getTime();
       }
+    }
 
-      // 2. Fallback
-      if (!liveStart || liveStart <= 0) {
-        if (task.status === "In Progress" && task.actualStartTime) {
-          liveStart = new Date(task.actualStartTime).getTime();
-        } else if (currentIsProductiveHold && task.holdStartedAt) {
-          liveStart = new Date(task.holdStartedAt).getTime();
-        }
+    // 2. Fallback
+    if (!liveStart || liveStart <= 0) {
+      if (task.status === "In Progress" && task.actualStartTime) {
+        liveStart = new Date(task.actualStartTime).getTime();
+      } else if (currentIsProductiveHold && task.holdStartedAt) {
+        liveStart = new Date(task.holdStartedAt).getTime();
       }
+    }
 
-      if (liveStart > 0) {
-        workMs += Math.max(0, nowTick - liveStart);
-      }
+    if (liveStart > 0 && !task.autoPaused) {
+      workMs += Math.max(0, nowTick - liveStart);
     }
   } else {
     let start, end;
@@ -1271,7 +1237,7 @@ const COLUMN_OPTIONS = [
   { key: "feedbackMom", label: "Feedback MOM" },
   { key: "activeTime", label: "Productivity" },
   { key: "onHoldTime", label: "Unproductivity" },
-  { key: "timeTracker", label: "Time Tracker" },
+  { key: "timeTracker", label: "Total time spent for this task " },
   { key: "revision", label: "Revision" },
   { key: "startDate", label: "Start Date" },
   { key: "endDate", label: "Due Date" },
@@ -1652,19 +1618,22 @@ const MyTasksTab = ({
     };
 
     return [...list].sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+
+      if (timeA !== timeB) {
+        return timeB - timeA;
+      }
+
       const sRankA = getStatusSortPriority(a);
       const sRankB = getStatusSortPriority(b);
       if (sRankA !== sRankB) {
         return sRankA - sRankB;
       }
+
       const pRankA = getPriorityRank(a);
       const pRankB = getPriorityRank(b);
-      if (pRankA !== pRankB) {
-        return pRankA - pRankB;
-      }
-      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return timeB - timeA;
+      return pRankA - pRankB;
     });
   }, [filteredTasksWithoutStatus, statusFilter]);
 
@@ -2374,7 +2343,7 @@ const MyTasksTab = ({
       "Status",
       "Productivity",
       "Unproductivity",
-      "Time tracker",
+      "Total time spent for this task ",
       "Revision",
       "Start Date",
       "DUE DATE",
@@ -2664,7 +2633,7 @@ const MyTasksTab = ({
                         { key: "holdReason", label: "Hold Reason" },
                         { key: "blockedTime", label: "Blocked" },
                         { key: "feedbackMom", label: "Feedback MOM" },
-                        { key: "timeTracker", label: "Time Tracker" },
+                        { key: "timeTracker", label: "Total time spent for this task " },
                         { key: "revision", label: "Revision" },
                         { key: "startDate", label: "Start Date" },
                         { key: "endDate", label: "Due Date" },
@@ -3289,7 +3258,7 @@ const MyTasksTab = ({
                     {!hiddenColumns.timeTracker && (
                       <ResizableHeader
                         id="timeTracker"
-                        label="Time tracker"
+                        label="Total time spent for this task "
                         colWidths={colWidths}
                         handleMouseDown={handleMouseDown}
                         defaultClassName="px-3 py-2 border border-slate-200/70 dark:border-transparent w-32 whitespace-nowrap"
@@ -3736,13 +3705,46 @@ const MyTasksTab = ({
                             {!hiddenColumns.assignedBy && (
                               <td className="px-3 py-2 border border-slate-200/70 dark:border-transparent min-w-[180px] w-52 text-left">
                                 <div className="flex items-center gap-2">
-                                  <div className="flex flex-col">
-                                    <span className="font-extrabold text-[11px] text-slate-800 dark:text-slate-200">
-                                      {task.assignedBy?.name ||
-                                        task.createdBy?.name ||
-                                        "Internal"}
-                                    </span>
-                                  </div>
+                                  {(() => {
+                                    const assignerId =
+                                      typeof task.assignedBy === "object"
+                                        ? task.assignedBy?._id
+                                        : task.assignedBy;
+                                    const assignerUser =
+                                      users.find((u) => u._id === assignerId) ||
+                                      (typeof task.assignedBy === "object"
+                                        ? task.assignedBy
+                                        : null) ||
+                                      task.createdBy;
+                                    const profilePic =
+                                      assignerUser?.profilePic ||
+                                      assignerUser?.profile?.profilePic;
+                                    const name =
+                                      task.assignedBy?.name ||
+                                      task.createdBy?.name ||
+                                      "Internal";
+
+                                    return (
+                                      <>
+                                        {profilePic ? (
+                                          <img
+                                            src={profilePic}
+                                            alt={name}
+                                            className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0 shadow-sm"
+                                          />
+                                        ) : (
+                                          <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0 shadow-sm">
+                                            {name.charAt(0).toUpperCase()}
+                                          </div>
+                                        )}
+                                        <div className="flex flex-col">
+                                          <span className="font-extrabold text-[11px] text-slate-800 dark:text-slate-200">
+                                            {name}
+                                          </span>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               </td>
                             )}

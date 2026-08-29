@@ -2483,17 +2483,17 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
         exit={{ opacity: 0, scale: 0.95 }}
         whileHover={{ y: -2 }}
         key={task._id}
-        className="bg-white dark:bg-slate-800/90 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/80 hover:border-indigo-500 dark:hover:border-indigo-400 transition-all duration-200 shadow-xs hover:shadow-md relative group backdrop-blur-sm flex flex-col gap-2"
+        className="bg-white dark:bg-slate-800/90 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 hover:border-indigo-500 dark:hover:border-indigo-400 transition-all duration-200 shadow-xs hover:shadow-md relative group backdrop-blur-sm flex flex-col gap-1.5"
       >
-        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 via-purple-500 to-pink-500 rounded-l-xl opacity-90 group-hover:opacity-100 transition-opacity" />
+        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 via-purple-500 to-pink-500 rounded-l-xl opacity-80 group-hover:opacity-100 transition-opacity" />
         {/* Title row: icon + name */}
-        <div className="flex items-start gap-1.5 pl-1.5 min-w-0">
+        <div className="flex items-start gap-1.5 pl-1 min-w-0">
           <FiFileText
-            size={13}
-            className="text-indigo-500 dark:text-indigo-400 shrink-0 mt-0.5"
+            size={12}
+            className="text-indigo-500 dark:text-indigo-400 shrink-0 mt-[2px]"
           />
           <p
-            className="text-xs font-bold text-slate-800 dark:text-white leading-snug break-words"
+            className="text-[11.5px] font-bold text-slate-800 dark:text-white leading-tight break-words"
             title={task.title}
           >
             {task.title}
@@ -3311,7 +3311,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
               return (
                 <div
                   key={i}
-                  className={`flex-1 min-w-[280px] shrink-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[600px] shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden`}
+                  className={`flex-1 min-w-[250px] shrink-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[600px] shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden`}
                 >
                   <div
                     className={`p-3 px-3.5 border-b flex flex-col gap-1.5 rounded-t-2xl backdrop-blur-md ${colBg} ${colBorder}`}
@@ -3450,7 +3450,7 @@ const GraphicDesignerDashboard = ({ targetDept = "Graphic Designer" }) => {
             return (
               <div
                 key={i}
-                className={`flex-1 min-w-[280px] shrink-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[600px] shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden`}
+                className={`flex-1 min-w-[250px] shrink-0 ${boardBg} backdrop-blur-md rounded-2xl border ${colBorder} flex flex-col max-h-[600px] shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden`}
               >
                 <div
                   className={`p-3 px-3.5 border-b flex items-center justify-between rounded-t-2xl backdrop-blur-md ${colBg} ${colBorder}`}
